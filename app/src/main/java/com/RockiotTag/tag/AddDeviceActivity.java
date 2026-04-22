@@ -105,6 +105,8 @@ public class AddDeviceActivity extends AppCompatActivity {
         deviceNicknameEdit = findViewById(R.id.device_nickname_edit);
         bindDeviceBtn = findViewById(R.id.bind_device_btn);
 
+        // 优化输入体验：通过TextWatcher处理大写转换，已经有了
+        
         initTagSpinner();
         setupTextWatchers();
         setupButtons();
@@ -175,10 +177,18 @@ public class AddDeviceActivity extends AppCompatActivity {
 
             @Override
             public void afterTextChanged(Editable s) {
-                String deviceNum = s != null ? s.toString().trim() : "";
+                String deviceNum = s != null ? s.toString() : "";
+                String upperDeviceNum = deviceNum.toUpperCase();
+                
+                // 只有当需要转换时才修改输入框内容，避免无限循环
+                if (!deviceNum.equals(upperDeviceNum)) {
+                    s.replace(0, s.length(), upperDeviceNum);
+                    return;
+                }
+                
                 // 去掉冒号后验证长度
-                String cleanDeviceNum = deviceNum.replace(":", "");
-                Log.d(TAG, "Text changed - deviceNum: [" + deviceNum + "], clean: [" + cleanDeviceNum + "], len: " + cleanDeviceNum.length());
+                String cleanDeviceNum = upperDeviceNum.trim().replace(":", "");
+                Log.d(TAG, "Text changed - deviceNum: [" + upperDeviceNum + "], clean: [" + cleanDeviceNum + "], len: " + cleanDeviceNum.length());
                 
                 if (!cleanDeviceNum.isEmpty() && cleanDeviceNum.length() != 12 && cleanDeviceNum.length() != 16) {
                     deviceNumEdit.setError(getString(R.string.device_number_length_error));
@@ -235,6 +245,8 @@ public class AddDeviceActivity extends AppCompatActivity {
         scanQrBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                Log.d(TAG, "Scan QR button clicked!");
+                Toast.makeText(AddDeviceActivity.this, "正在打开扫码器...", Toast.LENGTH_SHORT).show();
                 startQrScan();
             }
         });
