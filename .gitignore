@@ -1,6 +1,5 @@
 # Build output directories
-/build
-/app/build/
+build/
 */build/
 /target/
 /captures
