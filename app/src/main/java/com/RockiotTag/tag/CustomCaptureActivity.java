@@ -2,8 +2,7 @@ package com.RockiotTag.tag;
 
 import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
-import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
@@ -25,6 +24,7 @@ public class CustomCaptureActivity extends CaptureActivity {
     private DecoratedBarcodeView barcodeView;
     private ImageButton flashBtn;
     private boolean isFlashOn = false;
+    private boolean cameraStarted = false;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,10 +58,10 @@ public class CustomCaptureActivity extends CaptureActivity {
         
         // 配置相机设置
         CameraSettings cameraSettings = new CameraSettings();
-        cameraSettings.setRequestedCameraId(0); // 后置摄像头
+        cameraSettings.setRequestedCameraId(0);
         cameraSettings.setAutoTorchEnabled(false);
-        cameraSettings.setContinuousFocusEnabled(true); // 连续自动对焦
-        cameraSettings.setExposureEnabled(true); // 自动曝光
+        cameraSettings.setContinuousFocusEnabled(true);
+        cameraSettings.setExposureEnabled(true);
         barcodeView.getBarcodeView().setCameraSettings(cameraSettings);
         
         // 配置解码提示
@@ -77,6 +77,29 @@ public class CustomCaptureActivity extends CaptureActivity {
         Log.d(TAG, "ZXing configured with TRY_HARDER, continuous focus, exposure enabled");
         
         return barcodeView;
+    }
+    
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        Log.d(TAG, "onWindowFocusChanged: " + hasFocus);
+        
+        if (hasFocus && !cameraStarted && barcodeView != null) {
+            startCamera();
+        }
+    }
+    
+    private void startCamera() {
+        Log.d(TAG, "startCamera called");
+        Log.d(TAG, "barcodeView size: " + barcodeView.getWidth() + "x" + barcodeView.getHeight());
+        
+        if (barcodeView.getWidth() > 0 && barcodeView.getHeight() > 0) {
+            barcodeView.resume();
+            cameraStarted = true;
+            Log.d(TAG, "Camera started successfully");
+        } else {
+            Log.e(TAG, "barcodeView size is still 0!");
+        }
     }
     
     private void toggleFlash() {
@@ -97,15 +120,6 @@ public class CustomCaptureActivity extends CaptureActivity {
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
-        
-        // 等待视图布局完成后再启动相机
-        if (barcodeView != null) {
-            barcodeView.post(() -> {
-                Log.d(TAG, "barcodeView size after layout: " + barcodeView.getWidth() + "x" + barcodeView.getHeight());
-                barcodeView.resume();
-                Log.d(TAG, "barcodeView.resume() called");
-            });
-        }
     }
     
     @Override
