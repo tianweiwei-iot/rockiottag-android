@@ -97,8 +97,14 @@ public class CustomCaptureActivity extends CaptureActivity {
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
+        
+        // 等待视图布局完成后再启动相机
         if (barcodeView != null) {
-            barcodeView.resume();
+            barcodeView.post(() -> {
+                Log.d(TAG, "barcodeView size after layout: " + barcodeView.getWidth() + "x" + barcodeView.getHeight());
+                barcodeView.resume();
+                Log.d(TAG, "barcodeView.resume() called");
+            });
         }
     }
     
