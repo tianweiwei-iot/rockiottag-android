@@ -214,14 +214,8 @@
     <string name="select_map">Select Map</string>
     <string name="amap">AMap</string>
     <string name="google_map">Google Map</string>
-    <string name="google_map_webview">Google Map (Web)</string>
     <string name="switched_to_amap">Switched to AMap</string>
     <string name="switched_to_google_map">Switched to Google Map</string>
-    <string name="switched_to_google_map_webview">Switched to Google Map (Web)</string>
-    <string name="view_database">View Database</string>
-    <string name="database_title">Database Content</string>
-    <string name="devices_table">Devices Table</string>
-    <string name="location_history_table">Location History Table</string>
     <string name="stay_duration">Stay Duration: %s</string>
     <string name="merged_points">Merged Points: %d</string>
     <string name="stay_point">Stay Point</string>

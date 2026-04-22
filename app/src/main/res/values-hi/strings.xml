@@ -214,14 +214,8 @@
     <string name="select_map">मैप चुनें</string>
     <string name="amap">AMap</string>
     <string name="google_map">Google मैप</string>
-    <string name="google_map_webview">Google मैप (वेब)</string>
     <string name="switched_to_amap">AMap पर स्विच किया गया</string>
     <string name="switched_to_google_map">Google मैप पर स्विच किया गया</string>
-    <string name="switched_to_google_map_webview">Google मैप (वेब) पर स्विच किया गया</string>
-    <string name="view_database">डेटाबेस देखें</string>
-    <string name="database_title">डेटाबेस सामग्री</string>
-    <string name="devices_table">डिवाइसेस टेबल</string>
-    <string name="location_history_table">लोकेशन हिस्ट्री टेबल</string>
     <string name="stay_duration">ठहरने की अवधि: %s</string>
     <string name="merged_points">मिलाए गए पॉइंट्स: %d</string>
     <string name="stay_point">ठहराव पॉइंट</string>

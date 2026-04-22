@@ -214,14 +214,8 @@
     <string name="select_map">选择地图</string>
     <string name="amap">高德地图</string>
     <string name="google_map">谷歌地图</string>
-    <string name="google_map_webview">谷歌地图(网页版)</string>
     <string name="switched_to_amap">已切换到高德地图</string>
     <string name="switched_to_google_map">已切换到谷歌地图</string>
-    <string name="switched_to_google_map_webview">已切换到谷歌地图网页版</string>
-    <string name="view_database">查看数据库</string>
-    <string name="database_title">数据库内容</string>
-    <string name="devices_table">设备表</string>
-    <string name="location_history_table">位置历史表</string>
     <string name="stay_duration">停留时长: %s</string>
     <string name="merged_points">合并点数: %d</string>
     <string name="stay_point">停留点</string>

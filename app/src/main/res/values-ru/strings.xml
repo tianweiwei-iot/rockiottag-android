@@ -214,14 +214,8 @@
     <string name="select_map">Выбрать карту</string>
     <string name="amap">AMap</string>
     <string name="google_map">Google Карты</string>
-    <string name="google_map_webview">Google Карты (веб)</string>
     <string name="switched_to_amap">Переключено на AMap</string>
     <string name="switched_to_google_map">Переключено на Google Карты</string>
-    <string name="switched_to_google_map_webview">Переключено на Google Карты (веб)</string>
-    <string name="view_database">Просмотреть базу данных</string>
-    <string name="database_title">Содержимое базы данных</string>
-    <string name="devices_table">Таблица устройств</string>
-    <string name="location_history_table">Таблица истории местоположений</string>
     <string name="stay_duration">Время пребывания: %s</string>
     <string name="merged_points">Объединено точек: %d</string>
     <string name="stay_point">Точка остановки</string>

@@ -566,7 +566,6 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
         menuItems.add(getString(R.string.switch_map));
         menuItems.add(getString(R.string.toggle_dark_mode));
         menuItems.add(getString(R.string.change_language));
-        menuItems.add(getString(R.string.view_database));
 
         new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle(R.string.menu_title)
@@ -589,9 +588,6 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                             case 4:
                                 showLanguageOptions();
                                 break;
-                            case 5:
-                                showDatabaseContent();
-                                break;
                         }
                     }
                 })
@@ -599,68 +595,14 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                 .show();
     }
     
-    private void showDatabaseContent() {
-        StringBuilder content = new StringBuilder();
-        
-        // 获取设备表数据
-        content.append("=== ").append(getString(R.string.devices_table)).append(" ===\n\n");
-        List<Device> devices = databaseHelper.getAllDevices();
-        if (devices.isEmpty()) {
-            content.append("(空)\n\n");
-        } else {
-            for (Device device : devices) {
-                content.append("ID: ").append(device.getDeviceId()).append("\n");
-                if (device.getDeviceNum() != null) {
-                    content.append("编号: ").append(device.getDeviceNum()).append("\n");
-                }
-                content.append("名称: ").append(device.getName()).append("\n");
-                if (device.getTag() != null) {
-                    content.append("标签: ").append(device.getTag()).append("\n");
-                }
-                content.append("位置: ").append(String.format("%.6f", device.getLatitude()))
-                       .append(", ").append(String.format("%.6f", device.getLongitude())).append("\n");
-                content.append("信号: ").append(device.getSignalStrength()).append("dBm\n");
-                content.append("时间: ").append(new java.util.Date(device.getLastSeen())).append("\n");
-                content.append("---\n\n");
-            }
-        }
-        
-        // 创建AlertDialog显示内容
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.database_title)
-                .setMessage(content.toString())
-                .setPositiveButton("确定", null)
-                .setNeutralButton("导出到文件", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        exportDatabaseToFile(content.toString());
-                    }
-                })
-                .show();
-    }
-    
-    private void exportDatabaseToFile(String content) {
-        try {
-            java.io.File file = new java.io.File(getExternalFilesDir(null), "rockiottag_export.txt");
-            java.io.FileWriter writer = new java.io.FileWriter(file);
-            writer.write(content);
-            writer.close();
-            Toast.makeText(this, "已导出到: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
-        } catch (Exception e) {
-            Toast.makeText(this, "导出失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
-    }
-    
     private void showMapSwitchOptions() {
         android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
         String currentMap = prefs.getString("map_provider", "amap");
         
-        String[] mapOptions = {getString(R.string.amap), getString(R.string.google_map), getString(R.string.google_map_webview)};
+        String[] mapOptions = {getString(R.string.amap), getString(R.string.google_map)};
         int checkedItem = 0;
         if (currentMap.equals("google")) {
             checkedItem = 1;
-        } else if (currentMap.equals("google_webview")) {
-            checkedItem = 2;
         }
         
         new androidx.appcompat.app.AlertDialog.Builder(this)
@@ -671,8 +613,6 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                         String newMapProvider = "amap";
                         if (which == 1) {
                             newMapProvider = "google";
-                        } else if (which == 2) {
-                            newMapProvider = "google_webview";
                         }
                         
                         // 如果选择原生谷歌地图，先检查 Google Play Services
@@ -684,27 +624,6 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                                 dialog.dismiss();
                                 return;
                             }
-                        }
-                        
-                        // 如果选择 WebView 版本，直接启动新 Activity
-                        if (which == 2) {
-                            Intent intent = new Intent(MainActivity.this, WebViewMapActivity.class);
-                            
-                            // 使用选中设备的坐标
-                            double lat = 22.543611;
-                            double lng = 113.881944;
-                            if (selectedDevice != null && selectedDevice.getLatitude() != 0 && selectedDevice.getLongitude() != 0) {
-                                lat = selectedDevice.getLatitude();
-                                lng = selectedDevice.getLongitude();
-                            } else if (currentLatitude != 0 && currentLongitude != 0) {
-                                lat = currentLatitude;
-                                lng = currentLongitude;
-                            }
-                            intent.putExtra("lat", lat);
-                            intent.putExtra("lng", lng);
-                            startActivity(intent);
-                            dialog.dismiss();
-                            return;
                         }
                         
                         android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);

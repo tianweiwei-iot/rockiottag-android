@@ -214,14 +214,8 @@
     <string name="select_map">Harita Seç</string>
     <string name="amap">AMap</string>
     <string name="google_map">Google Harita</string>
-    <string name="google_map_webview">Google Harita (Web)</string>
     <string name="switched_to_amap">AMap\'e geçildi</string>
     <string name="switched_to_google_map">Google Harita\'ya geçildi</string>
-    <string name="switched_to_google_map_webview">Google Harita (Web)\'e geçildi</string>
-    <string name="view_database">Veritabanını Görüntüle</string>
-    <string name="database_title">Veritabanı İçeriği</string>
-    <string name="devices_table">Cihazlar Tablosu</string>
-    <string name="location_history_table">Konum Geçmişi Tablosu</string>
     <string name="stay_duration">Kalış Süresi: %s</string>
     <string name="merged_points">Birleştirilen Noktalar: %d</string>
     <string name="stay_point">Duraklama Noktası</string>
