@@ -263,17 +263,17 @@ public class AddDeviceActivity extends AppCompatActivity {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
         } else {
-            Log.d(TAG, "Starting QR scan with ALL_CODE_TYPES...");
+            Log.d(TAG, "Starting QR scan...");
             ScanOptions options = new ScanOptions();
-            options.setPrompt("");
-            options.setBeepEnabled(true);  // 开启提示音，给用户反馈
+            options.setPrompt("扫描设备二维码");
+            options.setBeepEnabled(true);
             options.setOrientationLocked(true);
-            // 支持所有格式，不只是QR_CODE！
-            options.setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES);
+            // 【关键修改】强制只扫描QR_CODE，让扫码器聚焦！
+            options.setDesiredBarcodeFormats(ScanOptions.QR_CODE);
             options.setCameraId(0);
-            options.setBarcodeImageEnabled(true); // 保存图片便于调试
+            options.setBarcodeImageEnabled(false);
             scanLauncher.launch(options);
-            Log.d(TAG, "Scan launcher launched");
+            Log.d(TAG, "Scan launcher launched - QR_CODE only");
         }
     }
 
