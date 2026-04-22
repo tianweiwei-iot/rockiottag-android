@@ -53,16 +53,28 @@ public class AddDeviceActivity extends AppCompatActivity {
         new ScanContract(),
         result -> {
             if (result.getContents() != null) {
-                String contents = result.getContents().trim();
+                String rawContents = result.getContents();
+                String contents = rawContents.trim();
                 
-                // 清理扫码结果：去掉可能的空格、换行符、冒号等
-                contents = contents.replace(" ", "").replace("\n", "").replace("\r", "").replace(":", "");
+                Log.d(TAG, "=== SCAN SUCCESS ===");
+                Log.d(TAG, "Raw scan result: [" + rawContents + "]");
+                Log.d(TAG, "Raw length: " + rawContents.length());
+                Log.d(TAG, "Trimmed length: " + contents.length());
                 
-                Log.d(TAG, "Scan result: [" + result.getContents() + "] -> cleaned: [" + contents + "]");
+                // 只做基础清理，保留原始内容的可见性
+                String cleaned = contents.replace(" ", "").replace("\n", "").replace("\r", "");
                 
+                Log.d(TAG, "Cleaned result: [" + cleaned + "]");
+                Log.d(TAG, "Cleaned length: " + cleaned.length());
+                
+                // 设置原始内容（便于用户看到并修改）
                 deviceNumEdit.setText(contents);
                 deviceNumEdit.setSelection(contents.length());
-                Toast.makeText(this, R.string.got_device_number, Toast.LENGTH_SHORT).show();
+                
+                Toast.makeText(this, "扫码成功: " + cleaned, Toast.LENGTH_SHORT).show();
+                Log.d(TAG, "=== SCAN FINISHED ===");
+            } else {
+                Log.d(TAG, "Scan canceled or failed");
             }
         }
     );
@@ -165,6 +177,8 @@ public class AddDeviceActivity extends AppCompatActivity {
                 String deviceNum = s != null ? s.toString().trim() : "";
                 // 去掉冒号后验证长度
                 String cleanDeviceNum = deviceNum.replace(":", "");
+                Log.d(TAG, "Text changed - deviceNum: [" + deviceNum + "], clean: [" + cleanDeviceNum + "], len: " + cleanDeviceNum.length());
+                
                 if (!cleanDeviceNum.isEmpty() && cleanDeviceNum.length() != 12 && cleanDeviceNum.length() != 16) {
                     deviceNumEdit.setError(getString(R.string.device_number_length_error));
                 } else {
@@ -273,7 +287,7 @@ public class AddDeviceActivity extends AppCompatActivity {
         final String deviceNum;
         if (deviceNumInput.contains(":")) {
             deviceNum = deviceNumInput.replace(":", "").toUpperCase();
-            Log.d("AddDeviceActivity", "MAC address format detected, converted: " + deviceNumInput + " -> " + deviceNum);
+            Log.d(TAG, "MAC address format detected, converted: " + deviceNumInput + " -> " + deviceNum);
         } else {
             deviceNum = deviceNumInput.toUpperCase();
         }
@@ -304,10 +318,10 @@ public class AddDeviceActivity extends AppCompatActivity {
             @Override
             public void run() {
                 try {
-                    Log.d("AddDeviceActivity", "Starting API binding...");
+                    Log.d(TAG, "Starting API binding...");
                     
                     if (!apiService.isAuthenticated()) {
-                        Log.d("AddDeviceActivity", "Not authenticated, logging in...");
+                        Log.d(TAG, "Not authenticated, logging in...");
                         
                         NewApiService.ApiResponse loginResponse = apiService.login(
                             ApiConfig.getCid(),
@@ -316,7 +330,7 @@ public class AddDeviceActivity extends AppCompatActivity {
                         );
                         
                         if (loginResponse == null || !loginResponse.isSuccess()) {
-                            Log.e("AddDeviceActivity", "Login failed");
+                            Log.e(TAG, "Login failed");
                             final String errorMsg = loginResponse != null ? 
                                 (loginResponse.getMessage() != null ? loginResponse.getMessage() : getString(R.string.login_failed)) : 
                                 getString(R.string.cannot_connect_server);
@@ -331,12 +345,12 @@ public class AddDeviceActivity extends AppCompatActivity {
                             return;
                         }
                         
-                        Log.d("AddDeviceActivity", "Login success, userId: " + apiService.getUserId());
+                        Log.d(TAG, "Login success, userId: " + apiService.getUserId());
                     }
                     
-                    Log.d("AddDeviceActivity", "Binding device to server (server will handle vendor API)...");
-                    Log.d("AddDeviceActivity", "Device Num: " + deviceNum);
-                    Log.d("AddDeviceActivity", "Device nickname: " + deviceNickname);
+                    Log.d(TAG, "Binding device to server (server will handle vendor API)...");
+                    Log.d(TAG, "Device Num: " + deviceNum);
+                    Log.d(TAG, "Device nickname: " + deviceNickname);
                     
                     NewApiService.ApiResponse bindResponse = apiService.bindDevice(
                         deviceNum,
@@ -344,10 +358,10 @@ public class AddDeviceActivity extends AppCompatActivity {
                         deviceNickname
                     );
                     
-                    Log.d("AddDeviceActivity", "Bind response: " + (bindResponse != null ? bindResponse.isSuccess() : "null"));
+                    Log.d(TAG, "Bind response: " + (bindResponse != null ? bindResponse.isSuccess() : "null"));
                     
                     if (bindResponse == null) {
-                        Log.e("AddDeviceActivity", "Bind response is null");
+                        Log.e(TAG, "Bind response is null");
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
@@ -360,7 +374,7 @@ public class AddDeviceActivity extends AppCompatActivity {
                     }
                     
                     if (!bindResponse.isSuccess()) {
-                        Log.e("AddDeviceActivity", "Bind failed - message: " + bindResponse.getMessage());
+                        Log.e(TAG, "Bind failed - message: " + bindResponse.getMessage());
                         
                         String message = bindResponse.getMessage();
                         final String errorMsg;
@@ -383,10 +397,10 @@ public class AddDeviceActivity extends AppCompatActivity {
                         return;
                     }
                     
-                    Log.d("AddDeviceActivity", "Bind success! Triggering data sync...");
+                    Log.d(TAG, "Bind success! Triggering data sync...");
                     
                     NewApiService.ApiResponse syncResponse = apiService.syncDevice(deviceNum);
-                    Log.d("AddDeviceActivity", "Sync response: " + (syncResponse != null ? syncResponse.isSuccess() : "null"));
+                    Log.d(TAG, "Sync response: " + (syncResponse != null ? syncResponse.isSuccess() : "null"));
                     
                     runOnUiThread(new Runnable() {
                         @Override
@@ -397,7 +411,7 @@ public class AddDeviceActivity extends AppCompatActivity {
                             databaseHelper.addDevice(newDevice);
                             
                             int deletedCount = databaseHelper.deleteLocationRecordsByDevice(newDevice.getDeviceId());
-                            Log.d("AddDeviceActivity", "Deleted " + deletedCount + " track records for new device");
+                            Log.d(TAG, "Deleted " + deletedCount + " track records for new device");
                             
                             android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
                             android.content.SharedPreferences.Editor editor = prefs.edit();
@@ -421,7 +435,7 @@ public class AddDeviceActivity extends AppCompatActivity {
                         }
                     });
                 } catch (Exception e) {
-                    Log.e("AddDeviceActivity", "Error in bindDevice: " + e.getMessage(), e);
+                    Log.e(TAG, "Error in bindDevice: " + e.getMessage(), e);
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {

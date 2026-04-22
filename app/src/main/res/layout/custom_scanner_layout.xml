@@ -30,10 +30,22 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="将二维码放入框内即可自动扫描"
+            android:text="点击下方闪光灯按钮提高对比度"
             android:textColor="#AAAAAA"
             android:textSize="12sp" />
     </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/flash_btn"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="20dp"
+        android:src="@android:drawable/ic_menu_edit"
+        android:background="#33FFFFFF"
+        android:padding="12dp"
+        android:contentDescription="切换闪光灯" />
 
     <ImageView
         android:id="@+id/close_btn"
