@@ -94,6 +94,9 @@ public class CustomCaptureActivity extends AppCompatActivity {
         closeBtn = findViewById(R.id.close_btn);
         flashBtn = findViewById(R.id.flash_btn);
         
+        Log.d(TAG, "SurfaceView found: " + surfaceView);
+        Log.d(TAG, "SurfaceHolder: " + surfaceView.getHolder());
+        
         closeBtn.setOnClickListener(v -> finish());
         flashBtn.setOnClickListener(v -> toggleFlash());
         
@@ -101,15 +104,19 @@ public class CustomCaptureActivity extends AppCompatActivity {
         
         initZXing();
         
-        surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
+        SurfaceHolder holder = surfaceView.getHolder();
+        holder.setKeepScreenOn(true);
+        holder.addCallback(new SurfaceHolder.Callback() {
             @Override
             public void surfaceCreated(SurfaceHolder holder) {
-                Log.d(TAG, "Surface created");
+                Log.d(TAG, "=== SURFACE CREATED ===");
                 openCamera();
             }
 
             @Override
-            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                Log.d(TAG, "Surface changed: " + width + "x" + height);
+            }
 
             @Override
             public void surfaceDestroyed(SurfaceHolder holder) {
@@ -117,6 +124,7 @@ public class CustomCaptureActivity extends AppCompatActivity {
                 closeCamera();
             }
         });
+        Log.d(TAG, "SurfaceHolder callback added");
     }
     
     private void initZXing() {
