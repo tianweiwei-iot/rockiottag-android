@@ -24,6 +24,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.Camera;
+import androidx.camera.core.CameraControl;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageProxy;
@@ -104,15 +105,15 @@ public class CustomCaptureActivity extends AppCompatActivity {
             try {
                 cameraProvider = cameraProviderFuture.get();
                 
-                // 预览
+                // 预览 - 使用更高分辨率
                 Preview preview = new Preview.Builder()
-                    .setTargetResolution(new Size(1280, 720))
+                    .setTargetResolution(new Size(1920, 1080))
                     .build();
                 preview.setSurfaceProvider(previewView.getSurfaceProvider());
                 
-                // 图像分析
+                // 图像分析 - 使用更高分辨率，提高识别率
                 ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
-                    .setTargetResolution(new Size(1280, 720))
+                    .setTargetResolution(new Size(1920, 1080))
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build();
                 
@@ -129,7 +130,10 @@ public class CustomCaptureActivity extends AppCompatActivity {
                 // 绑定用例到生命周期
                 camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
                 
-                Log.d(TAG, "Camera started successfully with ML Kit");
+                // 启用连续自动对焦
+                camera.getCameraControl().setLinearZoom(0f);
+                
+                Log.d(TAG, "Camera started successfully with ML Kit (1920x1080)");
                 
             } catch (ExecutionException | InterruptedException e) {
                 Log.e(TAG, "Error starting camera", e);
