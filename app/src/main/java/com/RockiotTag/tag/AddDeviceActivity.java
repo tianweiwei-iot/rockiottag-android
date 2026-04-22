@@ -2,9 +2,14 @@ package com.RockiotTag.tag;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -30,23 +35,23 @@ import androidx.core.content.ContextCompat;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.BinaryBitmap;
 import com.google.zxing.DecodeHintType;
+import com.google.zxing.LuminanceSource;
 import com.google.zxing.RGBLuminanceSource;
 import com.google.zxing.Result;
+import com.google.zxing.common.GlobalHistogramBinarizer;
 import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.qrcode.QRCodeReader;
-import com.journeyapps.barcodescanner.ScanContract;
-import com.journeyapps.barcodescanner.ScanOptions;
 
-import java.util.ArrayList;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.EnumMap;
-import java.util.List;
 import java.util.Map;
 
 public class AddDeviceActivity extends AppCompatActivity {
 
     private static final String TAG = "AddDeviceActivity";
     private static final int REQUEST_CAMERA_PERMISSION = 102;
+    private static final int MAX_IMAGE_SIZE = 1024;
 
     private TextView statusText;
     private ImageButton scanQrBtn;
@@ -56,47 +61,30 @@ public class AddDeviceActivity extends AppCompatActivity {
     private Spinner tagSpinner;
     private EditText deviceNicknameEdit;
     private Button bindDeviceBtn;
-    private List<String> tagList;
-    private List<String> iconList;
-    private TagAdapter tagAdapter;
     private String selectedTag = "";
 
     private Handler handler;
     private NewApiService apiService;
     private DatabaseHelper databaseHelper;
 
-    // 相机扫码
-    private final ActivityResultLauncher<ScanOptions> scanLauncher = registerForActivityResult(
-        new ScanContract(),
+    // 自定义相机扫码
+    private final ActivityResultLauncher<Intent> customScanLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
         result -> {
-            Log.d(TAG, "=== SCAN CALLBACK TRIGGERED ===");
-            if (result != null) {
-                Log.d(TAG, "Result not null: " + result.toString());
-                if (result.getContents() != null) {
-                    String rawContents = result.getContents();
-                    String contents = rawContents.trim();
-                    
-                    Log.d(TAG, "=== CAMERA SCAN SUCCESS ===");
-                    Log.d(TAG, "Raw: [" + rawContents + "]");
-                    Log.d(TAG, "Raw length: " + rawContents.length());
-                    Log.d(TAG, "Trimmed: [" + contents + "]");
-                    Log.d(TAG, "Trimmed length: " + contents.length());
-                    
-                    String cleaned = contents.replace(" ", "").replace("\n", "").replace("\r", "");
-                    Log.d(TAG, "Cleaned: [" + cleaned + "]");
-                    Log.d(TAG, "Cleaned length: " + cleaned.length());
-                    
-                    deviceNumEdit.setText(contents);
-                    deviceNumEdit.setSelection(contents.length());
-                    
-                    Toast.makeText(this, "扫码成功: " + cleaned, Toast.LENGTH_SHORT).show();
-                    Log.d(TAG, "=== SCAN FINISHED - text set to edit ===");
+            Log.d(TAG, "=== CUSTOM SCAN CALLBACK ===");
+            if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                String scanResult = result.getData().getStringExtra("SCAN_RESULT");
+                if (scanResult != null && !scanResult.isEmpty()) {
+                    Log.d(TAG, "Scan result: [" + scanResult + "]");
+                    deviceNumEdit.setText(scanResult);
+                    deviceNumEdit.setSelection(scanResult.length());
+                    Toast.makeText(this, "扫码成功: " + scanResult, Toast.LENGTH_SHORT).show();
                 } else {
-                    Log.w(TAG, "Scan result.getContents() is NULL!");
-                    Toast.makeText(this, "未扫描到二维码内容", Toast.LENGTH_SHORT).show();
+                    Log.w(TAG, "Scan result is null or empty");
+                    Toast.makeText(this, "未扫描到内容", Toast.LENGTH_SHORT).show();
                 }
             } else {
-                Log.e(TAG, "Result is NULL! User cancelled or error.");
+                Log.d(TAG, "Scan cancelled");
             }
         }
     );
@@ -105,14 +93,13 @@ public class AddDeviceActivity extends AppCompatActivity {
     private final ActivityResultLauncher<Intent> galleryLauncher = registerForActivityResult(
         new ActivityResultContracts.StartActivityForResult(),
         result -> {
-            Log.d(TAG, "=== GALLERY CALLBACK TRIGGERED ===");
-            Log.d(TAG, "Result code: " + result.getResultCode());
+            Log.d(TAG, "=== GALLERY CALLBACK ===");
             if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
                 Uri imageUri = result.getData().getData();
-                Log.d(TAG, "Selected image URI: " + imageUri);
-                decodeQRCodeFromUri(imageUri);
-            } else {
-                Log.w(TAG, "Gallery cancelled or no data");
+                if (imageUri != null) {
+                    Log.d(TAG, "Selected image: " + imageUri);
+                    decodeQRCodeFromUriOptimized(imageUri);
+                }
             }
         }
     );
@@ -128,12 +115,7 @@ public class AddDeviceActivity extends AppCompatActivity {
         databaseHelper = new DatabaseHelper(this);
 
         ImageButton backBtn = findViewById(R.id.back_btn);
-        backBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                finish();
-            }
-        });
+        backBtn.setOnClickListener(v -> finish());
 
         statusText = findViewById(R.id.status_text);
         scanQrBtn = findViewById(R.id.scan_qr_btn);
@@ -148,57 +130,29 @@ public class AddDeviceActivity extends AppCompatActivity {
         setupTextWatchers();
         setupButtons();
         
-        Log.d(TAG, "AddDeviceActivity onCreate completed");
+        Log.d(TAG, "AddDeviceActivity created");
     }
 
     private void initTagSpinner() {
-        tagList = new ArrayList<>(Arrays.asList(
-            getString(R.string.select_tag),
-            "dog",
-            "boy", 
-            "car",
-            "bike",
-            "bank_card",
-            "girl",
-            "key",
-            "moto",
-            "pig",
-            "wallet",
-            "bag",
-            "cat",
-            "bird"
-        ));
-
-        iconList = new ArrayList<>(Arrays.asList(
-            "",
-            "🐕",
-            "👦",
-            "🚗",
-            "🚴",
-            "💳",
-            "👧",
-            "🔑",
-            "🏍️",
-            "🐷",
-            "👛",
-            "👜",
-            "🐱",
-            "🐦"
-        ));
-
-        tagAdapter = new TagAdapter(this, tagList, iconList);
+        String[] tags = {"dog", "boy", "car", "bike", "bank_card", "girl", "key", "moto", "pig", "wallet", "bag", "cat", "bird"};
+        String[] icons = {"🐕", "👦", "🚗", "🚴", "💳", "👧", "🔑", "🏍️", "🐷", "👛", "👜", "🐱", "🐦"};
+        
+        java.util.ArrayList<String> tagList = new java.util.ArrayList<>();
+        tagList.add(getString(R.string.select_tag));
+        tagList.addAll(java.util.Arrays.asList(tags));
+        
+        java.util.ArrayList<String> iconList = new java.util.ArrayList<>();
+        iconList.add("");
+        iconList.addAll(java.util.Arrays.asList(icons));
+        
+        TagAdapter tagAdapter = new TagAdapter(this, tagList, iconList);
         tagSpinner.setAdapter(tagAdapter);
 
         tagSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (position > 0) {
-                    selectedTag = tagList.get(position);
-                } else {
-                    selectedTag = "";
-                }
+                selectedTag = position > 0 ? tagList.get(position) : "";
             }
-
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
                 selectedTag = "";
@@ -207,207 +161,264 @@ public class AddDeviceActivity extends AppCompatActivity {
     }
 
     private void setupTextWatchers() {
-        TextWatcher deviceNumWatcher = new TextWatcher() {
+        deviceNumEdit.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {}
-
             @Override
             public void afterTextChanged(Editable s) {
-                String deviceNum = s != null ? s.toString() : "";
-                String upperDeviceNum = deviceNum.toUpperCase();
-                
-                if (!deviceNum.equals(upperDeviceNum)) {
-                    s.replace(0, s.length(), upperDeviceNum);
+                String text = s != null ? s.toString() : "";
+                String upper = text.toUpperCase();
+                if (!text.equals(upper)) {
+                    s.replace(0, s.length(), upper);
                     return;
                 }
-                
-                String cleanDeviceNum = upperDeviceNum.trim().replace(":", "");
-                Log.d(TAG, "Text changed: [" + cleanDeviceNum + "], len=" + cleanDeviceNum.length());
-                
-                // 去掉位数限制！只检查是否为空
                 checkInputsAndEnableButton();
             }
-        };
+        });
 
-        TextWatcher nicknameWatcher = new TextWatcher() {
+        deviceNicknameEdit.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {}
-
             @Override
             public void afterTextChanged(Editable s) {
-                String nickname = s != null ? s.toString().trim() : "";
-                if (nickname.isEmpty()) {
-                    deviceNicknameEdit.setError(getString(R.string.please_enter_nickname));
-                } else {
-                    deviceNicknameEdit.setError(null);
-                }
                 checkInputsAndEnableButton();
             }
-        };
-
-        deviceNumEdit.addTextChangedListener(deviceNumWatcher);
-        deviceNicknameEdit.addTextChangedListener(nicknameWatcher);
+        });
     }
 
     private void checkInputsAndEnableButton() {
-        String deviceNum = deviceNumEdit.getText() != null ? deviceNumEdit.getText().toString().trim() : "";
-        String deviceNickname = deviceNicknameEdit.getText() != null ? deviceNicknameEdit.getText().toString().trim() : "";
-
-        String cleanDeviceNum = deviceNum.replace(":", "");
+        String deviceNum = deviceNumEdit.getText().toString().trim().replace(":", "");
+        String nickname = deviceNicknameEdit.getText().toString().trim();
         
-        // 去掉位数限制！只要不为空就允许绑定
-        boolean hasInput = !cleanDeviceNum.isEmpty() && !deviceNickname.isEmpty();
-        
-        bindDeviceBtn.setEnabled(hasInput);
-        if (hasInput) {
-            bindDeviceBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF2196F3));
-        } else {
-            bindDeviceBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF888888));
-        }
+        boolean canBind = !deviceNum.isEmpty() && !nickname.isEmpty();
+        bindDeviceBtn.setEnabled(canBind);
+        bindDeviceBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+            canBind ? 0xFF2196F3 : 0xFF888888));
     }
 
     private void setupButtons() {
-        scanQrBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Log.d(TAG, "scanQrBtn clicked");
-                startCameraScan();
-            }
-        });
-
-        btnCameraScan.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Log.d(TAG, "btnCameraScan clicked");
-                startCameraScan();
-            }
-        });
-
-        btnGalleryScan.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Log.d(TAG, "btnGalleryScan clicked");
-                startGallerySelect();
-            }
-        });
-
-        bindDeviceBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Log.d(TAG, "bindDeviceBtn clicked");
-                bindDevice();
-            }
-        });
+        scanQrBtn.setOnClickListener(v -> startCustomScan());
+        btnCameraScan.setOnClickListener(v -> startCustomScan());
+        btnGalleryScan.setOnClickListener(v -> startGallerySelect());
+        bindDeviceBtn.setOnClickListener(v -> bindDevice());
     }
 
-    private void startCameraScan() {
-        Log.d(TAG, "startCameraScan() called");
+    private void startCustomScan() {
+        Log.d(TAG, "Starting custom scan...");
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
         } else {
-            Log.d(TAG, "Launching QR_CODE scan...");
-            ScanOptions options = new ScanOptions();
-            options.setPrompt("扫描设备二维码");
-            options.setBeepEnabled(true);
-            options.setOrientationLocked(true);
-            options.setDesiredBarcodeFormats(ScanOptions.QR_CODE);
-            options.setCameraId(0);
-            options.setBarcodeImageEnabled(false);
-            scanLauncher.launch(options);
-            Log.d(TAG, "scanLauncher.launch() called");
+            Intent intent = new Intent(this, CustomCaptureActivity.class);
+            customScanLauncher.launch(intent);
         }
     }
 
     private void startGallerySelect() {
-        Log.d(TAG, "startGallerySelect() called");
+        Log.d(TAG, "Starting gallery select...");
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         intent.setType("image/*");
         galleryLauncher.launch(intent);
-        Log.d(TAG, "galleryLauncher.launch() called");
     }
 
-    private void decodeQRCodeFromUri(Uri imageUri) {
-        Log.d(TAG, "decodeQRCodeFromUri() called with URI: " + imageUri);
+    // 三、相册图片识别优化
+    private void decodeQRCodeFromUriOptimized(Uri imageUri) {
+        Log.d(TAG, "=== DECODE FROM GALLERY (OPTIMIZED) ===");
+        new Thread(() -> {
+            try {
+                InputStream inputStream = getContentResolver().openInputStream(imageUri);
+                if (inputStream == null) {
+                    runOnUiThread(() -> Toast.makeText(this, "无法读取图片", Toast.LENGTH_SHORT).show());
+                    return;
+                }
+
+                // 3.1 处理图片方向（EXIF旋转）
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inJustDecodeBounds = true;
+                BitmapFactory.decodeStream(inputStream, null, options);
+                inputStream.close();
+
+                // 3.3 缩小图片尺寸，避免OOM
+                int width = options.outWidth;
+                int height = options.outHeight;
+                int sampleSize = 1;
+                while (width > MAX_IMAGE_SIZE || height > MAX_IMAGE_SIZE) {
+                    sampleSize *= 2;
+                    width /= 2;
+                    height /= 2;
+                }
+                Log.d(TAG, "Sample size: " + sampleSize + ", target: " + width + "x" + height);
+
+                options.inJustDecodeBounds = false;
+                options.inSampleSize = sampleSize;
+
+                inputStream = getContentResolver().openInputStream(imageUri);
+                Bitmap bitmap = BitmapFactory.decodeStream(inputStream, null, options);
+                inputStream.close();
+
+                if (bitmap == null) {
+                    runOnUiThread(() -> Toast.makeText(this, "无法解码图片", Toast.LENGTH_SHORT).show());
+                    return;
+                }
+
+                Log.d(TAG, "Bitmap loaded: " + bitmap.getWidth() + "x" + bitmap.getHeight());
+
+                // 3.1 处理EXIF旋转
+                bitmap = rotateImageIfRequired(this, bitmap, imageUri);
+                Log.d(TAG, "After rotation: " + bitmap.getWidth() + "x" + bitmap.getHeight());
+
+                // 3.2 图片对比度增强预处理
+                bitmap = enhanceContrast(bitmap);
+                Log.d(TAG, "After contrast enhancement");
+
+                // 解码
+                Result result = decodeBitmapOptimized(bitmap);
+                
+                if (result != null) {
+                    String content = result.getText();
+                    Log.d(TAG, "=== GALLERY DECODE SUCCESS ===");
+                    Log.d(TAG, "Content: [" + content + "]");
+                    
+                    runOnUiThread(() -> {
+                        deviceNumEdit.setText(content);
+                        deviceNumEdit.setSelection(content.length());
+                        Toast.makeText(this, "识别成功: " + content, Toast.LENGTH_SHORT).show();
+                    });
+                } else {
+                    runOnUiThread(() -> Toast.makeText(this, "无法识别二维码，请尝试其他图片", Toast.LENGTH_SHORT).show());
+                }
+                
+                bitmap.recycle();
+                
+            } catch (Exception e) {
+                Log.e(TAG, "Gallery decode error", e);
+                runOnUiThread(() -> Toast.makeText(this, "识别失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            }
+        }).start();
+    }
+
+    // 3.1 处理EXIF旋转
+    private Bitmap rotateImageIfRequired(Context context, Bitmap bitmap, Uri uri) {
         try {
-            Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
-            Log.d(TAG, "Bitmap loaded: " + bitmap.getWidth() + "x" + bitmap.getHeight());
+            InputStream inputStream = context.getContentResolver().openInputStream(uri);
+            if (inputStream == null) return bitmap;
             
-            int[] intArray = new int[bitmap.getWidth() * bitmap.getHeight()];
-            bitmap.getPixels(intArray, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
-            RGBLuminanceSource source = new RGBLuminanceSource(bitmap.getWidth(), bitmap.getHeight(), intArray);
-            BinaryBitmap binaryBitmap = new BinaryBitmap(new HybridBinarizer(source));
-
-            Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
-            hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
-
-            QRCodeReader reader = new QRCodeReader();
-            Result result = reader.decode(binaryBitmap, hints);
+            ExifInterface exif = new ExifInterface(inputStream);
+            int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+            inputStream.close();
             
-            String rawContents = result.getText();
-            Log.d(TAG, "=== GALLERY DECODE SUCCESS ===");
-            Log.d(TAG, "Raw: [" + rawContents + "]");
-            Log.d(TAG, "Length: " + rawContents.length());
+            int rotation = 0;
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_90: rotation = 90; break;
+                case ExifInterface.ORIENTATION_ROTATE_180: rotation = 180; break;
+                case ExifInterface.ORIENTATION_ROTATE_270: rotation = 270; break;
+                default: return bitmap;
+            }
             
-            String contents = rawContents.trim();
-            String cleaned = contents.replace(" ", "").replace("\n", "").replace("\r", "");
-            
-            Log.d(TAG, "Cleaned: [" + cleaned + "], len=" + cleaned.length());
-            
-            deviceNumEdit.setText(contents);
-            deviceNumEdit.setSelection(contents.length());
-            
-            Toast.makeText(this, "识别成功: " + cleaned, Toast.LENGTH_SHORT).show();
-            
+            Matrix matrix = new Matrix();
+            matrix.postRotate(rotation);
+            Bitmap rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
             bitmap.recycle();
+            return rotated;
+            
         } catch (Exception e) {
-            Log.e(TAG, "Decode from gallery FAILED!", e);
-            e.printStackTrace();
-            Toast.makeText(this, "无法识别: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Log.e(TAG, "Error rotating image", e);
+            return bitmap;
         }
+    }
+
+    // 3.2 对比度增强
+    private Bitmap enhanceContrast(Bitmap bitmap) {
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        int[] pixels = new int[width * height];
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
+
+        // 增强对比度
+        float contrast = 1.5f;
+        for (int i = 0; i < pixels.length; i++) {
+            int r = Color.red(pixels[i]);
+            int g = Color.green(pixels[i]);
+            int b = Color.blue(pixels[i]);
+            
+            // 应用对比度增强
+            r = clamp((int)((r - 128) * contrast + 128));
+            g = clamp((int)((g - 128) * contrast + 128));
+            b = clamp((int)((b - 128) * contrast + 128));
+            
+            pixels[i] = Color.rgb(r, g, b);
+        }
+
+        Bitmap enhanced = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        enhanced.setPixels(pixels, 0, width, 0, 0, width, height);
+        return enhanced;
+    }
+
+    private int clamp(int value) {
+        return Math.max(0, Math.min(255, value));
+    }
+
+    // 优化的解码方法
+    private Result decodeBitmapOptimized(Bitmap bitmap) {
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        int[] pixels = new int[width * height];
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
+
+        RGBLuminanceSource source = new RGBLuminanceSource(width, height, pixels);
+
+        // 解码提示
+        Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
+        hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
+        hints.put(DecodeHintType.POSSIBLE_FORMATS, Arrays.asList(BarcodeFormat.QR_CODE));
+
+        QRCodeReader reader = new QRCodeReader();
+
+        // 尝试GlobalHistogramBinarizer（更适合低对比度）
+        try {
+            BinaryBitmap binaryBitmap = new BinaryBitmap(new GlobalHistogramBinarizer(source));
+            Result result = reader.decode(binaryBitmap, hints);
+            if (result != null) return result;
+        } catch (Exception e) {
+            Log.d(TAG, "GlobalHistogramBinarizer failed");
+        }
+
+        // 尝试HybridBinarizer
+        try {
+            reader.reset();
+            BinaryBitmap binaryBitmap = new BinaryBitmap(new HybridBinarizer(source));
+            return reader.decode(binaryBitmap, hints);
+        } catch (Exception e) {
+            Log.d(TAG, "HybridBinarizer failed");
+        }
+
+        return null;
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_CAMERA_PERMISSION) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startCameraScan();
-            } else {
-                Toast.makeText(this, R.string.need_camera_permission, Toast.LENGTH_SHORT).show();
-            }
+        if (requestCode == REQUEST_CAMERA_PERMISSION && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startCustomScan();
         }
     }
 
     private void bindDevice() {
-        String deviceNumInput = deviceNumEdit.getText() != null ? deviceNumEdit.getText().toString().trim() : "";
-        final String deviceNickname = deviceNicknameEdit.getText() != null ? deviceNicknameEdit.getText().toString().trim() : "";
-
-        Log.d(TAG, "bindDevice() called - input: [" + deviceNumInput + "], nickname: [" + deviceNickname + "]");
+        String deviceNumInput = deviceNumEdit.getText().toString().trim();
+        String nickname = deviceNicknameEdit.getText().toString().trim();
 
         if (deviceNumInput.isEmpty()) {
             Toast.makeText(this, R.string.please_enter_device_number, Toast.LENGTH_SHORT).show();
             return;
         }
 
-        final String deviceNum;
-        if (deviceNumInput.contains(":")) {
-            deviceNum = deviceNumInput.replace(":", "").toUpperCase();
-            Log.d(TAG, "MAC converted: " + deviceNumInput + " -> " + deviceNum);
-        } else {
-            deviceNum = deviceNumInput.toUpperCase();
-        }
+        final String deviceNum = deviceNumInput.contains(":") ? 
+            deviceNumInput.replace(":", "").toUpperCase() : deviceNumInput.toUpperCase();
 
-        Log.d(TAG, "Final deviceNum: [" + deviceNum + "], len=" + deviceNum.length());
-
-        // 去掉位数限制！任何非空字符串都允许绑定
-        
-        if (deviceNickname.isEmpty()) {
+        if (nickname.isEmpty()) {
             Toast.makeText(this, R.string.please_enter_nickname, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -419,139 +430,54 @@ public class AddDeviceActivity extends AppCompatActivity {
             return;
         }
 
-        statusText.setText(getString(R.string.binding_device));
+        statusText.setText(R.string.binding_device);
         bindDeviceBtn.setEnabled(false);
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Log.d(TAG, "Starting API binding...");
-                    
-                    if (!apiService.isAuthenticated()) {
-                        Log.d(TAG, "Not authenticated, logging in...");
-                        
-                        NewApiService.ApiResponse loginResponse = apiService.login(
-                            ApiConfig.getCid(),
-                            ApiConfig.getCustomerCode(),
-                            ApiConfig.getPassword()
-                        );
-                        
-                        if (loginResponse == null || !loginResponse.isSuccess()) {
-                            Log.e(TAG, "Login failed");
-                            final String errorMsg = loginResponse != null ? 
-                                (loginResponse.getMessage() != null ? loginResponse.getMessage() : getString(R.string.login_failed)) : 
-                                getString(R.string.cannot_connect_server);
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    statusText.setText(getString(R.string.login_failed_with_error, errorMsg));
-                                    Toast.makeText(AddDeviceActivity.this, getString(R.string.login_failed_with_error, errorMsg), Toast.LENGTH_SHORT).show();
-                                    bindDeviceBtn.setEnabled(true);
-                                }
-                            });
-                            return;
-                        }
-                        
-                        Log.d(TAG, "Login success, userId: " + apiService.getUserId());
-                    }
-                    
-                    Log.d(TAG, "Binding device to server...");
-                    Log.d(TAG, "Device Num: " + deviceNum);
-                    
-                    NewApiService.ApiResponse bindResponse = apiService.bindDevice(
-                        deviceNum,
-                        null,
-                        deviceNickname
-                    );
-                    
-                    Log.d(TAG, "Bind response: " + (bindResponse != null ? bindResponse.isSuccess() : "null"));
-                    
-                    if (bindResponse == null) {
-                        Log.e(TAG, "Bind response is null");
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                statusText.setText(getString(R.string.api_bind_failed));
-                                Toast.makeText(AddDeviceActivity.this, R.string.api_bind_failed_network, Toast.LENGTH_SHORT).show();
-                                bindDeviceBtn.setEnabled(true);
-                            }
-                        });
-                        return;
-                    }
-                    
-                    if (!bindResponse.isSuccess()) {
-                        Log.e(TAG, "Bind failed - message: " + bindResponse.getMessage());
-                        
-                        String message = bindResponse.getMessage();
-                        final String errorMsg;
-                        if (message != null && message.contains("尚未在服务器上注册")) {
-                            errorMsg = getString(R.string.device_not_activated);
-                        } else if (message != null && message.contains("设备已绑定")) {
-                            errorMsg = getString(R.string.device_already_bound);
-                        } else {
-                            errorMsg = message != null ? message : getString(R.string.bind_failed);
-                        }
-                        
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                statusText.setText(errorMsg);
-                                Toast.makeText(AddDeviceActivity.this, errorMsg, Toast.LENGTH_LONG).show();
-                                bindDeviceBtn.setEnabled(true);
-                            }
-                        });
-                        return;
-                    }
-                    
-                    Log.d(TAG, "Bind success! Triggering data sync...");
-                    
-                    NewApiService.ApiResponse syncResponse = apiService.syncDevice(deviceNum);
-                    Log.d(TAG, "Sync response: " + (syncResponse != null ? syncResponse.isSuccess() : "null"));
-                    
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            Device newDevice = new Device(deviceNum, deviceNickname);
-                            newDevice.setDeviceNum(deviceNum);
-                            newDevice.setTag(selectedTag);
-                            databaseHelper.addDevice(newDevice);
-                            
-                            int deletedCount = databaseHelper.deleteLocationRecordsByDevice(newDevice.getDeviceId());
-                            Log.d(TAG, "Deleted " + deletedCount + " track records for new device");
-                            
-                            android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-                            android.content.SharedPreferences.Editor editor = prefs.edit();
-                            editor.putString("selected_device_id", newDevice.getDeviceId());
-                            editor.apply();
-                            
-                            if (syncResponse != null && syncResponse.isSuccess()) {
-                                statusText.setText(getString(R.string.device_bind_success_synced));
-                                Toast.makeText(AddDeviceActivity.this, R.string.device_bind_success_synced, Toast.LENGTH_SHORT).show();
-                            } else {
-                                statusText.setText(getString(R.string.device_bind_success));
-                                Toast.makeText(AddDeviceActivity.this, R.string.device_bind_success, Toast.LENGTH_SHORT).show();
-                            }
-                            
-                            handler.postDelayed(new Runnable() {
-                                @Override
-                                public void run() {
-                                    finish();
-                                }
-                            }, 1500);
-                        }
-                    });
-                } catch (Exception e) {
-                    Log.e(TAG, "Error in bindDevice: " + e.getMessage(), e);
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            statusText.setText(getString(R.string.bind_failed_with_error, e.getMessage()));
-                            Toast.makeText(AddDeviceActivity.this, getString(R.string.bind_failed_with_error, e.getMessage()), Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                if (!apiService.isAuthenticated()) {
+                    NewApiService.ApiResponse loginResponse = apiService.login(
+                        ApiConfig.getCid(), ApiConfig.getCustomerCode(), ApiConfig.getPassword());
+                    if (loginResponse == null || !loginResponse.isSuccess()) {
+                        runOnUiThread(() -> {
+                            statusText.setText(R.string.login_failed);
                             bindDeviceBtn.setEnabled(true);
-                        }
-                    });
+                        });
+                        return;
+                    }
                 }
+
+                NewApiService.ApiResponse bindResponse = apiService.bindDevice(deviceNum, null, nickname);
+                
+                if (bindResponse == null || !bindResponse.isSuccess()) {
+                    String msg = bindResponse != null ? bindResponse.getMessage() : getString(R.string.bind_failed);
+                    runOnUiThread(() -> {
+                        statusText.setText(msg);
+                        Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+                        bindDeviceBtn.setEnabled(true);
+                    });
+                    return;
+                }
+
+                apiService.syncDevice(deviceNum);
+
+                runOnUiThread(() -> {
+                    Device newDevice = new Device(deviceNum, nickname);
+                    newDevice.setTag(selectedTag);
+                    databaseHelper.addDevice(newDevice);
+                    
+                    getSharedPreferences("app_settings", MODE_PRIVATE)
+                        .edit().putString("selected_device_id", newDevice.getDeviceId()).apply();
+                    
+                    Toast.makeText(this, R.string.device_bind_success, Toast.LENGTH_SHORT).show();
+                    handler.postDelayed(() -> finish(), 1500);
+                });
+                
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    statusText.setText(getString(R.string.bind_failed_with_error, e.getMessage()));
+                    bindDeviceBtn.setEnabled(true);
+                });
             }
         }).start();
     }
@@ -559,8 +485,6 @@ public class AddDeviceActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (handler != null) {
-            handler.removeCallbacksAndMessages(null);
-        }
+        if (handler != null) handler.removeCallbacksAndMessages(null);
     }
 }

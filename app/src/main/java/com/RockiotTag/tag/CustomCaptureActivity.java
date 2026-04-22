@@ -1,139 +1,464 @@
 package com.RockiotTag.tag;
 
+import android.Manifest;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Color;
+import android.graphics.ImageFormat;
+import android.graphics.Matrix;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCaptureSession;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraDevice;
+import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.params.MeteringRectangle;
+import android.media.Image;
+import android.media.ImageReader;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.util.Log;
+import android.util.Size;
+import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.View;
-import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.BinaryBitmap;
 import com.google.zxing.DecodeHintType;
-import com.google.zxing.EncodeHintType;
-import com.google.zxing.RGBLuminanceSource;
-import com.google.zxing.ReaderException;
+import com.google.zxing.LuminanceSource;
+import com.google.zxing.PlanarYUVLuminanceSource;
 import com.google.zxing.Result;
-import com.google.zxing.common.BitMatrix;
+import com.google.zxing.common.GlobalHistogramBinarizer;
 import com.google.zxing.common.HybridBinarizer;
-import com.google.zxing.multi.qrcode.QRCodeMultiReader;
+import com.google.zxing.multi.GenericMultipleBarcodeReader;
+import com.google.zxing.multi.MultipleBarcodeReader;
 import com.google.zxing.qrcode.QRCodeReader;
-import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
-import com.journeyapps.barcodescanner.CaptureActivity;
-import com.journeyapps.barcodescanner.DecoratedBarcodeView;
-import com.journeyapps.barcodescanner.DefaultDecoderFactory;
+import com.journeyapps.barcodescanner.camera.CameraSettings;
 
-import java.util.ArrayList;
-import java.util.Collections;
+import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class CustomCaptureActivity extends CaptureActivity {
-    
+public class CustomCaptureActivity extends AppCompatActivity {
+
     private static final String TAG = "CustomCapture";
-    private DecoratedBarcodeView barcodeView;
-    private ImageButton flashButton;
-    private boolean isFlashOn = false;
     
+    private SurfaceView surfaceView;
+    private ImageButton closeBtn;
+    private ImageButton flashBtn;
+    
+    private CameraDevice cameraDevice;
+    private CameraCaptureSession captureSession;
+    private ImageReader imageReader;
+    private HandlerThread backgroundThread;
+    private Handler backgroundHandler;
+    
+    private CameraManager cameraManager;
+    private String cameraId;
+    private Size previewSize;
+    
+    private boolean isFlashOn = false;
+    private boolean isScanning = false;
+    
+    private QRCodeReader qrCodeReader;
+    private Map<DecodeHintType, Object> decodeHints;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "CustomCaptureActivity.onCreate()");
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        setContentView(R.layout.activity_custom_capture);
         
-        ImageButton closeBtn = findViewById(R.id.close_btn);
-        if (closeBtn != null) {
-            closeBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    Log.d(TAG, "Close button clicked");
-                    finish();
-                }
-            });
+        Log.d(TAG, "CustomCaptureActivity onCreate");
+        
+        surfaceView = findViewById(R.id.preview_surface);
+        closeBtn = findViewById(R.id.close_btn);
+        flashBtn = findViewById(R.id.flash_btn);
+        
+        closeBtn.setOnClickListener(v -> finish());
+        flashBtn.setOnClickListener(v -> toggleFlash());
+        
+        cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        
+        initZXing();
+        
+        surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder) {
+                Log.d(TAG, "Surface created");
+                openCamera();
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder holder) {
+                Log.d(TAG, "Surface destroyed");
+                closeCamera();
+            }
+        });
+    }
+    
+    private void initZXing() {
+        qrCodeReader = new QRCodeReader();
+        decodeHints = new EnumMap<>(DecodeHintType.class);
+        
+        // 1. 开启TRY_HARDER模式
+        decodeHints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
+        
+        // 2. 只识别QR_CODE
+        decodeHints.put(DecodeHintType.POSSIBLE_FORMATS, Arrays.asList(BarcodeFormat.QR_CODE));
+        
+        // 3. 设置字符集
+        decodeHints.put(DecodeHintType.CHARACTER_SET, "UTF-8");
+        
+        // 4. 纯净条码模式（提高识别率）
+        decodeHints.put(DecodeHintType.PURE_BARCODE, Boolean.TRUE);
+        
+        Log.d(TAG, "ZXing initialized with TRY_HARDER mode");
+    }
+    
+    private void openCamera() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            finish();
+            return;
         }
         
-        flashButton = findViewById(R.id.flash_btn);
-        if (flashButton != null) {
-            flashButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    toggleFlash();
+        startBackgroundThread();
+        
+        try {
+            // 选择后置摄像头
+            for (String id : cameraManager.getCameraIdList()) {
+                CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(id);
+                Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+                if (facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
+                    cameraId = id;
+                    
+                    // 获取预览尺寸
+                    Size[] sizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                            .getOutputSizes(ImageFormat.YUV_420_888);
+                    if (sizes != null && sizes.length > 0) {
+                        previewSize = sizes[0];
+                        for (Size size : sizes) {
+                            if (size.getWidth() >= 640 && size.getWidth() <= 1920) {
+                                previewSize = size;
+                                break;
+                            }
+                        }
+                    }
+                    break;
                 }
-            });
+            }
+            
+            if (cameraId == null) {
+                Toast.makeText(this, "未找到后置摄像头", Toast.LENGTH_SHORT).show();
+                finish();
+                return;
+            }
+            
+            Log.d(TAG, "Opening camera: " + cameraId + ", previewSize: " + previewSize);
+            
+            // 创建ImageReader
+            if (previewSize != null) {
+                imageReader = ImageReader.newInstance(
+                    previewSize.getWidth(), 
+                    previewSize.getHeight(), 
+                    ImageFormat.YUV_420_888, 
+                    2
+                );
+                imageReader.setOnImageAvailableListener(onImageAvailableListener, backgroundHandler);
+            }
+            
+            cameraManager.openCamera(cameraId, stateCallback, backgroundHandler);
+            
+        } catch (CameraAccessException e) {
+            Log.e(TAG, "Camera access error", e);
+            Toast.makeText(this, "无法访问相机: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            finish();
         }
     }
     
-    private void toggleFlash() {
-        Log.d(TAG, "toggleFlash() called");
-        if (barcodeView != null) {
-            isFlashOn = !isFlashOn;
+    private final CameraDevice.StateCallback stateCallback = new CameraDevice.StateCallback() {
+        @Override
+        public void onOpened(@NonNull CameraDevice camera) {
+            Log.d(TAG, "Camera opened");
+            cameraDevice = camera;
+            createCaptureSession();
+        }
+
+        @Override
+        public void onDisconnected(@NonNull CameraDevice camera) {
+            Log.d(TAG, "Camera disconnected");
+            camera.close();
+            cameraDevice = null;
+        }
+
+        @Override
+        public void onError(@NonNull CameraDevice camera, int error) {
+            Log.e(TAG, "Camera error: " + error);
+            camera.close();
+            cameraDevice = null;
+            finish();
+        }
+    };
+    
+    private void createCaptureSession() {
+        if (cameraDevice == null || surfaceView.getHolder().getSurface() == null) {
+            return;
+        }
+        
+        try {
+            List<Surface> surfaces = Arrays.asList(
+                surfaceView.getHolder().getSurface(),
+                imageReader.getSurface()
+            );
+            
+            cameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
+                @Override
+                public void onConfigured(@NonNull CameraCaptureSession session) {
+                    Log.d(TAG, "Capture session configured");
+                    captureSession = session;
+                    startPreview();
+                }
+
+                @Override
+                public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                    Log.e(TAG, "Capture session configure failed");
+                    finish();
+                }
+            }, backgroundHandler);
+            
+        } catch (CameraAccessException e) {
+            Log.e(TAG, "Failed to create capture session", e);
+        }
+    }
+    
+    private void startPreview() {
+        if (cameraDevice == null || captureSession == null) {
+            return;
+        }
+        
+        try {
+            CaptureRequest.Builder builder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+            builder.addTarget(surfaceView.getHolder().getSurface());
+            builder.addTarget(imageReader.getSurface());
+            
+            // 2.1 强制开启连续自动对焦
+            builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+            
+            // 2.2 调整曝光补偿，避免过曝
+            builder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, -1);
+            
+            // 自动曝光
+            builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
+            
+            // 自动白平衡
+            builder.set(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO);
+            
+            // 如果闪光灯开启
             if (isFlashOn) {
-                barcodeView.setTorchOn();
-                Log.d(TAG, "Flash turned ON");
-                Toast.makeText(this, "闪光灯已开启", Toast.LENGTH_SHORT).show();
-            } else {
-                barcodeView.setTorchOff();
-                Log.d(TAG, "Flash turned OFF");
-                Toast.makeText(this, "闪光灯已关闭", Toast.LENGTH_SHORT).show();
+                builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH);
+            }
+            
+            captureSession.setRepeatingRequest(builder.build(), null, backgroundHandler);
+            Log.d(TAG, "Preview started with CONTINUOUS_AF and exposure compensation");
+            
+        } catch (CameraAccessException e) {
+            Log.e(TAG, "Failed to start preview", e);
+        }
+    }
+    
+    private final ImageReader.OnImageAvailableListener onImageAvailableListener = reader -> {
+        if (isScanning) {
+            return;
+        }
+        
+        Image image = reader.acquireLatestImage();
+        if (image == null) {
+            return;
+        }
+        
+        isScanning = true;
+        
+        try {
+            // 获取YUV数据
+            Image.Plane[] planes = image.getPlanes();
+            ByteBuffer yBuffer = planes[0].getBuffer();
+            ByteBuffer uBuffer = planes[1].getBuffer();
+            ByteBuffer vBuffer = planes[2].getBuffer();
+            
+            int ySize = yBuffer.remaining();
+            int uSize = uBuffer.remaining();
+            int vSize = vBuffer.remaining();
+            
+            byte[] nv21 = new byte[ySize + uSize + vSize];
+            
+            yBuffer.get(nv21, 0, ySize);
+            vBuffer.get(nv21, ySize, vSize);
+            uBuffer.get(nv21, ySize + vSize, uSize);
+            
+            int width = image.getWidth();
+            int height = image.getHeight();
+            
+            // 2.3 裁剪预览区域，只解码中心区域
+            int cropSize = Math.min(width, height) * 3 / 4;
+            int left = (width - cropSize) / 2;
+            int top = (height - cropSize) / 2;
+            
+            // 解码
+            Result result = decodeFromYUV(nv21, width, height, left, top, cropSize, cropSize);
+            
+            if (result != null) {
+                Log.d(TAG, "=== QR CODE FOUND ===");
+                Log.d(TAG, "Content: " + result.getText());
+                
+                runOnUiThread(() -> {
+                    Intent intent = new Intent();
+                    intent.putExtra("SCAN_RESULT", result.getText());
+                    setResult(RESULT_OK, intent);
+                    finish();
+                });
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error processing image", e);
+        } finally {
+            image.close();
+            isScanning = false;
+        }
+    };
+    
+    private Result decodeFromYUV(byte[] nv21, int width, int height, int left, int top, int cropWidth, int cropHeight) {
+        try {
+            // 创建LuminanceSource
+            PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(
+                nv21, width, height, left, top, cropWidth, cropHeight, false
+            );
+            
+            // 1.2 更换更鲁棒的二值化算法 - 使用GlobalHistogramBinarizer（更适合低对比度）
+            BinaryBitmap binaryBitmap = new BinaryBitmap(new GlobalHistogramBinarizer(source));
+            
+            // 尝试解码
+            try {
+                Result result = qrCodeReader.decode(binaryBitmap, decodeHints);
+                if (result != null) {
+                    return result;
+                }
+            } catch (Exception e) {
+                Log.d(TAG, "GlobalHistogramBinarizer failed, trying HybridBinarizer");
+            }
+            
+            // 如果GlobalHistogramBinarizer失败，尝试HybridBinarizer
+            binaryBitmap = new BinaryBitmap(new HybridBinarizer(source));
+            try {
+                return qrCodeReader.decode(binaryBitmap, decodeHints);
+            } catch (Exception e) {
+                Log.d(TAG, "HybridBinarizer also failed");
+            }
+            
+            // 重置reader
+            qrCodeReader.reset();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "decodeFromYUV error", e);
+        }
+        
+        return null;
+    }
+    
+    private void toggleFlash() {
+        isFlashOn = !isFlashOn;
+        
+        if (flashBtn != null) {
+            flashBtn.setImageResource(isFlashOn ? 
+                android.R.drawable.ic_menu_camera : 
+                android.R.drawable.ic_menu_edit);
+        }
+        
+        // 重新启动预览以应用闪光灯设置
+        if (captureSession != null) {
+            startPreview();
+        }
+        
+        Toast.makeText(this, isFlashOn ? "闪光灯已开启" : "闪光灯已关闭", Toast.LENGTH_SHORT).show();
+        Log.d(TAG, "Flash: " + (isFlashOn ? "ON" : "OFF"));
+    }
+    
+    private void startBackgroundThread() {
+        backgroundThread = new HandlerThread("CameraBackground");
+        backgroundThread.start();
+        backgroundHandler = new Handler(backgroundThread.getLooper());
+    }
+    
+    private void stopBackgroundThread() {
+        if (backgroundThread != null) {
+            backgroundThread.quitSafely();
+            try {
+                backgroundThread.join();
+                backgroundThread = null;
+                backgroundHandler = null;
+            } catch (InterruptedException e) {
+                Log.e(TAG, "Error stopping background thread", e);
             }
         }
     }
     
-    @Override
-    protected DecoratedBarcodeView initializeContent() {
-        setContentView(R.layout.custom_scanner_layout);
-        Log.d(TAG, "ContentView set");
+    private void closeCamera() {
+        if (captureSession != null) {
+            captureSession.close();
+            captureSession = null;
+        }
         
-        barcodeView = findViewById(R.id.zxing_barcode_scanner);
-        Log.d(TAG, "BarcodeView found");
+        if (cameraDevice != null) {
+            cameraDevice.close();
+            cameraDevice = null;
+        }
         
-        // 支持所有二维码/条形码格式，不要限制太多！
-        List<BarcodeFormat> allFormats = new ArrayList<>();
-        allFormats.add(BarcodeFormat.QR_CODE);
-        allFormats.add(BarcodeFormat.CODE_128);
-        allFormats.add(BarcodeFormat.CODE_39);
-        allFormats.add(BarcodeFormat.EAN_13);
-        allFormats.add(BarcodeFormat.EAN_8);
-        allFormats.add(BarcodeFormat.UPC_A);
-        allFormats.add(BarcodeFormat.DATA_MATRIX);
-        allFormats.add(BarcodeFormat.AZTEC);
-        allFormats.add(BarcodeFormat.PDF_417);
-        Log.d(TAG, "Formats to scan: " + allFormats);
+        if (imageReader != null) {
+            imageReader.close();
+            imageReader = null;
+        }
         
-        // 疯狂的解码提示，尝试一切可能性！
-        Map<DecodeHintType, Object> decodeHints = new EnumMap<>(DecodeHintType.class);
-        decodeHints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
-        decodeHints.put(DecodeHintType.POSSIBLE_FORMATS, allFormats);
-        decodeHints.put(DecodeHintType.PURE_BARCODE, Boolean.TRUE);
-        decodeHints.put(DecodeHintType.CHARACTER_SET, "UTF-8");
-        Log.d(TAG, "Decode hints: " + decodeHints);
-        
-        // 设置解码器工厂，疯狂尝试解码
-        barcodeView.getBarcodeView().setDecoderFactory(new DefaultDecoderFactory(allFormats, decodeHints, null, 20));
-        Log.d(TAG, "Decoder factory set with 20 attempts");
-        
-        return barcodeView;
+        stopBackgroundThread();
     }
     
     @Override
     protected void onResume() {
         super.onResume();
-        Log.d(TAG, "onResume()");
-        if (barcodeView != null) {
-            barcodeView.resume();
-        }
+        Log.d(TAG, "onResume");
     }
     
     @Override
     protected void onPause() {
+        Log.d(TAG, "onPause");
+        closeCamera();
         super.onPause();
-        Log.d(TAG, "onPause()");
-        if (barcodeView != null) {
-            barcodeView.pause();
-        }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        Log.d(TAG, "onDestroy");
+        closeCamera();
+        super.onDestroy();
     }
 }
