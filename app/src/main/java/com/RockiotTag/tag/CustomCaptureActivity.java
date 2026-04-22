@@ -1,133 +1,226 @@
 package com.RockiotTag.tag;
 
+import android.Manifest;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.ImageFormat;
+import android.graphics.Matrix;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
+import android.media.ExifInterface;
+import android.media.Image;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.util.Log;
-import android.view.ViewTreeObserver;
+import android.util.Size;
+import android.view.View;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
-import com.google.zxing.BarcodeFormat;
-import com.google.zxing.DecodeHintType;
-import com.journeyapps.barcodescanner.CaptureActivity;
-import com.journeyapps.barcodescanner.DecoratedBarcodeView;
-import com.journeyapps.barcodescanner.DefaultDecoderFactory;
-import com.journeyapps.barcodescanner.camera.CameraSettings;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.camera.core.Camera;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.core.ImageAnalysis;
+import androidx.camera.core.ImageProxy;
+import androidx.camera.core.Preview;
+import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.camera.view.PreviewView;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
-import java.util.Arrays;
-import java.util.EnumMap;
+import com.google.android.gms.tasks.Task;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.mlkit.vision.barcode.BarcodeScanner;
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
+import com.google.mlkit.vision.barcode.BarcodeScanning;
+import com.google.mlkit.vision.barcode.common.Barcode;
+import com.google.mlkit.vision.common.InputImage;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-public class CustomCaptureActivity extends CaptureActivity {
-    
+public class CustomCaptureActivity extends AppCompatActivity {
+
     private static final String TAG = "CustomCapture";
-    private DecoratedBarcodeView barcodeView;
+    private static final int REQUEST_CAMERA_PERMISSION = 1001;
+
+    private PreviewView previewView;
     private ImageButton flashBtn;
-    private boolean isFlashOn = false;
-    private boolean cameraStarted = false;
+    private ImageButton closeBtn;
     
+    private ProcessCameraProvider cameraProvider;
+    private Camera camera;
+    private BarcodeScanner barcodeScanner;
+    private ExecutorService cameraExecutor;
+    private boolean isFlashOn = false;
+    private boolean isScanning = true;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "CustomCaptureActivity onCreate");
-        
-        flashBtn = findViewById(R.id.flash_btn);
-        if (flashBtn != null) {
-            flashBtn.setOnClickListener(v -> toggleFlash());
-        }
-        
-        ImageButton closeBtn = findViewById(R.id.close_btn);
-        if (closeBtn != null) {
-            closeBtn.setOnClickListener(v -> finish());
-        }
-    }
-    
-    @Override
-    protected DecoratedBarcodeView initializeContent() {
-        Log.d(TAG, "initializeContent called");
-        
         setContentView(R.layout.activity_custom_capture);
-        barcodeView = findViewById(R.id.zxing_barcode_scanner);
         
-        if (barcodeView == null) {
-            Log.e(TAG, "barcodeView is null!");
-            return null;
-        }
+        Log.d(TAG, "ML Kit CustomCaptureActivity onCreate");
         
-        Log.d(TAG, "barcodeView found: " + barcodeView);
+        previewView = findViewById(R.id.preview_view);
+        flashBtn = findViewById(R.id.flash_btn);
+        closeBtn = findViewById(R.id.close_btn);
         
-        // 配置相机设置
-        CameraSettings cameraSettings = new CameraSettings();
-        cameraSettings.setRequestedCameraId(0);
-        cameraSettings.setAutoTorchEnabled(false);
-        cameraSettings.setContinuousFocusEnabled(true);
-        cameraSettings.setExposureEnabled(true);
-        barcodeView.getBarcodeView().setCameraSettings(cameraSettings);
+        flashBtn.setOnClickListener(v -> toggleFlash());
+        closeBtn.setOnClickListener(v -> finish());
         
-        // 配置解码提示
-        Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
-        hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
-        hints.put(DecodeHintType.POSSIBLE_FORMATS, Arrays.asList(BarcodeFormat.QR_CODE));
-        hints.put(DecodeHintType.CHARACTER_SET, "UTF-8");
+        // 初始化ML Kit条码扫描器
+        BarcodeScannerOptions options = new BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+            .build();
+        barcodeScanner = BarcodeScanning.getClient(options);
         
-        // 设置解码器工厂
-        List<BarcodeFormat> formats = Arrays.asList(BarcodeFormat.QR_CODE);
-        barcodeView.getBarcodeView().setDecoderFactory(new DefaultDecoderFactory(formats, hints, null, 3));
+        cameraExecutor = Executors.newSingleThreadExecutor();
         
-        Log.d(TAG, "ZXing configured with TRY_HARDER, continuous focus, exposure enabled");
-        
-        return barcodeView;
-    }
-    
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-        Log.d(TAG, "onWindowFocusChanged: " + hasFocus);
-        
-        if (hasFocus && !cameraStarted && barcodeView != null) {
+        // 检查相机权限
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startCamera();
+        } else {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
         }
     }
     
     private void startCamera() {
-        Log.d(TAG, "startCamera called");
-        Log.d(TAG, "barcodeView size: " + barcodeView.getWidth() + "x" + barcodeView.getHeight());
+        Log.d(TAG, "Starting camera with ML Kit...");
         
-        if (barcodeView.getWidth() > 0 && barcodeView.getHeight() > 0) {
-            barcodeView.resume();
-            cameraStarted = true;
-            Log.d(TAG, "Camera started successfully");
-        } else {
-            Log.e(TAG, "barcodeView size is still 0!");
+        ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(this);
+        
+        cameraProviderFuture.addListener(() -> {
+            try {
+                cameraProvider = cameraProviderFuture.get();
+                
+                // 预览
+                Preview preview = new Preview.Builder()
+                    .setTargetResolution(new Size(1280, 720))
+                    .build();
+                preview.setSurfaceProvider(previewView.getSurfaceProvider());
+                
+                // 图像分析
+                ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
+                    .setTargetResolution(new Size(1280, 720))
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build();
+                
+                imageAnalysis.setAnalyzer(cameraExecutor, this::analyzeImage);
+                
+                // 选择后置摄像头
+                CameraSelector cameraSelector = new CameraSelector.Builder()
+                    .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                    .build();
+                
+                // 解绑所有用例
+                cameraProvider.unbindAll();
+                
+                // 绑定用例到生命周期
+                camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
+                
+                Log.d(TAG, "Camera started successfully with ML Kit");
+                
+            } catch (ExecutionException | InterruptedException e) {
+                Log.e(TAG, "Error starting camera", e);
+                Toast.makeText(this, "相机启动失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        }, ContextCompat.getMainExecutor(this));
+    }
+    
+    private void analyzeImage(@NonNull ImageProxy imageProxy) {
+        if (!isScanning) {
+            imageProxy.close();
+            return;
         }
+        
+        try {
+            Image mediaImage = imageProxy.getImage();
+            if (mediaImage != null) {
+                InputImage inputImage = InputImage.fromMediaImage(
+                    mediaImage, 
+                    imageProxy.getImageInfo().getRotationDegrees()
+                );
+                
+                Task<List<Barcode>> result = barcodeScanner.process(inputImage)
+                    .addOnSuccessListener(barcodes -> {
+                        if (!barcodes.isEmpty() && isScanning) {
+                            for (Barcode barcode : barcodes) {
+                                String rawValue = barcode.getRawValue();
+                                if (rawValue != null && !rawValue.isEmpty()) {
+                                    Log.d(TAG, "=== ML Kit QR CODE FOUND ===");
+                                    Log.d(TAG, "Content: " + rawValue);
+                                    Log.d(TAG, "Length: " + rawValue.length());
+                                    
+                                    isScanning = false;
+                                    
+                                    runOnUiThread(() -> {
+                                        Intent intent = new Intent();
+                                        intent.putExtra("SCAN_RESULT", rawValue);
+                                        setResult(RESULT_OK, intent);
+                                        finish();
+                                    });
+                                    break;
+                                }
+                            }
+                        }
+                    })
+                    .addOnFailureListener(e -> Log.e(TAG, "Barcode scan failed", e))
+                    .addOnCompleteListener(task -> imageProxy.close());
+                
+                return;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error analyzing image", e);
+        }
+        
+        imageProxy.close();
     }
     
     private void toggleFlash() {
-        if (barcodeView != null) {
+        if (camera != null) {
             isFlashOn = !isFlashOn;
-            if (isFlashOn) {
-                barcodeView.setTorchOn();
-                Toast.makeText(this, "闪光灯已开启", Toast.LENGTH_SHORT).show();
-            } else {
-                barcodeView.setTorchOff();
-                Toast.makeText(this, "闪光灯已关闭", Toast.LENGTH_SHORT).show();
-            }
+            camera.getCameraControl().enableTorch(isFlashOn);
+            
+            Toast.makeText(this, isFlashOn ? "闪光灯已开启" : "闪光灯已关闭", Toast.LENGTH_SHORT).show();
             Log.d(TAG, "Flash: " + (isFlashOn ? "ON" : "OFF"));
         }
     }
     
     @Override
-    protected void onResume() {
-        super.onResume();
-        Log.d(TAG, "onResume");
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CAMERA_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startCamera();
+            } else {
+                Toast.makeText(this, "需要相机权限才能扫码", Toast.LENGTH_SHORT).show();
+                finish();
+            }
+        }
     }
     
     @Override
-    protected void onPause() {
-        super.onPause();
-        Log.d(TAG, "onPause");
-        if (barcodeView != null) {
-            barcodeView.pause();
+    protected void onDestroy() {
+        super.onDestroy();
+        if (cameraProvider != null) {
+            cameraProvider.unbindAll();
+        }
+        if (cameraExecutor != null) {
+            cameraExecutor.shutdown();
+        }
+        if (barcodeScanner != null) {
+            barcodeScanner.close();
         }
     }
 }
