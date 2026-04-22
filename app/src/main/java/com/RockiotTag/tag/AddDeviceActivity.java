@@ -31,6 +31,7 @@ import com.journeyapps.barcodescanner.ScanOptions;
 
 public class AddDeviceActivity extends AppCompatActivity {
 
+    private static final String TAG = "AddDeviceActivity";
     private static final int REQUEST_CAMERA_PERMISSION = 102;
 
     private TextView statusText;
@@ -52,8 +53,15 @@ public class AddDeviceActivity extends AppCompatActivity {
         new ScanContract(),
         result -> {
             if (result.getContents() != null) {
-                String contents = result.getContents();
+                String contents = result.getContents().trim();
+                
+                // 清理扫码结果：去掉可能的空格、换行符、冒号等
+                contents = contents.replace(" ", "").replace("\n", "").replace("\r", "").replace(":", "");
+                
+                Log.d(TAG, "Scan result: [" + result.getContents() + "] -> cleaned: [" + contents + "]");
+                
                 deviceNumEdit.setText(contents);
+                deviceNumEdit.setSelection(contents.length());
                 Toast.makeText(this, R.string.got_device_number, Toast.LENGTH_SHORT).show();
             }
         }

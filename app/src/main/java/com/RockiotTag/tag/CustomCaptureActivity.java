@@ -43,9 +43,10 @@ public class CustomCaptureActivity extends CaptureActivity {
         
         Map<DecodeHintType, Object> decodeHints = new EnumMap<>(DecodeHintType.class);
         decodeHints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
+        decodeHints.put(DecodeHintType.POSSIBLE_FORMATS, Collections.singletonList(BarcodeFormat.QR_CODE));
         
         List<BarcodeFormat> formats = Collections.singletonList(BarcodeFormat.QR_CODE);
-        barcodeView.getBarcodeView().setDecoderFactory(new DefaultDecoderFactory(formats, decodeHints, null, 0));
+        barcodeView.getBarcodeView().setDecoderFactory(new DefaultDecoderFactory(formats, decodeHints, null, 2));
         
         return barcodeView;
     }
