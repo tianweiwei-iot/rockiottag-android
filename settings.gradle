@@ -1,0 +1,22 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        // 高德地图SDK仓库
+        maven {
+            url 'https://maven.amap.com/repository/maven-releases/'
+        }
+    }
+}
+
+rootProject.name = "RockiotTag"
+include ':app'

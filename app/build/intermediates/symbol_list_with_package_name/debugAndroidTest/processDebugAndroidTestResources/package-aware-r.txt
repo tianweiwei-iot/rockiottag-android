@@ -1,0 +1,3 @@
+com.RockiotTag.tag.test
+style WhiteBackgroundDialogTheme
+style WhiteBackgroundTheme
