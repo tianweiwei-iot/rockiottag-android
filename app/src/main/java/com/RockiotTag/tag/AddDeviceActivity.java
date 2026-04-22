@@ -5,7 +5,6 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -50,7 +49,7 @@ public class AddDeviceActivity extends AppCompatActivity {
     private static final int REQUEST_CAMERA_PERMISSION = 102;
 
     private TextView statusText;
-    private ImageButton scanQrBtn; // 保留兼容
+    private ImageButton scanQrBtn;
     private Button btnCameraScan;
     private Button btnGalleryScan;
     private EditText deviceNumEdit;
@@ -70,25 +69,34 @@ public class AddDeviceActivity extends AppCompatActivity {
     private final ActivityResultLauncher<ScanOptions> scanLauncher = registerForActivityResult(
         new ScanContract(),
         result -> {
-            Log.d(TAG, "Scan result received");
-            if (result.getContents() != null) {
-                String rawContents = result.getContents();
-                String contents = rawContents.trim();
-                
-                Log.d(TAG, "=== CAMERA SCAN SUCCESS ===");
-                Log.d(TAG, "Raw: [" + rawContents + "], len: " + rawContents.length());
-                
-                String cleaned = contents.replace(" ", "").replace("\n", "").replace("\r", "");
-                
-                Log.d(TAG, "Cleaned: [" + cleaned + "], len: " + cleaned.length());
-                
-                deviceNumEdit.setText(contents);
-                deviceNumEdit.setSelection(contents.length());
-                
-                Toast.makeText(this, "相机扫码成功: " + cleaned, Toast.LENGTH_SHORT).show();
-                Log.d(TAG, "=== SCAN FINISHED ===");
+            Log.d(TAG, "=== SCAN CALLBACK TRIGGERED ===");
+            if (result != null) {
+                Log.d(TAG, "Result not null: " + result.toString());
+                if (result.getContents() != null) {
+                    String rawContents = result.getContents();
+                    String contents = rawContents.trim();
+                    
+                    Log.d(TAG, "=== CAMERA SCAN SUCCESS ===");
+                    Log.d(TAG, "Raw: [" + rawContents + "]");
+                    Log.d(TAG, "Raw length: " + rawContents.length());
+                    Log.d(TAG, "Trimmed: [" + contents + "]");
+                    Log.d(TAG, "Trimmed length: " + contents.length());
+                    
+                    String cleaned = contents.replace(" ", "").replace("\n", "").replace("\r", "");
+                    Log.d(TAG, "Cleaned: [" + cleaned + "]");
+                    Log.d(TAG, "Cleaned length: " + cleaned.length());
+                    
+                    deviceNumEdit.setText(contents);
+                    deviceNumEdit.setSelection(contents.length());
+                    
+                    Toast.makeText(this, "扫码成功: " + cleaned, Toast.LENGTH_SHORT).show();
+                    Log.d(TAG, "=== SCAN FINISHED - text set to edit ===");
+                } else {
+                    Log.w(TAG, "Scan result.getContents() is NULL!");
+                    Toast.makeText(this, "未扫描到二维码内容", Toast.LENGTH_SHORT).show();
+                }
             } else {
-                Log.d(TAG, "Camera scan canceled or failed");
+                Log.e(TAG, "Result is NULL! User cancelled or error.");
             }
         }
     );
@@ -97,11 +105,14 @@ public class AddDeviceActivity extends AppCompatActivity {
     private final ActivityResultLauncher<Intent> galleryLauncher = registerForActivityResult(
         new ActivityResultContracts.StartActivityForResult(),
         result -> {
-            Log.d(TAG, "Gallery select result: " + result.getResultCode());
+            Log.d(TAG, "=== GALLERY CALLBACK TRIGGERED ===");
+            Log.d(TAG, "Result code: " + result.getResultCode());
             if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
                 Uri imageUri = result.getData().getData();
                 Log.d(TAG, "Selected image URI: " + imageUri);
                 decodeQRCodeFromUri(imageUri);
+            } else {
+                Log.w(TAG, "Gallery cancelled or no data");
             }
         }
     );
@@ -125,7 +136,7 @@ public class AddDeviceActivity extends AppCompatActivity {
         });
 
         statusText = findViewById(R.id.status_text);
-        scanQrBtn = findViewById(R.id.scan_qr_btn); // 保留兼容
+        scanQrBtn = findViewById(R.id.scan_qr_btn);
         btnCameraScan = findViewById(R.id.btn_camera_scan);
         btnGalleryScan = findViewById(R.id.btn_gallery_scan);
         deviceNumEdit = findViewById(R.id.device_num_edit);
@@ -136,6 +147,8 @@ public class AddDeviceActivity extends AppCompatActivity {
         initTagSpinner();
         setupTextWatchers();
         setupButtons();
+        
+        Log.d(TAG, "AddDeviceActivity onCreate completed");
     }
 
     private void initTagSpinner() {
@@ -212,13 +225,9 @@ public class AddDeviceActivity extends AppCompatActivity {
                 }
                 
                 String cleanDeviceNum = upperDeviceNum.trim().replace(":", "");
-                Log.d(TAG, "Text changed - clean: [" + cleanDeviceNum + "], len: " + cleanDeviceNum.length());
+                Log.d(TAG, "Text changed: [" + cleanDeviceNum + "], len=" + cleanDeviceNum.length());
                 
-                if (!cleanDeviceNum.isEmpty() && cleanDeviceNum.length() != 12 && cleanDeviceNum.length() != 16) {
-                    deviceNumEdit.setError(getString(R.string.device_number_length_error));
-                } else {
-                    deviceNumEdit.setError(null);
-                }
+                // 去掉位数限制！只检查是否为空
                 checkInputsAndEnableButton();
             }
         };
@@ -252,12 +261,11 @@ public class AddDeviceActivity extends AppCompatActivity {
 
         String cleanDeviceNum = deviceNum.replace(":", "");
         
+        // 去掉位数限制！只要不为空就允许绑定
         boolean hasInput = !cleanDeviceNum.isEmpty() && !deviceNickname.isEmpty();
-        boolean isLengthValid = cleanDeviceNum.length() == 12 || cleanDeviceNum.length() == 16;
         
-        boolean canBind = hasInput && isLengthValid;
-        bindDeviceBtn.setEnabled(canBind);
-        if (canBind) {
+        bindDeviceBtn.setEnabled(hasInput);
+        if (hasInput) {
             bindDeviceBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF2196F3));
         } else {
             bindDeviceBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF888888));
@@ -265,10 +273,10 @@ public class AddDeviceActivity extends AppCompatActivity {
     }
 
     private void setupButtons() {
-        // 兼容旧的扫码按钮
         scanQrBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                Log.d(TAG, "scanQrBtn clicked");
                 startCameraScan();
             }
         });
@@ -276,6 +284,7 @@ public class AddDeviceActivity extends AppCompatActivity {
         btnCameraScan.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                Log.d(TAG, "btnCameraScan clicked");
                 startCameraScan();
             }
         });
@@ -283,6 +292,7 @@ public class AddDeviceActivity extends AppCompatActivity {
         btnGalleryScan.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                Log.d(TAG, "btnGalleryScan clicked");
                 startGallerySelect();
             }
         });
@@ -290,6 +300,7 @@ public class AddDeviceActivity extends AppCompatActivity {
         bindDeviceBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                Log.d(TAG, "bindDeviceBtn clicked");
                 bindDevice();
             }
         });
@@ -309,6 +320,7 @@ public class AddDeviceActivity extends AppCompatActivity {
             options.setCameraId(0);
             options.setBarcodeImageEnabled(false);
             scanLauncher.launch(options);
+            Log.d(TAG, "scanLauncher.launch() called");
         }
     }
 
@@ -317,45 +329,46 @@ public class AddDeviceActivity extends AppCompatActivity {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         intent.setType("image/*");
         galleryLauncher.launch(intent);
+        Log.d(TAG, "galleryLauncher.launch() called");
     }
 
     private void decodeQRCodeFromUri(Uri imageUri) {
-        Log.d(TAG, "decodeQRCodeFromUri() called");
+        Log.d(TAG, "decodeQRCodeFromUri() called with URI: " + imageUri);
         try {
             Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+            Log.d(TAG, "Bitmap loaded: " + bitmap.getWidth() + "x" + bitmap.getHeight());
             
-            // 把Bitmap转换成ZXing需要的格式
             int[] intArray = new int[bitmap.getWidth() * bitmap.getHeight()];
             bitmap.getPixels(intArray, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
             RGBLuminanceSource source = new RGBLuminanceSource(bitmap.getWidth(), bitmap.getHeight(), intArray);
             BinaryBitmap binaryBitmap = new BinaryBitmap(new HybridBinarizer(source));
 
-            // 添加解码提示
             Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
             hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
-            hints.put(DecodeHintType.POSSIBLE_FORMATS, Arrays.asList(BarcodeFormat.QR_CODE));
 
             QRCodeReader reader = new QRCodeReader();
             Result result = reader.decode(binaryBitmap, hints);
             
             String rawContents = result.getText();
             Log.d(TAG, "=== GALLERY DECODE SUCCESS ===");
-            Log.d(TAG, "Raw: [" + rawContents + "], len: " + rawContents.length());
+            Log.d(TAG, "Raw: [" + rawContents + "]");
+            Log.d(TAG, "Length: " + rawContents.length());
             
             String contents = rawContents.trim();
             String cleaned = contents.replace(" ", "").replace("\n", "").replace("\r", "");
             
-            Log.d(TAG, "Cleaned: [" + cleaned + "], len: " + cleaned.length());
+            Log.d(TAG, "Cleaned: [" + cleaned + "], len=" + cleaned.length());
             
             deviceNumEdit.setText(contents);
             deviceNumEdit.setSelection(contents.length());
             
-            Toast.makeText(this, "相册识别成功: " + cleaned, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "识别成功: " + cleaned, Toast.LENGTH_SHORT).show();
             
             bitmap.recycle();
         } catch (Exception e) {
-            Log.e(TAG, "Decode from gallery failed", e);
-            Toast.makeText(this, "无法识别图片中的二维码，请重试！", Toast.LENGTH_LONG).show();
+            Log.e(TAG, "Decode from gallery FAILED!", e);
+            e.printStackTrace();
+            Toast.makeText(this, "无法识别: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -375,6 +388,8 @@ public class AddDeviceActivity extends AppCompatActivity {
         String deviceNumInput = deviceNumEdit.getText() != null ? deviceNumEdit.getText().toString().trim() : "";
         final String deviceNickname = deviceNicknameEdit.getText() != null ? deviceNicknameEdit.getText().toString().trim() : "";
 
+        Log.d(TAG, "bindDevice() called - input: [" + deviceNumInput + "], nickname: [" + deviceNickname + "]");
+
         if (deviceNumInput.isEmpty()) {
             Toast.makeText(this, R.string.please_enter_device_number, Toast.LENGTH_SHORT).show();
             return;
@@ -383,16 +398,15 @@ public class AddDeviceActivity extends AppCompatActivity {
         final String deviceNum;
         if (deviceNumInput.contains(":")) {
             deviceNum = deviceNumInput.replace(":", "").toUpperCase();
-            Log.d(TAG, "MAC addr converted: " + deviceNumInput + " -> " + deviceNum);
+            Log.d(TAG, "MAC converted: " + deviceNumInput + " -> " + deviceNum);
         } else {
             deviceNum = deviceNumInput.toUpperCase();
         }
 
-        if (deviceNum.length() != 12 && deviceNum.length() != 16) {
-            Toast.makeText(this, R.string.device_number_length_error, Toast.LENGTH_SHORT).show();
-            return;
-        }
+        Log.d(TAG, "Final deviceNum: [" + deviceNum + "], len=" + deviceNum.length());
 
+        // 去掉位数限制！任何非空字符串都允许绑定
+        
         if (deviceNickname.isEmpty()) {
             Toast.makeText(this, R.string.please_enter_nickname, Toast.LENGTH_SHORT).show();
             return;
