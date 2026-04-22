@@ -52,6 +52,7 @@ public class AddDeviceActivity extends AppCompatActivity {
     private final ActivityResultLauncher<ScanOptions> scanLauncher = registerForActivityResult(
         new ScanContract(),
         result -> {
+            Log.d(TAG, "Scan result received");
             if (result.getContents() != null) {
                 String rawContents = result.getContents();
                 String contents = rawContents.trim();
@@ -74,7 +75,7 @@ public class AddDeviceActivity extends AppCompatActivity {
                 Toast.makeText(this, "扫码成功: " + cleaned, Toast.LENGTH_SHORT).show();
                 Log.d(TAG, "=== SCAN FINISHED ===");
             } else {
-                Log.d(TAG, "Scan canceled or failed");
+                Log.d(TAG, "Scan canceled or failed - result.getContents() is null");
             }
         }
     );
@@ -250,15 +251,17 @@ public class AddDeviceActivity extends AppCompatActivity {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
         } else {
+            Log.d(TAG, "Starting QR scan with ALL_CODE_TYPES...");
             ScanOptions options = new ScanOptions();
             options.setPrompt("");
-            options.setBeepEnabled(false);
+            options.setBeepEnabled(true);  // 开启提示音，给用户反馈
             options.setOrientationLocked(true);
-            options.setDesiredBarcodeFormats(ScanOptions.QR_CODE);
+            // 支持所有格式，不只是QR_CODE！
+            options.setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES);
             options.setCameraId(0);
-            options.setBarcodeImageEnabled(false);
-            options.setCaptureActivity(CustomCaptureActivity.class);
+            options.setBarcodeImageEnabled(true); // 保存图片便于调试
             scanLauncher.launch(options);
+            Log.d(TAG, "Scan launcher launched");
         }
     }
 

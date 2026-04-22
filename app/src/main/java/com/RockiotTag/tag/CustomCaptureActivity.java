@@ -1,21 +1,35 @@
 package com.RockiotTag.tag;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
-import android.widget.ImageView;
+import android.widget.Toast;
 
 import com.google.zxing.BarcodeFormat;
+import com.google.zxing.BinaryBitmap;
 import com.google.zxing.DecodeHintType;
+import com.google.zxing.EncodeHintType;
+import com.google.zxing.RGBLuminanceSource;
+import com.google.zxing.ReaderException;
+import com.google.zxing.Result;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.multi.qrcode.QRCodeMultiReader;
+import com.google.zxing.qrcode.QRCodeReader;
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import com.journeyapps.barcodescanner.CaptureActivity;
 import com.journeyapps.barcodescanner.DecoratedBarcodeView;
 import com.journeyapps.barcodescanner.DefaultDecoderFactory;
-import com.journeyapps.barcodescanner.ViewfinderView;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,12 +43,14 @@ public class CustomCaptureActivity extends CaptureActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.d(TAG, "CustomCaptureActivity.onCreate()");
         
-        ImageView closeBtn = findViewById(R.id.close_btn);
+        ImageButton closeBtn = findViewById(R.id.close_btn);
         if (closeBtn != null) {
             closeBtn.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
+                    Log.d(TAG, "Close button clicked");
                     finish();
                 }
             });
@@ -52,16 +68,17 @@ public class CustomCaptureActivity extends CaptureActivity {
     }
     
     private void toggleFlash() {
+        Log.d(TAG, "toggleFlash() called");
         if (barcodeView != null) {
             isFlashOn = !isFlashOn;
             if (isFlashOn) {
                 barcodeView.setTorchOn();
-                flashButton.setImageResource(android.R.drawable.ic_menu_camera);
                 Log.d(TAG, "Flash turned ON");
+                Toast.makeText(this, "闪光灯已开启", Toast.LENGTH_SHORT).show();
             } else {
                 barcodeView.setTorchOff();
-                flashButton.setImageResource(android.R.drawable.ic_menu_edit);
                 Log.d(TAG, "Flash turned OFF");
+                Toast.makeText(this, "闪光灯已关闭", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -69,32 +86,54 @@ public class CustomCaptureActivity extends CaptureActivity {
     @Override
     protected DecoratedBarcodeView initializeContent() {
         setContentView(R.layout.custom_scanner_layout);
+        Log.d(TAG, "ContentView set");
+        
         barcodeView = findViewById(R.id.zxing_barcode_scanner);
+        Log.d(TAG, "BarcodeView found");
         
-        hideLaserLine(barcodeView);
+        // 支持所有二维码/条形码格式，不要限制太多！
+        List<BarcodeFormat> allFormats = new ArrayList<>();
+        allFormats.add(BarcodeFormat.QR_CODE);
+        allFormats.add(BarcodeFormat.CODE_128);
+        allFormats.add(BarcodeFormat.CODE_39);
+        allFormats.add(BarcodeFormat.EAN_13);
+        allFormats.add(BarcodeFormat.EAN_8);
+        allFormats.add(BarcodeFormat.UPC_A);
+        allFormats.add(BarcodeFormat.DATA_MATRIX);
+        allFormats.add(BarcodeFormat.AZTEC);
+        allFormats.add(BarcodeFormat.PDF_417);
+        Log.d(TAG, "Formats to scan: " + allFormats);
         
+        // 疯狂的解码提示，尝试一切可能性！
         Map<DecodeHintType, Object> decodeHints = new EnumMap<>(DecodeHintType.class);
         decodeHints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
-        decodeHints.put(DecodeHintType.POSSIBLE_FORMATS, Collections.singletonList(BarcodeFormat.QR_CODE));
+        decodeHints.put(DecodeHintType.POSSIBLE_FORMATS, allFormats);
         decodeHints.put(DecodeHintType.PURE_BARCODE, Boolean.TRUE);
         decodeHints.put(DecodeHintType.CHARACTER_SET, "UTF-8");
+        Log.d(TAG, "Decode hints: " + decodeHints);
         
-        List<BarcodeFormat> formats = Collections.singletonList(BarcodeFormat.QR_CODE);
-        barcodeView.getBarcodeView().setDecoderFactory(new DefaultDecoderFactory(formats, decodeHints, null, 10));
-        
-        Log.d(TAG, "Scanner initialized with enhanced decoding");
+        // 设置解码器工厂，疯狂尝试解码
+        barcodeView.getBarcodeView().setDecoderFactory(new DefaultDecoderFactory(allFormats, decodeHints, null, 20));
+        Log.d(TAG, "Decoder factory set with 20 attempts");
         
         return barcodeView;
     }
     
-    private void hideLaserLine(ViewGroup parent) {
-        for (int i = 0; i < parent.getChildCount(); i++) {
-            View child = parent.getChildAt(i);
-            if (child instanceof ViewfinderView) {
-                child.setVisibility(View.INVISIBLE);
-            } else if (child instanceof ViewGroup) {
-                hideLaserLine((ViewGroup) child);
-            }
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.d(TAG, "onResume()");
+        if (barcodeView != null) {
+            barcodeView.resume();
+        }
+    }
+    
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Log.d(TAG, "onPause()");
+        if (barcodeView != null) {
+            barcodeView.pause();
         }
     }
 }
