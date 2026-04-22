@@ -3,28 +3,18 @@ package com.RockiotTag.tag;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Color;
-import android.graphics.ImageFormat;
-import android.graphics.Matrix;
-import android.graphics.Rect;
-import android.graphics.YuvImage;
-import android.media.ExifInterface;
-import android.media.Image;
-import android.net.Uri;
+import android.hardware.camera2.CameraMetadata;
+import android.hardware.camera2.CaptureRequest;
 import android.os.Bundle;
-import android.provider.MediaStore;
 import android.util.Log;
 import android.util.Size;
-import android.view.View;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.camera.camera2.interop.Camera2Interop;
 import androidx.camera.core.Camera;
-import androidx.camera.core.CameraControl;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageProxy;
@@ -42,9 +32,7 @@ import com.google.mlkit.vision.barcode.BarcodeScanning;
 import com.google.mlkit.vision.barcode.common.Barcode;
 import com.google.mlkit.vision.common.InputImage;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
+import android.media.Image;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -97,7 +85,7 @@ public class CustomCaptureActivity extends AppCompatActivity {
     }
     
     private void startCamera() {
-        Log.d(TAG, "Starting camera with ML Kit...");
+        Log.d(TAG, "Starting camera with ML Kit and AUTO FOCUS...");
         
         ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(this);
         
@@ -105,24 +93,37 @@ public class CustomCaptureActivity extends AppCompatActivity {
             try {
                 cameraProvider = cameraProviderFuture.get();
                 
-                // 预览 - 使用更高分辨率
-                Preview preview = new Preview.Builder()
-                    .setTargetResolution(new Size(1920, 1080))
-                    .build();
-                preview.setSurfaceProvider(previewView.getSurfaceProvider());
-                
-                // 图像分析 - 使用更高分辨率，提高识别率
-                ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
-                    .setTargetResolution(new Size(1920, 1080))
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build();
-                
-                imageAnalysis.setAnalyzer(cameraExecutor, this::analyzeImage);
-                
                 // 选择后置摄像头
                 CameraSelector cameraSelector = new CameraSelector.Builder()
                     .requireLensFacing(CameraSelector.LENS_FACING_BACK)
                     .build();
+                
+                // 预览 - 配置自动对焦
+                Preview.Builder previewBuilder = new Preview.Builder()
+                    .setTargetResolution(new Size(1920, 1080));
+                
+                // 使用Camera2Interop启用连续自动对焦
+                Camera2Interop.Extender<Preview> previewExtender = new Camera2Interop.Extender<>(previewBuilder);
+                previewExtender.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, 
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                previewExtender.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE,
+                    CaptureRequest.CONTROL_AE_MODE_ON);
+                
+                Preview preview = previewBuilder.build();
+                preview.setSurfaceProvider(previewView.getSurfaceProvider());
+                
+                // 图像分析 - 配置自动对焦
+                ImageAnalysis.Builder analysisBuilder = new ImageAnalysis.Builder()
+                    .setTargetResolution(new Size(1920, 1080))
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST);
+                
+                // 图像分析也启用自动对焦
+                Camera2Interop.Extender<ImageAnalysis> analysisExtender = new Camera2Interop.Extender<>(analysisBuilder);
+                analysisExtender.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE,
+                    CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                
+                ImageAnalysis imageAnalysis = analysisBuilder.build();
+                imageAnalysis.setAnalyzer(cameraExecutor, this::analyzeImage);
                 
                 // 解绑所有用例
                 cameraProvider.unbindAll();
@@ -130,10 +131,7 @@ public class CustomCaptureActivity extends AppCompatActivity {
                 // 绑定用例到生命周期
                 camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
                 
-                // 启用连续自动对焦
-                camera.getCameraControl().setLinearZoom(0f);
-                
-                Log.d(TAG, "Camera started successfully with ML Kit (1920x1080)");
+                Log.d(TAG, "Camera started with CONTINUOUS_AUTO_FOCUS enabled");
                 
             } catch (ExecutionException | InterruptedException e) {
                 Log.e(TAG, "Error starting camera", e);

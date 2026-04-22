@@ -59,6 +59,8 @@ dependencies {
     implementation "androidx.camera:camera-camera2:${camerax_version}"
     implementation "androidx.camera:camera-lifecycle:${camerax_version}"
     implementation "androidx.camera:camera-view:${camerax_version}"
+    // CameraX Camera2 Interop - 用于配置自动对焦
+    implementation "androidx.camera:camera-extensions:${camerax_version}"
     // 谷歌地图SDK - 更新到最新版本
     implementation 'com.google.android.gms:play-services-maps:18.2.0'
     implementation 'com.google.android.gms:play-services-location:21.0.1'
