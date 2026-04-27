@@ -220,4 +220,19 @@
     <string name="merged_points">Merged Points: %d</string>
     <string name="stay_point">Stay Point</string>
     <string name="loaded_stay_points">Loaded %d track points (merged)</string>
+    <string name="camera_scan">📷 Camera Scan</string>
+    <string name="gallery_scan">🖼️ Gallery Scan</string>
+    <string name="scan_tip">If camera scan fails, use \"Gallery Scan\": take a photo of the QR code first, then select from gallery!</string>
+    <string name="camera_start_failed">Camera start failed: %s</string>
+    <string name="flash_on">Flash turned on</string>
+    <string name="flash_off">Flash turned off</string>
+    <string name="scan_success">Scan success: %s</string>
+    <string name="scan_no_content">No content scanned</string>
+    <string name="cannot_read_image">Cannot read image</string>
+    <string name="cannot_decode_image">Cannot decode image</string>
+    <string name="recognize_success">Recognize success: %s</string>
+    <string name="cannot_recognize_qr">Cannot recognize QR code, please try another image</string>
+    <string name="recognize_failed">Recognition failed: %s</string>
+    <string name="refresh_success">Refresh successful</string>
+    <string name="no_location_data">No location data available</string>
 </resources>

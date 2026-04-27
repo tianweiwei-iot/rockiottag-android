@@ -220,4 +220,19 @@
     <string name="merged_points">Birleştirilen Noktalar: %d</string>
     <string name="stay_point">Duraklama Noktası</string>
     <string name="loaded_stay_points">%d iz noktası yüklendi (birleştirildi)</string>
+    <string name="camera_scan">📷 Kamera Tarama</string>
+    <string name="gallery_scan">🖼️ Galeri Tarama</string>
+    <string name="scan_tip">Kamera tarama başarısız olursa, \"Galeri Tarama\"yı kullanın: önce QR kodun fotoğrafını çekin, sonra galeriden seçin!</string>
+    <string name="camera_start_failed">Kamera başlatılamadı: %s</string>
+    <string name="flash_on">Flaş açık</string>
+    <string name="flash_off">Flaş kapalı</string>
+    <string name="scan_success">Tarama başarılı: %s</string>
+    <string name="scan_no_content">İçerik taranmadı</string>
+    <string name="cannot_read_image">Resim okunamıyor</string>
+    <string name="cannot_decode_image">Resim çözülemiyor</string>
+    <string name="recognize_success">Tanıma başarılı: %s</string>
+    <string name="cannot_recognize_qr">QR kod tanınamadı, lütfen başka bir resim deneyin</string>
+    <string name="recognize_failed">Tanıma başarısız: %s</string>
+    <string name="refresh_success">Yenileme başarılı</string>
+    <string name="no_location_data">Konum verisi yok</string>
 </resources>

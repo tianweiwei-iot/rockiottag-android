@@ -26,7 +26,7 @@ public class ApiTestActivity extends AppCompatActivity {
     private EditText deviceNumEdit;
     private EditText latEdit;
     private EditText lngEdit;
-    private ApiService apiService;
+    private NewApiService apiService;
     private DatabaseHelper databaseHelper;
     private StringBuilder logBuilder;
     private List<Device> boundDevices;
@@ -37,7 +37,7 @@ public class ApiTestActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_api_test);
 
-        apiService = ApiService.getInstance();
+        apiService = NewApiService.getInstance();
         databaseHelper = new DatabaseHelper(this);
         logBuilder = new StringBuilder();
 
@@ -90,10 +90,6 @@ public class ApiTestActivity extends AppCompatActivity {
         testDeviceInfoBtn.setOnClickListener(v -> testGetDeviceInfo());
 
         appendLog("API测试界面已启动");
-        appendLog("当前认证状态: " + (apiService.isAuthenticated() ? "已认证" : "未认证"));
-        if (apiService.isAuthenticated()) {
-            appendLog("用户ID: " + apiService.getUserId());
-        }
     }
 
     private void appendLog(String message) {
@@ -202,12 +198,6 @@ public class ApiTestActivity extends AppCompatActivity {
     }
 
     private void testBindDevice() {
-        if (!apiService.isAuthenticated()) {
-            appendLog("请先登录！");
-            Toast.makeText(this, "请先登录", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
         String deviceNum = deviceNumEdit.getText() != null ? deviceNumEdit.getText().toString().trim() : "";
         if (deviceNum.isEmpty()) {
             appendLog("请输入设备号！");
@@ -221,7 +211,7 @@ public class ApiTestActivity extends AppCompatActivity {
         
         new Thread(() -> {
             try {
-                ApiService.ApiResponse response = apiService.bindDevice(deviceNum, null, "测试设备");
+                NewApiService.ApiResponse response = apiService.bindDevice(deviceNum, null, "测试设备");
                 
                 runOnUiThread(() -> {
                     appendLog("绑定设备响应:");
@@ -249,12 +239,6 @@ public class ApiTestActivity extends AppCompatActivity {
     }
 
     private void testUnbindDevice() {
-        if (!apiService.isAuthenticated()) {
-            appendLog("请先登录！");
-            Toast.makeText(this, "请先登录", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
         String deviceNum = deviceNumEdit.getText() != null ? deviceNumEdit.getText().toString().trim() : "";
         if (deviceNum.isEmpty()) {
             appendLog("请输入设备号！");
@@ -264,14 +248,11 @@ public class ApiTestActivity extends AppCompatActivity {
         
         appendLog("========== 开始解绑设备 ==========");
         appendLog("设备号: " + deviceNum);
-        appendLog("用户ID: " + apiService.getUserId());
-        appendLog("Token: " + (apiService.getToken() != null ? apiService.getToken().substring(0, Math.min(20, apiService.getToken().length())) + "..." : "null"));
-        appendLog("CID: " + ApiService.getCid());
         
         new Thread(() -> {
             try {
                 appendLog("正在调用API解绑...");
-                ApiService.ApiResponse response = apiService.unbindDevice(deviceNum);
+                NewApiService.ApiResponse response = apiService.unbindDevice(deviceNum);
                 
                 runOnUiThread(() -> {
                     appendLog("========== 解绑设备响应 ==========");
@@ -308,12 +289,6 @@ public class ApiTestActivity extends AppCompatActivity {
     }
 
     private void testRefreshLocation() {
-        if (!apiService.isAuthenticated()) {
-            appendLog("请先登录！");
-            Toast.makeText(this, "请先登录", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
         String testDeviceNum = deviceNumEdit.getText() != null ? deviceNumEdit.getText().toString().trim() : "";
         if (testDeviceNum.isEmpty()) {
             appendLog("请输入设备号！");
@@ -326,7 +301,7 @@ public class ApiTestActivity extends AppCompatActivity {
         
         new Thread(() -> {
             try {
-                ApiService.ApiResponse response = apiService.refreshLocation(testDeviceNum);
+                NewApiService.ApiResponse response = apiService.refreshLocation(testDeviceNum);
                 
                 runOnUiThread(() -> {
                     appendLog("刷新设备位置响应:");
@@ -354,12 +329,6 @@ public class ApiTestActivity extends AppCompatActivity {
     }
 
     private void testGetDeviceInfo() {
-        if (!apiService.isAuthenticated()) {
-            appendLog("请先登录！");
-            Toast.makeText(this, "请先登录", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
         String testDeviceNum = deviceNumEdit.getText() != null ? deviceNumEdit.getText().toString().trim() : "";
         if (testDeviceNum.isEmpty()) {
             appendLog("请输入设备号！");
@@ -372,7 +341,7 @@ public class ApiTestActivity extends AppCompatActivity {
         
         new Thread(() -> {
             try {
-                ApiService.DeviceInfo deviceInfo = apiService.getDeviceInfo(testDeviceNum);
+                NewApiService.DeviceInfo deviceInfo = apiService.getDeviceInfo(testDeviceNum);
                 
                 runOnUiThread(() -> {
                     if (deviceInfo != null) {

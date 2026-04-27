@@ -83,7 +83,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:layout_marginEnd="4dp"
-                        android:text="📷 相机扫码"
+                        android:text="@string/camera_scan"
                         android:textSize="14sp"
                         android:minHeight="48dp"
                         android:padding="8dp"
@@ -95,7 +95,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:layout_marginStart="4dp"
-                        android:text="🖼️ 相册识别"
+                        android:text="@string/gallery_scan"
                         android:textSize="14sp"
                         android:minHeight="48dp"
                         android:padding="8dp"
@@ -122,7 +122,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="相机扫码失败时，请使用「相册识别」：先拍二维码照片，再从相册选择识别！"
+                    android:text="@string/scan_tip"
                     android:textSize="13sp"
                     android:textColor="#E65100" />
             </LinearLayout>

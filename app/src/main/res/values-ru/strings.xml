@@ -220,4 +220,19 @@
     <string name="merged_points">Объединено точек: %d</string>
     <string name="stay_point">Точка остановки</string>
     <string name="loaded_stay_points">Загружено %d точек трека (объединено)</string>
+    <string name="camera_scan">📷 Сканировать камерой</string>
+    <string name="gallery_scan">🖼️ Сканировать из галереи</string>
+    <string name="scan_tip">Если сканирование камерой не удается, используйте \"Сканировать из галереи\": сначала сфотографируйте QR-код, затем выберите из галереи!</string>
+    <string name="camera_start_failed">Ошибка запуска камеры: %s</string>
+    <string name="flash_on">Вспышка включена</string>
+    <string name="flash_off">Вспышка выключена</string>
+    <string name="scan_success">Сканирование успешно: %s</string>
+    <string name="scan_no_content">Содержимое не отсканировано</string>
+    <string name="cannot_read_image">Невозможно прочитать изображение</string>
+    <string name="cannot_decode_image">Невозможно декодировать изображение</string>
+    <string name="recognize_success">Распознавание успешно: %s</string>
+    <string name="cannot_recognize_qr">Невозможно распознать QR-код, попробуйте другое изображение</string>
+    <string name="recognize_failed">Ошибка распознавания: %s</string>
+    <string name="refresh_success">Обновление успешно</string>
+    <string name="no_location_data">Нет данных о местоположении</string>
 </resources>

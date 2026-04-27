@@ -418,14 +418,115 @@ public class DeviceListActivity extends AppCompatActivity {
                 int tagPosition = tagSpinner.getSelectedItemPosition();
                 String newTag = tagPosition > 0 ? tagList.get(tagPosition) : "";
 
-                device.setName(newNickName);
-                device.setTag(newTag);
-                databaseHelper.addDevice(device);
-                
-                loadBoundDevices();
-                
-                setResult(RESULT_OK);
-                Toast.makeText(DeviceListActivity.this, R.string.device_updated, Toast.LENGTH_SHORT).show();
+                // 直接从文本获取设备号，确保值正确
+                final String deviceNumFromUI = deviceNumText.getText().toString().trim();
+                final String deviceIdFromDevice = device.getDeviceId();
+                final String deviceNumFromDevice = device.getDeviceNum();
+                final String finalNickName = newNickName;
+                final String finalTag = newTag;
+
+                Log.d(TAG, "=== Save button clicked ===");
+                Log.d(TAG, "deviceIdFromDevice: " + deviceIdFromDevice);
+                Log.d(TAG, "deviceNumFromDevice: " + deviceNumFromDevice);
+                Log.d(TAG, "deviceNumFromUI: " + deviceNumFromUI);
+                Log.d(TAG, "newName: " + finalNickName);
+                Log.d(TAG, "newTag: " + finalTag);
+
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            // 更新服务器
+                            if (!deviceNumFromUI.isEmpty()) {
+                                NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNumFromUI));
+                                NewApiService.ApiResponse response = apiService.updateDevice(deviceNumFromUI, finalNickName);
+                                Log.d(TAG, "Server update response: " + (response != null ? response.isSuccess() : "null"));
+                            }
+                            
+                            // 使用设备号更新数据库
+                            boolean updated = databaseHelper.updateDeviceNameAndTag(
+                                deviceIdFromDevice, 
+                                deviceNumFromUI, 
+                                finalNickName, 
+                                finalTag
+                            );
+                            
+                            Log.d(TAG, "Database update result: " + updated);
+                            
+                            // 验证更新是否成功
+                            Device verifyDevice = databaseHelper.getDevice(deviceIdFromDevice);
+                            if (verifyDevice != null) {
+                                Log.d(TAG, "VERIFICATION: After update, device name = " + verifyDevice.getName() + ", tag = " + verifyDevice.getTag());
+                            }
+                            
+                            // 更新 device 对象
+                            device.setName(finalNickName);
+                            device.setTag(finalTag);
+                            
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Log.d(TAG, "=== UI Thread: Reloading devices ===");
+                                                                        
+                                    // 方法1：直接更新列表中的设备对象
+                                    boolean found = false;
+                                    for (int i = 0; i < boundDeviceList.size(); i++) {
+                                        Device d = boundDeviceList.get(i);
+                                        if (d.getDeviceId().equals(deviceIdFromDevice)) {
+                                            d.setName(finalNickName);
+                                            d.setTag(finalTag);
+                                            Log.d(TAG, "✅ Updated device in list at position " + i + ": " + d.getName());
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                                                        
+                                    if (!found) {
+                                        Log.w(TAG, "⚠️ Device not found in list, reloading all...");
+                                    }
+                                                                        
+                                    // 方法2：重新从数据库加载
+                                    loadBoundDevices();
+                                                                        
+                                    // 方法3：强制刷新 Adapter
+                                    boundDeviceAdapter.notifyDataSetChanged();
+                                                                        
+                                    String selectedDeviceId = prefs.getString("selected_device_id", "");
+                                    if (selectedDeviceId.equals(deviceIdFromDevice)) {
+                                        prefs.edit().putString("selected_device_id", deviceIdFromDevice).apply();
+                                        Log.d(TAG, "Updated selected device in preferences");
+                                    }
+                                                                        
+                                    setResult(RESULT_OK);
+                                                                        
+                                    if (updated) {
+                                        Toast.makeText(DeviceListActivity.this, 
+                                            "✅ 保存成功: " + finalNickName, Toast.LENGTH_SHORT).show();
+                                    } else {
+                                        Toast.makeText(DeviceListActivity.this, 
+                                            "⚠️ 保存可能失败，请检查日志", Toast.LENGTH_LONG).show();
+                                    }
+                                                                        
+                                    new android.os.Handler().postDelayed(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            finish();
+                                        }
+                                    }, 800);
+                                }
+                            });
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error updating device: " + e.getMessage(), e);
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(DeviceListActivity.this, 
+                                        "❌ 更新失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                                }
+                            });
+                        }
+                    }
+                }).start();
             }
         });
 
@@ -503,20 +604,29 @@ public class DeviceListActivity extends AppCompatActivity {
 
     private void loadBoundDevices() {
         Log.d(TAG, "=== loadBoundDevices called ===");
+        
+        // 完全清空列表
         boundDeviceList.clear();
+        
+        // 从数据库重新加载
         List<Device> devices = databaseHelper.getAllDevices();
         Log.d(TAG, "Loaded " + (devices != null ? devices.size() : 0) + " devices from database");
+        
         if (devices != null) {
             for (Device d : devices) {
                 if (d != null) {
-                    Log.d(TAG, "  Device: " + d.getName() + ", id=" + d.getDeviceId() + ", num=" + d.getDeviceNum());
+                    Log.d(TAG, "  Device: " + d.getName() + ", id=" + d.getDeviceId() + ", num=" + d.getDeviceNum() + ", tag=" + d.getTag());
                 }
             }
             boundDeviceList.addAll(devices);
         }
+        
+        // 强制刷新 Adapter
         boundDeviceAdapter.notifyDataSetChanged();
         updateEmptyView();
+        
         Log.d(TAG, "Adapter count: " + boundDeviceAdapter.getCount());
+        Log.d(TAG, "=== loadBoundDevices completed ===");
     }
 
     private void updateEmptyView() {

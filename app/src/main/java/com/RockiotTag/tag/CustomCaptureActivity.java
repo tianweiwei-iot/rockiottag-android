@@ -135,7 +135,7 @@ public class CustomCaptureActivity extends AppCompatActivity {
                 
             } catch (ExecutionException | InterruptedException e) {
                 Log.e(TAG, "Error starting camera", e);
-                Toast.makeText(this, "相机启动失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, getString(R.string.camera_start_failed, e.getMessage()), Toast.LENGTH_SHORT).show();
             }
         }, ContextCompat.getMainExecutor(this));
     }
@@ -194,7 +194,7 @@ public class CustomCaptureActivity extends AppCompatActivity {
             isFlashOn = !isFlashOn;
             camera.getCameraControl().enableTorch(isFlashOn);
             
-            Toast.makeText(this, isFlashOn ? "闪光灯已开启" : "闪光灯已关闭", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, isFlashOn ? R.string.flash_on : R.string.flash_off, Toast.LENGTH_SHORT).show();
             Log.d(TAG, "Flash: " + (isFlashOn ? "ON" : "OFF"));
         }
     }

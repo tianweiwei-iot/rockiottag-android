@@ -68,6 +68,12 @@
     <string name="polyline">连线</string>
     <string name="toggle_satellite_desc">切换卫星图</string>
     <string name="satellite">卫星</string>
+    <string name="toggle_display_mode_desc">切换显示模式</string>
+    <string name="detailed">详细</string>
+    <string name="simple">精简</string>
+    <string name="statistics">统计</string>
+    <string name="display_mode_detailed">显示模式：详细</string>
+    <string name="display_mode_simple">显示模式：精简</string>
     <string name="track_points_count">共 %d 个轨迹点</string>
     <string name="show_markers">显示轨迹标点</string>
     <string name="hide_markers">隐藏轨迹标点</string>
@@ -220,4 +226,20 @@
     <string name="merged_points">合并点数: %d</string>
     <string name="stay_point">停留点</string>
     <string name="loaded_stay_points">已加载 %d 个轨迹点(合并后)</string>
+    <string name="camera_scan">📷 相机扫码</string>
+    <string name="gallery_scan">🖼️ 相册识别</string>
+    <string name="scan_tip">相机扫码失败时，请使用「相册识别」：先拍二维码照片，再从相册选择识别！</string>
+    <string name="camera_start_failed">相机启动失败: %s</string>
+    <string name="flash_on">闪光灯已开启</string>
+    <string name="flash_off">闪光灯已关闭</string>
+    <string name="scan_success">扫码成功: %s</string>
+    <string name="scan_no_content">未扫描到内容</string>
+    <string name="cannot_read_image">无法读取图片</string>
+    <string name="cannot_decode_image">无法解码图片</string>
+    <string name="recognize_success">识别成功: %s</string>
+    <string name="cannot_recognize_qr">无法识别二维码，请尝试其他图片</string>
+    <string name="recognize_failed">识别失败: %s</string>
+    <string name="refresh_success">刷新成功</string>
+    <string name="no_location_data">暂无位置数据</string>
+    <string name="please_login_first">请先登录</string>
 </resources>

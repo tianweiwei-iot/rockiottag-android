@@ -60,3 +60,14 @@ captures/
 
 # Android Profiling
 *.hprof
+
+# Temporary files
+*.zip
+*.bat
+*.ps1
+*.sh
+Disable
+GenerateLocationListRequest.java
+
+# Documentation files (optional - uncomment if you don't want to track)
+# *.md

@@ -220,4 +220,19 @@
     <string name="merged_points">मिलाए गए पॉइंट्स: %d</string>
     <string name="stay_point">ठहराव पॉइंट</string>
     <string name="loaded_stay_points">%d ट्रैक पॉइंट्स लोड किए गए (मिलाए गए)</string>
+    <string name="camera_scan">📷 कैमरा स्कैन</string>
+    <string name="gallery_scan">🖼️ गैलरी स्कैन</string>
+    <string name="scan_tip">अगर कैमरा स्कैन विफल हो जाता है, तो \"गैलरी स्कैन\" का उपयोग करें: पहले QR कोड की फोटो लें, फिर गैलरी से चुनें!</string>
+    <string name="camera_start_failed">कैमरा शुरू करने में विफल: %s</string>
+    <string name="flash_on">फ्लैश चालू</string>
+    <string name="flash_off">फ्लैश बंद</string>
+    <string name="scan_success">स्कैन सफल: %s</string>
+    <string name="scan_no_content">कोई सामग्री स्कैन नहीं हुई</string>
+    <string name="cannot_read_image">छवि पढ़ नहीं सकता</string>
+    <string name="cannot_decode_image">छवि डिकोड नहीं कर सकता</string>
+    <string name="recognize_success">पहचान सफल: %s</string>
+    <string name="cannot_recognize_qr">QR कोड पहचान नहीं हो सका, कृपया दूसरी छवि आज़माएं</string>
+    <string name="recognize_failed">पहचान विफल: %s</string>
+    <string name="refresh_success">रिफ्रेश सफल</string>
+    <string name="no_location_data">कोई स्थान डेटा नहीं</string>
 </resources>

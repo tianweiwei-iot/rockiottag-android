@@ -26,4 +26,6 @@ public interface DeviceHistoryRepository extends JpaRepository<DeviceHistory, Lo
     
     @Query("SELECT dh FROM DeviceHistory dh WHERE dh.deviceNum = :deviceNum AND dh.timestamp >= :startTime AND dh.timestamp <= :endTime ORDER BY dh.timestamp ASC")
     List<DeviceHistory> findByDeviceNumAndTimeRange(@Param("deviceNum") String deviceNum, @Param("startTime") long startTime, @Param("endTime") long endTime);
+    
+    List<DeviceHistory> findByDeviceNumAndTimestampBetweenOrderByTimestampAsc(String deviceNum, long startTime, long endTime);
 }

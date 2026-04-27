@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>RockiotTag 设备管理系统 v2.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 600;
+        }
+        
+        input[type="text"],
+        input[type="date"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus,
+        input[type="date"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-right: 10px;
+            margin-top: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .result h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .info-row {
+            display: flex;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #555;
+            width: 120px;
+        }
+        
+        .info-value {
+            color: #333;
+            flex: 1;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+        
+        tr:hover {
+            background: #f5f5f5;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #667eea;
+            font-size: 18px;
+            padding: 20px;
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #c33;
+        }
+        
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3c3;
+        }
+        
+        .device-grid {
+            margin-top: 15px;
+            overflow-x: auto;
+        }
+        
+        .device-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .device-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+        
+        .device-row {
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .device-row:hover {
+            background: #f0f0ff !important;
+        }
+        
+        .device-row.selected {
+            background: #667eea !important;
+            color: white !important;
+            font-weight: 600;
+        }
+        
+        .device-row.selected td {
+            color: white !important;
+            border-bottom-color: #764ba2 !important;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            background: #e0e0e0;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* 设备详情模态框样式 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            animation: fadeIn 0.3s;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s;
+        }
+        
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 25px;
+            border-radius: 20px 20px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.8em;
+        }
+        
+        .modal-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .modal-body {
+            padding: 25px;
+        }
+        
+        .device-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .info-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .info-card .label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .info-card .value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        .history-table th,
+        .history-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .history-table th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .history-table tr:hover {
+            background: #f5f5f5;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 RockiotTag 设备管理系统</h1>
+        
+        <!-- 所有设备列表 -->
+        <div class="card">
+            <h2>📋 所有设备列表</h2>
+            <button class="btn" onclick="loadAllDevices()">刷新设备列表</button>
+            <div id="deviceList" class="device-grid"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://8.217.22.251:8081/api/devices/public';
+        
+        // 切换标签页
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tabName).classList.add('active');
+        }
+        
+        // 加载所有设备
+        async function loadAllDevices() {
+            const container = document.getElementById('deviceList');
+            container.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/all`);
+                const devices = await response.json();
+                
+                if (devices.length === 0) {
+                    container.innerHTML = '<div class="error">暂无设备数据</div>';
+                    return;
+                }
+                
+                let html = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>设备号</th>
+                                <th>昵称</th>
+                                <th>MAC 地址</th>
+                                <th>位置状态</th>
+                                <th>纬度</th>
+                                <th>经度</th>
+                                <th>最后更新</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                devices.forEach(device => {
+                    const hasLocation = device.latitude && device.longitude;
+                    const updateTime = device.updatedAt ? new Date(device.updatedAt).toLocaleString('zh-CN') : 'N/A';
+                    
+                    html += `
+                        <tr class="device-row" data-device-num="${device.deviceNum}" onclick="selectDeviceRow(this, '${device.deviceNum}')">
+                            <td><strong>${device.deviceNum}</strong></td>
+                            <td>${device.nickName || '未设置'}</td>
+                            <td>${device.mac || 'N/A'}</td>
+                            <td>${hasLocation ? '<span style="color:green">✅ 有位置</span>' : '<span style="color:red">❌ 无位置</span>'}</td>
+                            <td>${hasLocation ? device.latitude.toFixed(6) : '-'}</td>
+                            <td>${hasLocation ? device.longitude.toFixed(6) : '-'}</td>
+                            <td>${updateTime}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = `<div class="error">加载失败：${error.message}</div>`;
+            }
+        }
+        
+        // 选择设备行并高亮
+        function selectDeviceRow(rowElement, deviceNum) {
+            // 移除所有行的高亮
+            document.querySelectorAll('.device-row').forEach(row => {
+                row.classList.remove('selected');
+            });
+            
+            // 高亮当前行
+            rowElement.classList.add('selected');
+            
+            // 打开设备详情模态框
+            openDeviceModal(deviceNum);
+        }
+        
+        // 打开设备详情模态框
+        async function openDeviceModal(deviceNum) {
+            const modal = document.getElementById('deviceModal');
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden'; // 禁止背景滚动
+            
+            // 显示加载状态
+            document.getElementById('deviceBasicInfo').innerHTML = '<div class="loading">加载设备信息...</div>';
+            document.getElementById('modalResult').innerHTML = '';
+            
+            try {
+                // 获取设备最新信息
+                const response = await fetch(`${API_BASE}/${deviceNum}/latest`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    document.getElementById('deviceBasicInfo').innerHTML = `<div class="error">${data.message || '加载失败'}</div>`;
+                    return;
+                }
+                
+                // 显示设备基本信息
+                const hasLocation = data.latitude && data.longitude;
+                const updateTime = data.updatedAt ? new Date(data.updatedAt).toLocaleString('zh-CN') : 'N/A';
+                const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString('zh-CN') : 'N/A';
+                
+                document.getElementById('deviceBasicInfo').innerHTML = `
+                    <div class="device-info-grid">
+                        <div class="info-card">
+                            <div class="label">设备号</div>
+                            <div class="value">${data.deviceNum}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">昵称</div>
+                            <div class="value">${data.nickName || '未设置'}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">MAC 地址</div>
+                            <div class="value">${data.mac || 'N/A'}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">电量</div>
+                            <div class="value">${data.battery !== null ? data.battery + '%' : '无数据'}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">纬度</div>
+                            <div class="value">${hasLocation ? data.latitude.toFixed(6) : '无数据'}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">经度</div>
+                            <div class="value">${hasLocation ? data.longitude.toFixed(6) : '无数据'}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">位置时间</div>
+                            <div class="value" style="font-size:14px;">${timestamp}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="label">更新时间</div>
+                            <div class="value" style="font-size:14px;">${updateTime}</div>
+                        </div>
+                    </div>
+                    ${hasLocation ? `
+                    <div style="margin-top:15px; padding:15px; background:#e3f2fd; border-radius:10px; border-left:4px solid #2196f3;">
+                        <strong>🗺️ 地图链接：</strong><br>
+                        <a href="https://www.google.com/maps?q=${data.latitude},${data.longitude}" target="_blank" style="color:#1976d2; margin-right:15px;">Google 地图</a>
+                        <a href="https://uri.amap.com/marker?position=${data.longitude},${data.latitude}" target="_blank" style="color:#1976d2;">高德地图</a>
+                    </div>
+                    ` : ''}
+                `;
+                
+                // 自动查询最新位置
+                queryLatestForModal();
+                
+            } catch (error) {
+                document.getElementById('deviceBasicInfo').innerHTML = `<div class="error">加载失败：${error.message}</div>`;
+            }
+        }
+        
+        // 关闭设备详情模态框
+        function closeDeviceModal() {
+            const modal = document.getElementById('deviceModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = 'auto'; // 恢复滚动
+        }
+        
+        // 点击遮罩关闭
+        function closeModal(event) {
+            if (event.target === event.currentTarget) {
+                closeDeviceModal();
+            }
+        }
+        
+        // 显示日期查询区域
+        function showDateQuery() {
+            const section = document.getElementById('dateQuerySection');
+            section.style.display = section.style.display === 'none' ? 'block' : 'none';
+            document.getElementById('modalQueryDate').valueAsDate = new Date();
+        }
+        
+        // 模态框中查询最新位置
+        async function queryLatestForModal() {
+            const deviceNum = document.getElementById('deviceNum').value.trim();
+            if (!deviceNum) return;
+            
+            const container = document.getElementById('modalResult');
+            container.innerHTML = '<div class="loading">查询中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/${deviceNum}/latest`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    container.innerHTML = `<div class="error">${data.message || '查询失败'}</div>`;
+                    return;
+                }
+                
+                const hasLocation = data.latitude && data.longitude;
+                const updateTime = data.updatedAt ? new Date(data.updatedAt).toLocaleString('zh-CN') : 'N/A';
+                const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString('zh-CN') : 'N/A';
+                
+                container.innerHTML = `
+                    <div class="result">
+                        <h3>📍 设备最新位置</h3>
+                        <div class="info-row">
+                            <span class="info-label">设备号：</span>
+                            <span class="info-value">${data.deviceNum}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">昵称：</span>
+                            <span class="info-value">${data.nickName || '未设置'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">纬度：</span>
+                            <span class="info-value">${hasLocation ? data.latitude.toFixed(6) : '无数据'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">经度：</span>
+                            <span class="info-value">${hasLocation ? data.longitude.toFixed(6) : '无数据'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">电量：</span>
+                            <span class="info-value">${data.battery !== null ? data.battery + '%' : '无数据'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">位置时间：</span>
+                            <span class="info-value">${timestamp}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">更新时间：</span>
+                            <span class="info-value">${updateTime}</span>
+                        </div>
+                        ${hasLocation ? `
+                        <div class="info-row">
+                            <span class="info-label">地图链接：</span>
+                            <span class="info-value">
+                                <a href="https://www.google.com/maps?q=${data.latitude},${data.longitude}" target="_blank">🗺️ Google 地图</a> | 
+                                <a href="https://uri.amap.com/marker?position=${data.longitude},${data.latitude}" target="_blank">🗺️ 高德地图</a>
+                            </span>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            } catch (error) {
+                container.innerHTML = `<div class="error">查询失败：${error.message}</div>`;
+            }
+        }
+        
+        // 模态框中查询某天记录
+        async function queryByDateForModal() {
+            const deviceNum = document.getElementById('deviceNum').value.trim();
+            const date = document.getElementById('modalQueryDate').value;
+            
+            if (!deviceNum || !date) {
+                alert('请输入设备号并选择日期');
+                return;
+            }
+            
+            const container = document.getElementById('modalResult');
+            container.innerHTML = '<div class="loading">查询中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/${deviceNum}/history/date?date=${date}`);
+                const records = await response.json();
+                
+                if (records.length === 0) {
+                    container.innerHTML = `<div class="error">该日期没有记录</div>`;
+                    return;
+                }
+                
+                let html = `
+                    <div class="result">
+                        <h3>📅 ${date} 位置记录（共 ${records.length} 条）</h3>
+                        <table class="history-table">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>纬度</th>
+                                    <th>经度</th>
+                                    <th>电量</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                records.forEach(record => {
+                    const time = new Date(record.timestamp).toLocaleString('zh-CN');
+                    html += `
+                        <tr>
+                            <td>${time}</td>
+                            <td>${record.latitude.toFixed(6)}</td>
+                            <td>${record.longitude.toFixed(6)}</td>
+                            <td>${record.battery}%</td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = `<div class="error">查询失败：${error.message}</div>`;
+            }
+        }
+        
+        // 模态框中查询所有历史记录
+        async function queryAllHistoryForModal() {
+            const deviceNum = document.getElementById('deviceNum').value.trim();
+            if (!deviceNum) return;
+            
+            const container = document.getElementById('modalResult');
+            container.innerHTML = '<div class="loading">查询中（可能需要较长时间）...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/${deviceNum}/history/all`);
+                const records = await response.json();
+                
+                if (records.length === 0) {
+                    container.innerHTML = `<div class="error">该设备没有历史记录</div>`;
+                    return;
+                }
+                
+                let html = `
+                    <div class="result">
+                        <h3>📊 所有历史记录（共 ${records.length} 条）</h3>
+                        <table class="history-table">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>纬度</th>
+                                    <th>经度</th>
+                                    <th>电量</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                // 只显示前 100 条，避免页面卡顿
+                const displayRecords = records.slice(0, 100);
+                displayRecords.forEach(record => {
+                    const time = new Date(record.timestamp).toLocaleString('zh-CN');
+                    html += `
+                        <tr>
+                            <td>${time}</td>
+                            <td>${record.latitude.toFixed(6)}</td>
+                            <td>${record.longitude.toFixed(6)}</td>
+                            <td>${record.battery}%</td>
+                        </tr>
+                    `;
+                });
+                
+                if (records.length > 100) {
+                    html += `<tr><td colspan="4" style="text-align:center;color:#667eea;">... 还有 ${records.length - 100} 条记录 ...</td></tr>`;
+                }
+                
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = `<div class="error">查询失败：${error.message}</div>`;
+            }
+        }
+        
+        // 查询最新位置
+        async function queryLatest() {
+            const deviceNum = document.getElementById('deviceNum').value.trim();
+            if (!deviceNum) {
+                alert('请输入设备号');
+                return;
+            }
+            
+            const container = document.getElementById('latestResult');
+            container.innerHTML = '<div class="loading">查询中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/${deviceNum}/latest`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    container.innerHTML = `<div class="error">${data.message || '查询失败'}</div>`;
+                    return;
+                }
+                
+                const hasLocation = data.latitude && data.longitude;
+                const updateTime = data.updatedAt ? new Date(data.updatedAt).toLocaleString('zh-CN') : 'N/A';
+                const timestamp = data.timestamp ? new Date(data.timestamp).toLocaleString('zh-CN') : 'N/A';
+                
+                container.innerHTML = `
+                    <div class="result">
+                        <h3>📍 设备最新位置</h3>
+                        <div class="info-row">
+                            <span class="info-label">设备号：</span>
+                            <span class="info-value">${data.deviceNum}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">昵称：</span>
+                            <span class="info-value">${data.nickName || '未设置'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">MAC：</span>
+                            <span class="info-value">${data.mac || 'N/A'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">纬度：</span>
+                            <span class="info-value">${hasLocation ? data.latitude.toFixed(6) : '无数据'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">经度：</span>
+                            <span class="info-value">${hasLocation ? data.longitude.toFixed(6) : '无数据'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">电量：</span>
+                            <span class="info-value">${data.battery !== null ? data.battery + '%' : '无数据'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">位置时间：</span>
+                            <span class="info-value">${timestamp}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">更新时间：</span>
+                            <span class="info-value">${updateTime}</span>
+                        </div>
+                        ${hasLocation ? `
+                        <div class="info-row">
+                            <span class="info-label">地图链接：</span>
+                            <span class="info-value">
+                                <a href="https://www.google.com/maps?q=${data.latitude},${data.longitude}" target="_blank">🗺️ 在 Google 地图查看</a> | 
+                                <a href="https://uri.amap.com/marker?position=${data.longitude},${data.latitude}" target="_blank">🗺️ 在高德地图查看</a>
+                            </span>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            } catch (error) {
+                container.innerHTML = `<div class="error">查询失败：${error.message}</div>`;
+            }
+        }
+        
+        // 查询某天记录
+        async function queryByDate() {
+            const deviceNum = document.getElementById('deviceNum').value.trim();
+            const date = document.getElementById('queryDate').value;
+            
+            if (!deviceNum) {
+                alert('请输入设备号');
+                return;
+            }
+            if (!date) {
+                alert('请选择日期');
+                return;
+            }
+            
+            const container = document.getElementById('dateResult');
+            container.innerHTML = '<div class="loading">查询中...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/${deviceNum}/history/date?date=${date}`);
+                const records = await response.json();
+                
+                if (records.length === 0) {
+                    container.innerHTML = `<div class="error">该日期没有记录</div>`;
+                    return;
+                }
+                
+                let html = `
+                    <div class="result">
+                        <h3>📅 ${date} 位置记录（共 ${records.length} 条）</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>纬度</th>
+                                    <th>经度</th>
+                                    <th>电量</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                records.forEach(record => {
+                    const time = new Date(record.timestamp).toLocaleString('zh-CN');
+                    html += `
+                        <tr>
+                            <td>${time}</td>
+                            <td>${record.latitude.toFixed(6)}</td>
+                            <td>${record.longitude.toFixed(6)}</td>
+                            <td>${record.battery}%</td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = `<div class="error">查询失败：${error.message}</div>`;
+            }
+        }
+        
+        // 查询所有历史记录
+        async function queryAllHistory() {
+            const deviceNum = document.getElementById('deviceNum').value.trim();
+            if (!deviceNum) {
+                alert('请输入设备号');
+                return;
+            }
+            
+            const container = document.getElementById('allResult');
+            container.innerHTML = '<div class="loading">查询中（可能需要较长时间）...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/${deviceNum}/history/all`);
+                const records = await response.json();
+                
+                if (records.length === 0) {
+                    container.innerHTML = `<div class="error">该设备没有历史记录</div>`;
+                    return;
+                }
+                
+                let html = `
+                    <div class="result">
+                        <h3>📊 所有历史记录（共 ${records.length} 条）</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>纬度</th>
+                                    <th>经度</th>
+                                    <th>电量</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                // 只显示前 100 条，避免页面卡顿
+                const displayRecords = records.slice(0, 100);
+                displayRecords.forEach(record => {
+                    const time = new Date(record.timestamp).toLocaleString('zh-CN');
+                    html += `
+                        <tr>
+                            <td>${time}</td>
+                            <td>${record.latitude.toFixed(6)}</td>
+                            <td>${record.longitude.toFixed(6)}</td>
+                            <td>${record.battery}%</td>
+                        </tr>
+                    `;
+                });
+                
+                if (records.length > 100) {
+                    html += `<tr><td colspan="4" style="text-align:center;color:#667eea;">... 还有 ${records.length - 100} 条记录 ...</td></tr>`;
+                }
+                
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
+            } catch (error) {
+                container.innerHTML = `<div class="error">查询失败：${error.message}</div>`;
+            }
+        }
+        
+        // 设置默认日期为今天
+        document.getElementById('queryDate').valueAsDate = new Date();
+        
+        // 页面加载时自动加载设备列表
+        window.onload = loadAllDevices;
+    </script>
+    
+    <!-- 设备详情模态框 -->
+    <div id="deviceModal" class="modal-overlay" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2>📱 设备详情</h2>
+                <button class="modal-close" onclick="closeDeviceModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- 设备基本信息 -->
+                <div id="deviceBasicInfo"></div>
+                
+                <!-- 操作按钮 -->
+                <div class="action-buttons">
+                    <button class="btn" onclick="queryLatestForModal()">📍 最新位置</button>
+                    <button class="btn" onclick="showDateQuery()">📅 某天记录</button>
+                    <button class="btn btn-secondary" onclick="queryAllHistoryForModal()">📊 所有记录</button>
+                </div>
+                
+                <!-- 某天记录查询 -->
+                <div id="dateQuerySection" style="display: none; margin-bottom: 20px;">
+                    <div class="form-group">
+                        <label>选择日期：</label>
+                        <input type="date" id="modalQueryDate">
+                    </div>
+                    <button class="btn" onclick="queryByDateForModal()">查询该天记录</button>
+                </div>
+                
+                <!-- 查询结果 -->
+                <div id="modalResult"></div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

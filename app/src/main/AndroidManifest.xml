@@ -34,7 +34,7 @@
             android:value="AIzaSyDrAPLhyAuC-GsRtc5m2eVXDhxkD_AZHUU" />
 
         <activity
-            android:name=".SplashActivity"
+            android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.RockiotTag">
             <intent-filter>
@@ -42,10 +42,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <activity
-            android:name=".MainActivity"
-            android:exported="false" />
 
         <activity
             android:name=".DeviceListActivity"

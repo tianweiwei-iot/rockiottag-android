@@ -11,16 +11,20 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import java.lang.ref.WeakReference;
 
 import com.amap.api.maps.AMap;
 import com.amap.api.maps.MapView;
@@ -75,12 +79,28 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
     
     private List<LocationRecord> allLocationRecords = new ArrayList<>();
     private List<StayPoint> stayPoints = new ArrayList<>();
-    private static final double STAY_DISTANCE_THRESHOLD = 20.0;
+    private static final double STAY_DISTANCE_THRESHOLD = 30.0; // 30 米，平衡 GPS 精度和停留点识别
     private static final double MAX_SPEED_KMH = 200.0;
     private boolean isPlaying = false;
     private int currentPlayIndex = 0;
     private int playSpeed = 1;
-    private Handler playHandler = new Handler();
+    // 修复：使用静态 Handler 防止内存泄漏
+    private static class PlaybackHandler extends Handler {
+        private final WeakReference<TrackActivity> activityRef;
+        
+        PlaybackHandler(TrackActivity activity) {
+            activityRef = new WeakReference<>(activity);
+        }
+        
+        @Override
+        public void handleMessage(Message msg) {
+            TrackActivity activity = activityRef.get();
+            if (activity != null && activity.isPlaying) {
+                activity.moveToNextPoint();
+            }
+        }
+    }
+    private PlaybackHandler playHandler;
     private Marker playMarker = null;
     private Polyline playedPolyline = null;
     private List<LatLng> playedPoints = new ArrayList<>();
@@ -90,9 +110,16 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
     private ImageButton toggleMarkersBtn;
     private ImageButton togglePolylineBtn;
     private ImageButton toggleSatelliteBtn;
+    private ImageButton toggleDisplayModeBtn;
+    private ImageButton statisticsBtn; // 统计按钮
+    private TextView displayModeText;
     private boolean showMarkers = true;
     private boolean showPolyline = true;
     private boolean isSatelliteMode = false;
+    private boolean isSimpleMode = false; // 显示模式：false=详细模式，true=精简模式
+    
+    // 加载进度条
+    private ProgressBar loadingProgress;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -193,14 +220,103 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
         } catch (com.amap.api.services.core.AMapException e) {
             Log.e(TAG, "GeocodeSearch init failed: " + e.getMessage());
         }
+        
+        // 初始化 Handler
+        playHandler = new PlaybackHandler(this);
 
         initPlaybackControls();
         
         initToolbar();
+        
+        // 初始化加载进度条
+        loadingProgress = findViewById(R.id.loading_progress);
 
         checkAndCleanOldTrackData();
         
         loadTrackData();
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        
+        Log.d(TAG, "TrackActivity onDestroy - cleaning up resources");
+        
+        // 1. 停止播放
+        stopPlayback();
+        
+        // 2. 移除所有 Marker
+        for (Marker marker : positionMarkers) {
+            marker.remove();
+        }
+        positionMarkers.clear();
+        
+        for (Marker marker : arrowMarkers) {
+            marker.remove();
+        }
+        arrowMarkers.clear();
+        
+        // 3. 清理播放相关对象
+        if (playMarker != null) {
+            playMarker.remove();
+            playMarker = null;
+        }
+        if (playedPolyline != null) {
+            playedPolyline.remove();
+            playedPolyline = null;
+        }
+        playedPoints.clear();
+        currentPlayPosition = null;
+        
+        // 4. 清理轨迹线
+        if (trackPolyline != null) {
+            trackPolyline.remove();
+            trackPolyline = null;
+        }
+        
+        // 5. 停止动画
+        if (moveAnimator != null && moveAnimator.isRunning()) {
+            moveAnimator.cancel();
+            moveAnimator = null;
+        }
+        
+        // 6. 清理数据集合
+        allLocationRecords.clear();
+        stayPoints.clear();
+        
+        // 7. 清理 Handler 消息
+        if (playHandler != null) {
+            playHandler.removeCallbacksAndMessages(null);
+        }
+        
+        // 8. 释放 GeocodeSearch
+        if (geocodeSearch != null) {
+            geocodeSearch = null;
+        }
+        
+        // 9. 清理 MapView
+        if (mapView != null) {
+            mapView.onDestroy();
+        }
+        
+        Log.d(TAG, "TrackActivity resources cleaned up");
+    }
+    
+    @Override
+    protected void onStop() {
+        super.onStop();
+        
+        // 停止播放，释放资源
+        if (isPlaying) {
+            stopPlayback();
+        }
+        
+        // 移除 Handler 消息
+        if (playHandler != null) {
+            playHandler.removeCallbacksAndMessages(null);
+        }
+        
+        Log.d(TAG, "TrackActivity onStop - playback stopped");
     }
 
     private void initPlaybackControls() {
@@ -254,6 +370,9 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
         toggleMarkersBtn = findViewById(R.id.toggle_markers_btn);
         togglePolylineBtn = findViewById(R.id.toggle_polyline_btn);
         toggleSatelliteBtn = findViewById(R.id.toggle_satellite_btn);
+        toggleDisplayModeBtn = findViewById(R.id.toggle_display_mode_btn);
+        statisticsBtn = findViewById(R.id.statistics_btn);
+        displayModeText = findViewById(R.id.display_mode_text);
 
         toggleMarkersBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -273,6 +392,20 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
             @Override
             public void onClick(View v) {
                 toggleSatellite();
+            }
+        });
+        
+        toggleDisplayModeBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleDisplayMode();
+            }
+        });
+        
+        statisticsBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showTrackStatistics();
             }
         });
     }
@@ -323,6 +456,40 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
             toggleSatelliteBtn.setAlpha(0.5f);
             Toast.makeText(this, R.string.standard_map_mode, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void toggleDisplayMode() {
+        isSimpleMode = !isSimpleMode;
+        
+        // 更新按钮文本
+        if (displayModeText != null) {
+            displayModeText.setText(isSimpleMode ? R.string.simple : R.string.detailed);
+        }
+        
+        // 重新渲染轨迹
+        if (!allLocationRecords.isEmpty()) {
+            // 保存当前数据，因为 clearTrack 不再清空数据
+            List<LocationRecord> recordsToRender = new ArrayList<>(allLocationRecords);
+            
+            clearTrack();
+            renderTrack(recordsToRender);
+            
+            // 确保 Marker 和 Polyline 的可见性与当前设置一致
+            for (Marker marker : positionMarkers) {
+                marker.setVisible(showMarkers);
+            }
+            for (Marker marker : arrowMarkers) {
+                marker.setVisible(showMarkers);
+            }
+            if (trackPolyline != null) {
+                trackPolyline.setVisible(showPolyline);
+            }
+        }
+        
+        String modeText = isSimpleMode ? getString(R.string.display_mode_simple) : getString(R.string.display_mode_detailed);
+        Toast.makeText(this, modeText, Toast.LENGTH_SHORT).show();
+        
+        Log.d(TAG, "Display mode changed to: " + (isSimpleMode ? "simple" : "detailed"));
     }
 
     private void startPlayback() {
@@ -406,7 +573,21 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
         final LatLng finalFromPos = fromPos;
         final LatLng finalToPos = toPos;
         
-        long duration = 1000 / playSpeed;
+        // 优化 1: 基于距离计算动画时长，实现匀速播放
+        // 计算两点之间的距离（米）
+        double distance = CoordinateUtils.calculateDistanceMeters(
+            fromRecord.getLatitude(), fromRecord.getLongitude(),
+            toRecord.getLatitude(), toRecord.getLongitude()
+        );
+        
+        // 根据距离和播放速度计算动画时长
+        // 基准速度：1000 米/秒（1x 速度下，1000 米需要 1 秒）
+        double baseSpeed = 1000.0; // 米/秒
+        long duration = (long) (distance / (baseSpeed * playSpeed) * 1000);
+        
+        // 限制时长范围，避免过快或过慢
+        if (duration < 300) duration = 300; // 最短 0.3 秒
+        if (duration > 5000) duration = 5000; // 最长 5 秒
         
         moveAnimator = ValueAnimator.ofFloat(0f, 1f);
         moveAnimator.setDuration(duration);
@@ -426,7 +607,11 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
                     playMarker.setPosition(newPos);
                 }
                 
-                aMap.animateCamera(com.amap.api.maps.CameraUpdateFactory.newLatLng(newPos));
+                // 优化 2: 只在关键点更新相机，减少卡顿
+                // 每 5 个点或到达终点时更新相机
+                if (currentPlayIndex % 5 == 0 || currentPlayIndex >= allLocationRecords.size() - 2) {
+                    aMap.animateCamera(com.amap.api.maps.CameraUpdateFactory.newLatLng(newPos));
+                }
             }
         });
         
@@ -449,14 +634,14 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
                     currentTimeText.setText(timeStr.substring(timeStr.indexOf(" ") + 1));
                     trackPointTime.setText(timeStr);
                     
-                    getAddressForLocation(finalToPos);
+                    // 优化 3: 逆地理编码缓存 + 降低频率
+                    // 只在停留点或每隔 10 个点才请求地址
+                    if (currentPlayIndex % 10 == 0 || isStayPointAt(currentPlayIndex)) {
+                        getAddressForLocation(finalToPos);
+                    }
                     
-                    playHandler.postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            moveToNextPoint();
-                        }
-                    }, 50);
+                    // 修复：使用 Handler 消息机制
+                    playHandler.sendEmptyMessageDelayed(0, 50);
                 }
             }
             
@@ -471,15 +656,19 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
     }
 
     private void updatePlayedPolyline() {
-        if (playedPolyline != null) {
-            playedPolyline.remove();
-        }
+        // 优化 4: 使用 addPoint 而不是重新创建整个 Polyline
         if (playedPoints.size() > 1) {
-            PolylineOptions polylineOptions = new PolylineOptions()
-                .addAll(playedPoints)
-                .color(0xFFFF5722)
-                .width(12f);
-            playedPolyline = aMap.addPolyline(polylineOptions);
+            if (playedPolyline == null) {
+                // 第一次创建
+                PolylineOptions polylineOptions = new PolylineOptions()
+                    .addAll(playedPoints)
+                    .color(0xFFFF5722)
+                    .width(12f);
+                playedPolyline = aMap.addPolyline(polylineOptions);
+            } else {
+                // 后续只添加新点（高德地图 SDK 支持动态更新）
+                playedPolyline.setPoints(playedPoints);
+            }
         }
     }
 
@@ -513,13 +702,41 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
             
             aMap.animateCamera(com.amap.api.maps.CameraUpdateFactory.newLatLng(latLng));
             
-            getAddressForLocation(latLng);
+            // 优化：降低逆地理编码频率
+            if (currentPlayIndex % 10 == 0 || isStayPointAt(currentPlayIndex)) {
+                getAddressForLocation(latLng);
+            }
         }
 
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault());
         String timeStr = sdf.format(new Date(allLocationRecords.get(currentPlayIndex).getTimestamp()));
         currentTimeText.setText(timeStr.substring(timeStr.indexOf(" ") + 1));
         trackPointTime.setText(timeStr);
+    }
+    
+    /**
+     * 判断当前索引是否是停留点
+     */
+    private boolean isStayPointAt(int index) {
+        if (stayPoints == null || stayPoints.isEmpty() || index >= allLocationRecords.size()) {
+            return false;
+        }
+        
+        long timestamp = allLocationRecords.get(index).getTimestamp();
+        
+        // 查找是否有停留点包含这个时间戳
+        for (StayPoint sp : stayPoints) {
+            if (sp.isStayPoint()) {
+                List<LocationRecord> records = sp.getMergedRecords();
+                for (LocationRecord record : records) {
+                    if (record.getTimestamp() == timestamp) {
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        return false;
     }
 
     private void cycleSpeed() {
@@ -536,22 +753,99 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
     }
 
     private com.amap.api.maps.model.BitmapDescriptor createPlayMarker() {
+        // 获取设备的 tag
+        String deviceTag = "";
+        if (selectedDevice != null && selectedDevice.getTag() != null && !selectedDevice.getTag().isEmpty()) {
+            deviceTag = selectedDevice.getTag();
+        }
+        
+        // 根据 tag 获取对应的 emoji 图标
+        String emoji = getTagEmoji(deviceTag);
+        
+        // 使用 emoji 绘制播放图标
+        return createEmojiMarker(emoji);
+    }
+    
+    /**
+     * 根据 tag 获取对应的 emoji 图标
+     */
+    private String getTagEmoji(String tag) {
+        if (tag == null || tag.isEmpty()) {
+            return "🏷️"; // 默认标签图标
+        }
+        
+        switch (tag) {
+            case "dog":
+                return "🐕";
+            case "boy":
+                return "👦";
+            case "car":
+                return "🚗";
+            case "bike":
+                return "🚴";
+            case "bank_card":
+                return "💳";
+            case "girl":
+                return "👧";
+            case "key":
+                return "🔑";
+            case "moto":
+                return "🏍️";
+            case "pig":
+                return "🐷";
+            case "wallet":
+                return "👛";
+            case "bag":
+                return "👜";
+            case "cat":
+                return "🐱";
+            case "bird":
+                return "🐦";
+            default:
+                return "🏷️";
+        }
+    }
+    
+    /**
+     * 使用 emoji 创建播放图标
+     */
+    private com.amap.api.maps.model.BitmapDescriptor createEmojiMarker(String emoji) {
         int size = 80;
         Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
         Paint paint = new Paint();
         paint.setAntiAlias(true);
         
+        // 绘制背景圆形（橙色）
         paint.setColor(Color.parseColor("#FF5722"));
         canvas.drawCircle(size / 2f, size / 2f, size / 2f - 5, paint);
         
+        // 绘制白色边框
         paint.setColor(Color.WHITE);
-        paint.setTextSize(30);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(4);
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f - 5, paint);
+        
+        // 绘制 emoji 图标
+        paint.setStyle(Paint.Style.FILL);
+        paint.setTextSize(48); // emoji 字体大小
         paint.setTextAlign(Paint.Align.CENTER);
-        paint.setFakeBoldText(true);
-        canvas.drawText("▶", size / 2f, size / 2f + 10, paint);
+        
+        // 计算 emoji 垂直居中位置
+        Paint.FontMetrics fontMetrics = paint.getFontMetrics();
+        float textHeight = fontMetrics.bottom - fontMetrics.top;
+        float textY = size / 2f + textHeight / 2 - fontMetrics.bottom;
+        
+        canvas.drawText(emoji, size / 2f, textY, paint);
         
         return BitmapDescriptorFactory.fromBitmap(bitmap);
+    }
+    
+    /**
+     * 创建默认的文字图标（后备方案）
+     */
+    private com.amap.api.maps.model.BitmapDescriptor createDefaultTextMarker(String deviceTag) {
+        return createEmojiMarker("🏷️");
     }
 
     private void initMap() {
@@ -842,10 +1136,11 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
     }
 
     private void loadTrackData() {
-        loadTrackData(true);
+        // 默认使用智能缓存策略，不强制同步
+        loadTrackData(false);
     }
 
-    private void loadTrackData(final boolean syncFromServer) {
+    private void loadTrackData(final boolean forceSync) {
         if (selectedDevice == null) {
             Toast.makeText(this, R.string.please_select_device, Toast.LENGTH_SHORT).show();
             return;
@@ -862,33 +1157,200 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
         Log.d(TAG, "Querying to: " + sdf.format(endTime.getTime()));
         Log.d(TAG, "Device ID: " + selectedDevice.getDeviceId());
         Log.d(TAG, "Device Num: " + selectedDevice.getDeviceNum());
-        Log.d(TAG, "syncFromServer: " + syncFromServer);
+        Log.d(TAG, "forceSync: " + forceSync);
 
-        if (syncFromServer) {
-            Log.d(TAG, "Syncing from server first...");
-            Toast.makeText(this, R.string.loading_track_data, Toast.LENGTH_SHORT).show();
-            syncTrackDataFromServerAndReload(
-                selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId(),
-                startTime.getTimeInMillis(),
-                endTime.getTimeInMillis()
-            );
-            return;
-        }
-
+        // 【优化1】智能缓存策略：先查询本地数据
         List<LocationRecord> locationRecords = databaseHelper.getLocationRecords(
             selectedDevice.getDeviceId(),
             startTime.getTimeInMillis(),
             endTime.getTimeInMillis()
         );
 
+        // 如果本地有数据且不是强制同步，检查数据新鲜度
+        if (!forceSync && locationRecords != null && !locationRecords.isEmpty()) {
+            long newestTimestamp = locationRecords.get(locationRecords.size() - 1).getTimestamp();
+            long cacheAge = System.currentTimeMillis() - newestTimestamp;
+            
+            // 如果数据在 5 分钟内，直接使用本地缓存
+            if (cacheAge < 300000) {
+                Log.d(TAG, "✅ Using cached data (age: " + (cacheAge / 1000) + "s)");
+                renderTrack(locationRecords);
+                return;
+            } else {
+                Log.d(TAG, "Cache age: " + (cacheAge / 1000) + "s, need to sync");
+            }
+        }
+
+        // 【优化2】增量同步策略：检查本地最新数据
+        if (locationRecords != null && !locationRecords.isEmpty()) {
+            long localLatestTime = locationRecords.get(locationRecords.size() - 1).getTimestamp();
+            long syncStartTime = Math.max(startTime.getTimeInMillis(), localLatestTime);
+            
+            // 如果本地数据已经覆盖查询范围，不需要同步
+            if (syncStartTime >= endTime.getTimeInMillis()) {
+                Log.d(TAG, "✅ Local data is up to date, no sync needed");
+                renderTrack(locationRecords);
+                return;
+            }
+            
+            // 增量同步缺失的数据
+            Log.d(TAG, "🔄 Incremental sync from: " + sdf.format(new java.util.Date(syncStartTime)));
+            Toast.makeText(this, R.string.loading_track_data, Toast.LENGTH_SHORT).show();
+            syncTrackDataIncremental(
+                selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId(),
+                syncStartTime,
+                endTime.getTimeInMillis(),
+                locationRecords // 传入已有数据用于合并
+            );
+        } else {
+            // 本地没有数据，完整同步
+            Log.d(TAG, "🔄 Full sync from server...");
+            Toast.makeText(this, R.string.loading_track_data, Toast.LENGTH_SHORT).show();
+            syncTrackDataFromServerAndReload(
+                selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId(),
+                startTime.getTimeInMillis(),
+                endTime.getTimeInMillis()
+            );
+        }
+    }
+
+    /**
+     * 增量同步轨迹数据
+     */
+    private void syncTrackDataIncremental(final String deviceNum, final long startTime, final long endTime, final List<LocationRecord> existingRecords) {
+        Log.d(TAG, "=== INCREMENTAL SYNC START ===");
+        Log.d(TAG, "DeviceNum: " + deviceNum);
+        Log.d(TAG, "Time range: " + startTime + " - " + endTime);
+        Log.d(TAG, "Existing records: " + (existingRecords != null ? existingRecords.size() : 0));
+        
+        NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNum));
+        
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    NewApiService apiService = NewApiService.getInstance();
+                    List<NewApiService.LocationInfo> locations = apiService.getLocations(deviceNum, startTime, endTime);
+                    
+                    if (locations != null && !locations.isEmpty()) {
+                        int addedCount = 0;
+                        int skippedCount = 0;
+                        
+                        for (NewApiService.LocationInfo loc : locations) {
+                            if (loc.latitude != 0 && loc.longitude != 0 && loc.timestamp > 0) {
+                                LocationRecord record = new LocationRecord(
+                                    selectedDevice.getDeviceId(),
+                                    loc.latitude,
+                                    loc.longitude,
+                                    loc.timestamp
+                                );
+                                
+                                // 检查是否重复
+                                List<LocationRecord> existingRecords = databaseHelper.getLocationRecords(
+                                    selectedDevice.getDeviceId(),
+                                    loc.timestamp - 1000,
+                                    loc.timestamp + 1000
+                                );
+                                
+                                if (existingRecords == null || existingRecords.isEmpty()) {
+                                    databaseHelper.addLocationRecord(record);
+                                    addedCount++;
+                                } else {
+                                    skippedCount++;
+                                }
+                            }
+                        }
+                        
+                        Log.d(TAG, "Incremental sync summary: added=" + addedCount + ", skipped=" + skippedCount);
+                        
+                        // 创建 final 变量供内部类使用
+                        final int finalAddedCount = addedCount;
+                        final int finalSkippedCount = skippedCount;
+                        
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                // 合并已有数据和新数据
+                                List<LocationRecord> allRecords = new ArrayList<>();
+                                if (existingRecords != null) {
+                                    allRecords.addAll(existingRecords);
+                                }
+                                
+                                // 加载新同步的数据
+                                List<LocationRecord> newRecords = databaseHelper.getLocationRecords(
+                                    selectedDevice.getDeviceId(),
+                                    startTime,
+                                    endTime
+                                );
+                                
+                                if (newRecords != null && !newRecords.isEmpty()) {
+                                    allRecords.addAll(newRecords);
+                                    
+                                    // 去重并排序
+                                    java.util.Collections.sort(allRecords, new java.util.Comparator<LocationRecord>() {
+                                        @Override
+                                        public int compare(LocationRecord r1, LocationRecord r2) {
+                                            return Long.compare(r1.getTimestamp(), r2.getTimestamp());
+                                        }
+                                    });
+                                    
+                                    // 去重
+                                    List<LocationRecord> uniqueRecords = new ArrayList<>();
+                                    if (!allRecords.isEmpty()) {
+                                        uniqueRecords.add(allRecords.get(0));
+                                        for (int i = 1; i < allRecords.size(); i++) {
+                                            if (allRecords.get(i).getTimestamp() != allRecords.get(i - 1).getTimestamp()) {
+                                                uniqueRecords.add(allRecords.get(i));
+                                            }
+                                        }
+                                    }
+                                    
+                                    Log.d(TAG, "Merged records: " + uniqueRecords.size() + " (existing: " + (existingRecords != null ? existingRecords.size() : 0) + ", new: " + finalAddedCount + ")");
+                                    renderTrack(uniqueRecords);
+                                } else {
+                                    renderTrack(existingRecords);
+                                }
+                            }
+                        });
+                    } else {
+                        Log.d(TAG, "No new locations from server");
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                renderTrack(existingRecords);
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error in incremental sync: " + e.getMessage(), e);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(TrackActivity.this, R.string.sync_track_error, Toast.LENGTH_SHORT).show();
+                            renderTrack(existingRecords);
+                        }
+                    });
+                }
+            }
+        }).start();
+    }
+
+    /**
+     * 渲染轨迹（从 loadTrackData 中提取）
+     */
+    private void renderTrack(List<LocationRecord> locationRecords) {
+        // 显示加载进度条
+        showLoading();
+        
         if (locationRecords == null || locationRecords.isEmpty()) {
-            Log.d(TAG, "NO RECORDS FOUND IN DATABASE!");
+            Log.d(TAG, "NO RECORDS TO RENDER!");
             Toast.makeText(this, R.string.no_track_data, Toast.LENGTH_SHORT).show();
+            hideLoading();
             updatePlaybackInfo(0);
             return;
         }
 
-        Log.d(TAG, "Total records from DB: " + locationRecords.size());
+        Log.d(TAG, "Rendering track with " + locationRecords.size() + " records");
         
         java.util.Collections.sort(locationRecords, new java.util.Comparator<LocationRecord>() {
             @Override
@@ -926,8 +1388,16 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
             addDirectionArrows(latLngList);
         }
 
+        // 优化：根据显示模式决定是否只显示关键节点
         for (int i = 0; i < stayPoints.size(); i++) {
             StayPoint stayPoint = stayPoints.get(i);
+            
+            // 精简模式：如果不是停留点，且不是起点或终点，则跳过
+            if (isSimpleMode && !stayPoint.isStayPoint() && i != 0 && i != stayPoints.size() - 1) {
+                Log.d(TAG, "Skipping ordinary point " + i + " (simple mode)");
+                continue;
+            }
+            
             LatLng latLng = CoordinateUtils.wgs84ToGcj02(stayPoint.getLatitude(), stayPoint.getLongitude());
             
             com.amap.api.maps.model.BitmapDescriptor icon;
@@ -1008,8 +1478,14 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
             
             getAddressForLocation(latLngList.get(0));
         }
+        
+        // 隐藏加载进度条
+        hideLoading();
     }
 
+    /**
+     * 完整同步轨迹数据（首次加载或强制刷新时使用）
+     */
     private void syncTrackDataFromServerAndReload(final String deviceNum, final long startTime, final long endTime) {
         Log.d(TAG, "=== SYNC TRACK DATA START ===");
         Log.d(TAG, "DeviceNum: " + deviceNum);
@@ -1024,27 +1500,6 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
             public void run() {
                 try {
                     NewApiService apiService = NewApiService.getInstance();
-                    
-                    if (!apiService.isAuthenticated()) {
-                        Log.d(TAG, "Not authenticated, logging in...");
-                        NewApiService.ApiResponse loginResponse = apiService.login(
-                            "6h7lMJOVpVOld5R9CApqH6coCR1W8iqL",
-                            "XHD_HSWL_API",
-                            "123456"
-                        );
-                        
-                        if (loginResponse == null || !loginResponse.isSuccess()) {
-                            Log.e(TAG, "Login failed, cannot sync track data");
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    Toast.makeText(TrackActivity.this, R.string.sync_track_failed, Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                            return;
-                        }
-                        Log.d(TAG, "Login successful");
-                    }
                     
                     Log.d(TAG, "Calling getLocations with deviceNum=" + deviceNum + ", startTime=" + startTime + ", endTime=" + endTime);
                     List<NewApiService.LocationInfo> locations = apiService.getLocations(deviceNum, startTime, endTime);
@@ -1098,7 +1553,13 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
                             public void run() {
                                 Log.d(TAG, "Track data sync completed, added " + finalAddedCount + " records, total from server: " + totalFromServer);
                                 if (totalFromServer > 0) {
-                                    loadTrackData(false);
+                                    // 重新从数据库加载并渲染
+                                    List<LocationRecord> newRecords = databaseHelper.getLocationRecords(
+                                        selectedDevice.getDeviceId(),
+                                        startTime,
+                                        endTime
+                                    );
+                                    renderTrack(newRecords);
                                 } else {
                                     Toast.makeText(TrackActivity.this, R.string.no_track_data, Toast.LENGTH_SHORT).show();
                                     updatePlaybackInfo(0);
@@ -1179,6 +1640,14 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
         playbackSeekbar.setProgress(0);
     }
     
+    /**
+     * 增强的异常点过滤器
+     * 过滤规则：
+     * 1. GPS 漂移检测（短时间大距离跳变）
+     * 2. 速度异常检测（超过最大速度）
+     * 3. 时间倒流检测（设备时钟异常）
+     * 4. 坐标无效检测（0,0 或其他异常值）
+     */
     private List<LocationRecord> filterAbnormalPoints(List<LocationRecord> records) {
         if (records == null || records.isEmpty()) {
             return records;
@@ -1188,8 +1657,13 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
         filtered.add(records.get(0));
         
         int filteredOut = 0;
+        int gpsSpikeCount = 0;      // GPS 漂移计数
+        int speedAnomalyCount = 0;  // 速度异常计数
+        int timeReversalCount = 0;  // 时间倒流计数
+        int invalidCoordCount = 0;  // 无效坐标计数
+        
         for (int i = 1; i < records.size(); i++) {
-            LocationRecord prev = records.get(i - 1);
+            LocationRecord prev = filtered.get(filtered.size() - 1);  // 使用已过滤的最后一个点
             LocationRecord curr = records.get(i);
             
             double distance = CoordinateUtils.calculateDistanceMeters(
@@ -1197,28 +1671,67 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
                 curr.getLatitude(), curr.getLongitude()
             );
             
-            double timeDiffHours = (curr.getTimestamp() - prev.getTimestamp()) / 3600000.0;
+            double timeDiffSeconds = (curr.getTimestamp() - prev.getTimestamp()) / 1000.0;
+            double timeDiffHours = timeDiffSeconds / 3600.0;
             
+            // 检查 1: GPS 漂移检测（短时间大距离跳变）
+            // 如果在 60 秒内移动超过 2000 米（约 120 km/h），很可能是 GPS 漂移
+            // 这个阈值考虑了高速公路场景（120 km/h = 2000m/min）
+            if (timeDiffSeconds > 0 && timeDiffSeconds < 60 && distance > 2000) {
+                gpsSpikeCount++;
+                Log.d(TAG, String.format("Filtered GPS spike at index %d: distance=%.0fm in %.0fs", 
+                    i, distance, timeDiffSeconds));
+                continue;
+            }
+            
+            // 检查 2: 速度异常
             if (timeDiffHours > 0) {
                 double speedKmh = (distance / 1000.0) / timeDiffHours;
                 
                 if (speedKmh > MAX_SPEED_KMH) {
-                    filteredOut++;
-                    Log.d(TAG, "Filtered abnormal point " + i + ": speed=" + String.format("%.1f", speedKmh) + " km/h, distance=" + String.format("%.1f", distance) + "m");
+                    speedAnomalyCount++;
+                    Log.d(TAG, String.format("Filtered speed anomaly at index %d: speed=%.1f km/h, distance=%.0fm", 
+                        i, speedKmh, distance));
                     continue;
                 }
+                
+                // 警告：步行/骑行速度异常（但不过滤）
+                if (speedKmh > 50 && speedKmh <= MAX_SPEED_KMH) {
+                    Log.w(TAG, String.format("Warning: High speed at index %d: %.1f km/h", i, speedKmh));
+                }
+            }
+            
+            // 检查 3: 时间倒流（设备时钟异常）
+            if (curr.getTimestamp() < prev.getTimestamp()) {
+                timeReversalCount++;
+                Log.w(TAG, String.format("Filtered time reversal at index %d: prev=%d, curr=%d", 
+                    i, prev.getTimestamp(), curr.getTimestamp()));
+                continue;
+            }
+            
+            // 检查 4: 坐标无效（0,0 或其他异常值）
+            if (Math.abs(curr.getLatitude()) < 0.0001 && Math.abs(curr.getLongitude()) < 0.0001) {
+                invalidCoordCount++;
+                Log.w(TAG, String.format("Filtered invalid coordinates at index %d: lat=%.6f, lng=%.6f", 
+                    i, curr.getLatitude(), curr.getLongitude()));
+                continue;
             }
             
             filtered.add(curr);
         }
         
-        Log.d(TAG, "Filtered " + filteredOut + " abnormal points, kept " + filtered.size() + " / " + records.size());
+        Log.d(TAG, String.format("Filter results: total=%d, kept=%d, filtered=%d (gpsSpikes=%d, speedAnomalies=%d, timeReversals=%d, invalidCoords=%d)",
+            records.size(), filtered.size(), filteredOut + gpsSpikeCount + speedAnomalyCount + timeReversalCount + invalidCoordCount,
+            gpsSpikeCount, speedAnomalyCount, timeReversalCount, invalidCoordCount));
+        
         return filtered;
     }
 
     private void clearTrack() {
+        // 1. 停止播放动画
         stopPlayback();
         
+        // 2. 清理 Marker（防止内存泄漏）
         for (Marker marker : positionMarkers) {
             marker.remove();
         }
@@ -1229,13 +1742,35 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
         }
         arrowMarkers.clear();
 
+        // 3. 清理轨迹线
         if (trackPolyline != null) {
             trackPolyline.remove();
             trackPolyline = null;
         }
         
+        // 4. 清理播放相关对象
+        if (playedPolyline != null) {
+            playedPolyline.remove();
+            playedPolyline = null;
+        }
+        if (playMarker != null) {
+            playMarker.remove();
+            playMarker = null;
+        }
+        playedPoints.clear();
+        currentPlayPosition = null;
+        
+        // 5. 停止所有动画
+        if (moveAnimator != null && moveAnimator.isRunning()) {
+            moveAnimator.cancel();
+            moveAnimator = null;
+        }
+        
+        // 6. 清理轨迹数据（释放内存）
         allLocationRecords.clear();
         stayPoints.clear();
+        
+        Log.d(TAG, "Track cleared, memory released");
     }
     
     private List<StayPoint> processStayPoints(List<LocationRecord> records) {
@@ -1306,49 +1841,27 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
             return;
         }
         
-        for (int i = 0; i < latLngList.size() - 1; i++) {
+        // 优化：每隔 N 个点显示一个箭头，避免过于密集
+        int arrowInterval = 5; // 每 5 个点显示一个箭头
+        
+        for (int i = 0; i < latLngList.size() - 1; i += arrowInterval) {
             LatLng p1 = latLngList.get(i);
-            LatLng p2 = latLngList.get(i + 1);
+            LatLng p2 = latLngList.get(Math.min(i + 1, latLngList.size() - 1));
             
-            double segmentDistance = CoordinateUtils.calculateDistanceMeters(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
+            double angle = calculateBearing(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
             
-            int arrowCount = Math.max(1, Math.min(5, (int) (segmentDistance / 300)));
+            MarkerOptions arrowMarker = new MarkerOptions()
+                .position(new LatLng(p1.latitude, p1.longitude))
+                .icon(createArrowMarker(angle))
+                .anchor(0.5f, 0.5f)
+                .zIndex(1);
             
-            if (arrowCount == 1) {
-                double arrowLat = (p1.latitude + p2.latitude) / 2;
-                double arrowLng = (p1.longitude + p2.longitude) / 2;
-                double angle = calculateBearing(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
-                
-                MarkerOptions arrowMarker = new MarkerOptions()
-                    .position(new LatLng(arrowLat, arrowLng))
-                    .icon(createArrowMarker(angle))
-                    .anchor(0.5f, 0.5f)
-                    .zIndex(1);
-                
-                Marker marker = aMap.addMarker(arrowMarker);
-                marker.setVisible(showMarkers);
-                arrowMarkers.add(marker);
-            } else {
-                double interval = segmentDistance / (arrowCount + 1);
-                
-                for (int j = 1; j <= arrowCount; j++) {
-                    double ratio = (interval * j) / segmentDistance;
-                    double arrowLat = p1.latitude + (p2.latitude - p1.latitude) * ratio;
-                    double arrowLng = p1.longitude + (p2.longitude - p1.longitude) * ratio;
-                    double angle = calculateBearing(p1.latitude, p1.longitude, p2.latitude, p2.longitude);
-                    
-                    MarkerOptions arrowMarker = new MarkerOptions()
-                        .position(new LatLng(arrowLat, arrowLng))
-                        .icon(createArrowMarker(angle))
-                        .anchor(0.5f, 0.5f)
-                        .zIndex(1);
-                    
-                    Marker marker = aMap.addMarker(arrowMarker);
-                    marker.setVisible(showMarkers);
-                    arrowMarkers.add(marker);
-                }
-            }
+            Marker marker = aMap.addMarker(arrowMarker);
+            marker.setVisible(showMarkers);
+            arrowMarkers.add(marker);
         }
+        
+        Log.d(TAG, "Added direction arrows (interval: " + arrowInterval + ")");
     }
     
     private double calculateBearing(double lat1, double lng1, double lat2, double lng2) {
@@ -1365,6 +1878,94 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
         
         // 转换为0-360度
         return (bearing + 360) % 360;
+    }
+    
+    /**
+     * 显示加载进度条
+     */
+    private void showLoading() {
+        if (loadingProgress != null) {
+            loadingProgress.setVisibility(View.VISIBLE);
+        }
+    }
+    
+    /**
+     * 隐藏加载进度条
+     */
+    private void hideLoading() {
+        if (loadingProgress != null) {
+            loadingProgress.setVisibility(View.GONE);
+        }
+    }
+    
+    /**
+     * 显示轨迹统计信息
+     */
+    private void showTrackStatistics() {
+        if (allLocationRecords.isEmpty()) {
+            Toast.makeText(this, R.string.no_track_data, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // 计算统计数据
+        int totalPoints = allLocationRecords.size();
+        
+        // 计算总距离
+        double totalDistance = 0;
+        for (int i = 1; i < allLocationRecords.size(); i++) {
+            LocationRecord prev = allLocationRecords.get(i - 1);
+            LocationRecord curr = allLocationRecords.get(i);
+            totalDistance += CoordinateUtils.calculateDistanceMeters(
+                prev.getLatitude(), prev.getLongitude(),
+                curr.getLatitude(), curr.getLongitude()
+            );
+        }
+        
+        // 计算时间跨度
+        long startTime = allLocationRecords.get(0).getTimestamp();
+        long endTime = allLocationRecords.get(allLocationRecords.size() - 1).getTimestamp();
+        long durationMs = endTime - startTime;
+        
+        // 格式化时间
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault());
+        String startTimeStr = sdf.format(new Date(startTime));
+        String endTimeStr = sdf.format(new Date(endTime));
+        
+        long hours = durationMs / (1000 * 60 * 60);
+        long minutes = (durationMs % (1000 * 60 * 60)) / (1000 * 60);
+        String durationStr = String.format("%d 小时 %d 分钟", hours, minutes);
+        
+        // 计算停留点数量
+        int stayPointCount = 0;
+        for (StayPoint sp : stayPoints) {
+            if (sp.isStayPoint()) {
+                stayPointCount++;
+            }
+        }
+        
+        // 计算平均速度
+        double avgSpeed = 0;
+        if (durationMs > 0) {
+            avgSpeed = (totalDistance / 1000.0) / (durationMs / (1000.0 * 60 * 60)); // km/h
+        }
+        
+        // 构建统计信息
+        StringBuilder stats = new StringBuilder();
+        stats.append("📊 轨迹统计信息\n\n");
+        stats.append("📍 轨迹点数：").append(totalPoints).append(" 个\n");
+        stats.append("📏 总距离：").append(String.format("%.2f km", totalDistance / 1000.0)).append("\n");
+        stats.append("⏱️ 时间跨度：").append(durationStr).append("\n");
+        stats.append("🕐 开始时间：").append(startTimeStr).append("\n");
+        stats.append("🕐 结束时间：").append(endTimeStr).append("\n");
+        stats.append("🚶 停留点：").append(stayPointCount).append(" 个\n");
+        stats.append("⚡ 平均速度：").append(String.format("%.2f km/h", avgSpeed)).append("\n");
+        
+        // 显示对话框
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("轨迹统计")
+            .setMessage(stats.toString())
+            .setPositiveButton("确定", null)
+            .show();
     }
     
     private com.amap.api.maps.model.BitmapDescriptor createArrowMarker(double angle) {
@@ -1639,12 +2240,6 @@ public class TrackActivity extends AppCompatActivity implements GeocodeSearch.On
     protected void onPause() {
         super.onPause();
         mapView.onPause();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        mapView.onDestroy();
     }
 
     @Override

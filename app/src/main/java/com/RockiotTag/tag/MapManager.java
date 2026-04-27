@@ -87,7 +87,7 @@ public class MapManager implements OnMapReadyCallback {
             if (amap != null) {
                 amap.getUiSettings().setMyLocationButtonEnabled(false);
                 amap.setMyLocationEnabled(false);
-                amap.getUiSettings().setCompassEnabled(true);
+                amap.getUiSettings().setCompassEnabled(false);
                 amap.getUiSettings().setScaleControlsEnabled(true);
                 amap.moveCamera(CameraUpdateFactory.zoomTo(17));
                 
@@ -124,7 +124,7 @@ public class MapManager implements OnMapReadyCallback {
             try {
                 Log.d(TAG, "Configuring Google Map UI settings...");
                 googleMap.getUiSettings().setMyLocationButtonEnabled(false);
-                googleMap.getUiSettings().setCompassEnabled(true);
+                googleMap.getUiSettings().setCompassEnabled(false);
                 googleMap.getUiSettings().setMapToolbarEnabled(false);
                 googleMap.getUiSettings().setZoomControlsEnabled(true);
                 

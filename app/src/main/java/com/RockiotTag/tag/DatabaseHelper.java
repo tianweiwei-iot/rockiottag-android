@@ -88,12 +88,107 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
         // 插入或更新设备
         long result = db.replace(TABLE_DEVICES, null, values);
-        Log.d(TAG, "Device added/updated: " + result);
+        Log.d(TAG, "Device added/updated: " + result + ", deviceId=" + device.getDeviceId() + ", name=" + device.getName());
 
         db.close();
     }
+    
+    // 专门用于更新设备名称和标签的方法
+    public boolean updateDeviceNameAndTag(String deviceId, String deviceNum, String name, String tag) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        
+        try {
+            // 步骤1：先查询设备是否存在
+            Log.d(TAG, "=== Step 1: Query device before update ===");
+            Cursor cursor = db.query(TABLE_DEVICES, 
+                new String[]{COLUMN_DEVICE_ID, COLUMN_DEVICE_NUM, COLUMN_DEVICE_NAME, COLUMN_TAG},
+                null, null, null, null, null);
+            
+            Log.d(TAG, "Total devices in database: " + cursor.getCount());
+            while (cursor.moveToNext()) {
+                String id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_ID));
+                String num = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NUM));
+                String n = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NAME));
+                String t = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TAG));
+                Log.d(TAG, "  Device: id=" + id + ", num=" + num + ", name=" + n + ", tag=" + t);
+            }
+            cursor.close();
+            
+            // 步骤2：使用原始 SQL UPDATE
+            Log.d(TAG, "=== Step 2: Executing UPDATE ===");
+            Log.d(TAG, "Target deviceNum: " + deviceNum);
+            Log.d(TAG, "New name: " + name);
+            Log.d(TAG, "New tag: " + tag);
+            
+            String sql = "UPDATE " + TABLE_DEVICES + 
+                        " SET " + COLUMN_DEVICE_NAME + "=?, " + COLUMN_TAG + "=?" +
+                        " WHERE " + COLUMN_DEVICE_NUM + "=?";
+            
+            db.execSQL(sql, new String[]{name, tag, deviceNum});
+            Log.d(TAG, "✅ UPDATE SQL executed successfully");
+            
+            // 步骤3：验证更新结果
+            Log.d(TAG, "=== Step 3: Verify update ===");
+            cursor = db.query(TABLE_DEVICES,
+                new String[]{COLUMN_DEVICE_ID, COLUMN_DEVICE_NUM, COLUMN_DEVICE_NAME, COLUMN_TAG},
+                COLUMN_DEVICE_NUM + "=?",
+                new String[]{deviceNum},
+                null, null, null);
+            
+            if (cursor.moveToFirst()) {
+                String verifyId = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_ID));
+                String verifyNum = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NUM));
+                String verifyName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NAME));
+                String verifyTag = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TAG));
+                
+                Log.d(TAG, "✅ VERIFICATION SUCCESS!");
+                Log.d(TAG, "  After update: id=" + verifyId + ", num=" + verifyNum + ", name=" + verifyName + ", tag=" + verifyTag);
+                
+                boolean success = verifyName.equals(name) && verifyTag.equals(tag);
+                cursor.close();
+                return success;
+            } else {
+                Log.e(TAG, "❌ VERIFICATION FAILED: Device not found after update!");
+                cursor.close();
+                return false;
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "❌ UPDATE EXCEPTION: " + e.getMessage(), e);
+            e.printStackTrace();
+            return false;
+        } finally {
+            db.close();
+        }
+    }
 
 
+
+    // 获取设备最新的位置记录时间戳
+    public long getLatestRecordTimestamp(String deviceId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        long latestTimestamp = 0;
+        
+        try {
+            Cursor cursor = db.query(TABLE_LOCATION_HISTORY,
+                new String[]{"MAX(" + COLUMN_HISTORY_TIMESTAMP + ")"},
+                COLUMN_HISTORY_DEVICE_ID + "=?",
+                new String[]{deviceId},
+                null, null, null);
+            
+            if (cursor.moveToFirst() && !cursor.isNull(0)) {
+                latestTimestamp = cursor.getLong(0);
+                Log.d(TAG, "Latest record timestamp for device " + deviceId + ": " + latestTimestamp);
+            }
+            cursor.close();
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting latest timestamp: " + e.getMessage());
+        } finally {
+            db.close();
+        }
+        
+        return latestTimestamp;
+    }
 
     // 获取所有设备
     public List<Device> getAllDevices() {

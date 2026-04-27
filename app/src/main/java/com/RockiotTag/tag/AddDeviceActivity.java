@@ -78,10 +78,10 @@ public class AddDeviceActivity extends AppCompatActivity {
                     Log.d(TAG, "Scan result: [" + scanResult + "]");
                     deviceNumEdit.setText(scanResult);
                     deviceNumEdit.setSelection(scanResult.length());
-                    Toast.makeText(this, "扫码成功: " + scanResult, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, getString(R.string.scan_success, scanResult), Toast.LENGTH_SHORT).show();
                 } else {
                     Log.w(TAG, "Scan result is null or empty");
-                    Toast.makeText(this, "未扫描到内容", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, R.string.scan_no_content, Toast.LENGTH_SHORT).show();
                 }
             } else {
                 Log.d(TAG, "Scan cancelled");
@@ -231,7 +231,7 @@ public class AddDeviceActivity extends AppCompatActivity {
             try {
                 InputStream inputStream = getContentResolver().openInputStream(imageUri);
                 if (inputStream == null) {
-                    runOnUiThread(() -> Toast.makeText(this, "无法读取图片", Toast.LENGTH_SHORT).show());
+                    runOnUiThread(() -> Toast.makeText(this, R.string.cannot_read_image, Toast.LENGTH_SHORT).show());
                     return;
                 }
 
@@ -260,7 +260,7 @@ public class AddDeviceActivity extends AppCompatActivity {
                 inputStream.close();
 
                 if (bitmap == null) {
-                    runOnUiThread(() -> Toast.makeText(this, "无法解码图片", Toast.LENGTH_SHORT).show());
+                    runOnUiThread(() -> Toast.makeText(this, R.string.cannot_decode_image, Toast.LENGTH_SHORT).show());
                     return;
                 }
 
@@ -285,17 +285,17 @@ public class AddDeviceActivity extends AppCompatActivity {
                     runOnUiThread(() -> {
                         deviceNumEdit.setText(content);
                         deviceNumEdit.setSelection(content.length());
-                        Toast.makeText(this, "识别成功: " + content, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, getString(R.string.recognize_success, content), Toast.LENGTH_SHORT).show();
                     });
                 } else {
-                    runOnUiThread(() -> Toast.makeText(this, "无法识别二维码，请尝试其他图片", Toast.LENGTH_SHORT).show());
+                    runOnUiThread(() -> Toast.makeText(this, R.string.cannot_recognize_qr, Toast.LENGTH_SHORT).show());
                 }
                 
                 bitmap.recycle();
                 
             } catch (Exception e) {
                 Log.e(TAG, "Gallery decode error", e);
-                runOnUiThread(() -> Toast.makeText(this, "识别失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> Toast.makeText(this, getString(R.string.recognize_failed, e.getMessage()), Toast.LENGTH_SHORT).show());
             }
         }).start();
     }
@@ -447,6 +447,18 @@ public class AddDeviceActivity extends AppCompatActivity {
                     }
                 }
 
+                NewApiService.DeviceInfo deviceInfo = apiService.getDeviceLatest(deviceNum);
+                Log.d(TAG, "Check device on server: " + deviceNum + ", result: " + (deviceInfo != null ? "found" : "not found"));
+                
+                if (deviceInfo == null || deviceInfo.deviceNum == null || deviceInfo.deviceNum.isEmpty()) {
+                    runOnUiThread(() -> {
+                        statusText.setText(R.string.device_not_activated);
+                        Toast.makeText(this, R.string.device_not_activated, Toast.LENGTH_LONG).show();
+                        bindDeviceBtn.setEnabled(true);
+                    });
+                    return;
+                }
+
                 NewApiService.ApiResponse bindResponse = apiService.bindDevice(deviceNum, null, nickname);
                 
                 if (bindResponse == null || !bindResponse.isSuccess()) {
@@ -459,11 +471,22 @@ public class AddDeviceActivity extends AppCompatActivity {
                     return;
                 }
 
-                apiService.syncDevice(deviceNum);
-
                 runOnUiThread(() -> {
                     Device newDevice = new Device(deviceNum, nickname);
                     newDevice.setTag(selectedTag);
+                    if (deviceInfo.latitude != 0 && deviceInfo.longitude != 0) {
+                        newDevice.setLatitude(deviceInfo.latitude);
+                        newDevice.setLongitude(deviceInfo.longitude);
+                    }
+                    if (deviceInfo.battery != 0) {
+                        newDevice.setSignalStrength(deviceInfo.battery);
+                    }
+                    if (deviceInfo.timestamp != 0) {
+                        newDevice.setLastSeen(deviceInfo.timestamp);
+                    }
+                    if (deviceInfo.address != null && !deviceInfo.address.isEmpty()) {
+                        newDevice.setAddress(deviceInfo.address);
+                    }
                     databaseHelper.addDevice(newDevice);
                     
                     getSharedPreferences("app_settings", MODE_PRIVATE)

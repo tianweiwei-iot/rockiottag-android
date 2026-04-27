@@ -20,12 +20,10 @@ import java.util.Map;
 public class NewApiService {
     private static final String TAG = "NewApiService";
     private static String API_BASE_URL = ApiConfig.MY_SERVER_URL;
+    private static final int CONNECT_TIMEOUT = 10000;
+    private static final int READ_TIMEOUT = 30000;
     
     private static NewApiService instance;
-    private String token;
-    private int userId;
-    private String userName;
-    private String cid;
     
     public static void setApiBaseUrl(String url) {
         API_BASE_URL = url;
@@ -42,92 +40,11 @@ public class NewApiService {
         return instance;
     }
     
-    public void setAuth(int userId, String token, String userName, String cid) {
-        this.userId = userId;
-        this.token = token;
-        this.userName = userName;
-        this.cid = cid;
-    }
-    
-    public int getUserId() {
-        return userId;
-    }
-    
-    public String getToken() {
-        return token;
-    }
-    
-    public String getUserName() {
-        return userName;
-    }
-    
-    public String getCid() {
-        return cid;
-    }
-    
-    public boolean isAuthenticated() {
-        return userId > 0 && token != null && !token.isEmpty();
-    }
-    
-    public void clearAuth() {
-        this.userId = 0;
-        this.token = null;
-        this.userName = null;
-        this.cid = null;
-    }
-    
-    public ApiResponse login(String name, String cid) {
-        return login(cid, name, "");
-    }
-    
-    public ApiResponse login(String cid, String name, String pwd) {
-        Map<String, String> params = new HashMap<>();
-        params.put("name", name);
-        params.put("cid", cid);
-        
-        ApiResponse response = postRequest("/user/login", params, false);
-        if (response != null && response.isSuccess()) {
-            try {
-                this.userName = name;
-                this.cid = cid;
-                
-                if (response.getId() > 0) {
-                    this.userId = response.getId();
-                }
-                if (response.getToken() != null) {
-                    this.token = response.getToken();
-                }
-                
-                Log.d(TAG, "Login successful - userId: " + userId + ", token: " + (token != null ? token.substring(0, Math.min(10, token.length())) + "..." : "null"));
-            } catch (Exception e) {
-                Log.e(TAG, "Error parsing login response: " + e.getMessage(), e);
-            }
-        }
-        return response;
-    }
-    
-    public ApiResponse register(String name, String cid) {
-        return register(cid, name, "");
-    }
-    
-    public ApiResponse register(String cid, String name, String pwd) {
-        Map<String, String> params = new HashMap<>();
-        params.put("name", name);
-        params.put("cid", cid);
-        
-        return postRequest("/user/register", params, false);
-    }
-    
     public List<DeviceInfo> getDevices() {
         Log.d(TAG, "getDevices called");
         List<DeviceInfo> deviceInfoList = new ArrayList<>();
         
-        if (!isAuthenticated()) {
-            Log.e(TAG, "Not authenticated");
-            return deviceInfoList;
-        }
-        
-        ApiResponse response = getRequest("/devices", true);
+        ApiResponse response = getRequest("/devices", false);
         Log.d(TAG, "getDevices response - success: " + (response != null ? response.isSuccess() : "null"));
         
         if (response != null && response.isSuccess() && response.getRawResponse() != null) {
@@ -171,25 +88,15 @@ public class NewApiService {
     }
     
     public ApiResponse getDeviceList(int pageNo, int pageSize) {
-        if (!isAuthenticated()) {
-            Log.e(TAG, "Not authenticated");
-            return null;
-        }
-        
         Log.d(TAG, "getDeviceList called with pageNo: " + pageNo + ", pageSize: " + pageSize);
         
-        ApiResponse response = getRequest("/devices", true);
+        ApiResponse response = getRequest("/devices", false);
         Log.d(TAG, "getDeviceList response - success: " + (response != null ? response.isSuccess() : "null"));
         
         return response;
     }
     
     public ApiResponse bindDevice(String deviceNum, String sn, String nickName) {
-        if (!isAuthenticated()) {
-            Log.e(TAG, "Not authenticated");
-            return null;
-        }
-        
         Log.d(TAG, "bindDevice called with deviceNum: " + deviceNum + ", sn: " + sn + ", nickName: " + nickName);
         
         Map<String, String> params = new HashMap<>();
@@ -201,43 +108,28 @@ public class NewApiService {
             params.put("nickName", nickName);
         }
         
-        return postRequest("/devices/bind", params, true);
+        return postRequest("/devices/bind", params, false);
     }
     
     public ApiResponse unbindDevice(String deviceNum) {
-        if (!isAuthenticated()) {
-            Log.e(TAG, "Not authenticated");
-            return null;
-        }
-        
         Log.d(TAG, "unbindDevice called for deviceNum: " + deviceNum);
         
         Map<String, String> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
         
-        return postRequest("/devices/unbind", params, true);
+        return postRequest("/devices/unbind", params, false);
     }
     
     public ApiResponse refreshLocation(String deviceNum) {
-        if (!isAuthenticated()) {
-            Log.e(TAG, "Not authenticated");
-            return null;
-        }
-        
         Log.d(TAG, "refreshLocation called for deviceNum: " + deviceNum);
         
         Map<String, String> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
         
-        return postRequest("/devices/refresh", params, true);
+        return postRequest("/devices/refresh", params, false);
     }
     
     public ApiResponse syncLocation(String deviceNum, double latitude, double longitude, int battery, long timestamp) {
-        if (!isAuthenticated()) {
-            Log.e(TAG, "Not authenticated");
-            return null;
-        }
-        
         Log.d(TAG, "syncLocation called - deviceNum: " + deviceNum + ", lat: " + latitude + ", lng: " + longitude + ", battery: " + battery);
         
         Map<String, Object> params = new HashMap<>();
@@ -247,7 +139,7 @@ public class NewApiService {
         params.put("battery", battery);
         params.put("timestamp", timestamp);
         
-        return postRequestWithObject("/locations/sync", params, true);
+        return postRequestWithObject("/locations/sync", params, false);
     }
     
     public List<LocationInfo> getLocations(String deviceNum, long startTime, long endTime) {
@@ -255,18 +147,13 @@ public class NewApiService {
         Log.d(TAG, "deviceNum: " + deviceNum + ", startTime: " + startTime + ", endTime: " + endTime);
         List<LocationInfo> locationInfoList = new ArrayList<>();
         
-        if (!isAuthenticated()) {
-            Log.e(TAG, "Not authenticated");
-            return locationInfoList;
-        }
-        
         String endpoint = "/locations?deviceNum=" + deviceNum;
         if (startTime > 0 && endTime > 0) {
             endpoint += "&startTime=" + startTime + "&endTime=" + endTime;
         }
         Log.d(TAG, "Request endpoint: " + endpoint);
         
-        ApiResponse response = getRequest(endpoint, true);
+        ApiResponse response = getRequest(endpoint, false);
         Log.d(TAG, "Response received - success: " + (response != null ? response.isSuccess() : "null"));
         if (response != null) {
             Log.d(TAG, "Response code: " + response.getStatusCode());
@@ -324,11 +211,6 @@ public class NewApiService {
     public DeviceInfo getDeviceInfo(String deviceNum) {
         Log.d(TAG, "getDeviceInfo called for deviceNum: " + deviceNum);
         
-        if (!isAuthenticated()) {
-            Log.e(TAG, "Not authenticated");
-            return null;
-        }
-        
         List<DeviceInfo> devices = getDevices();
         for (DeviceInfo info : devices) {
             if (deviceNum.equals(info.deviceNum)) {
@@ -358,35 +240,20 @@ public class NewApiService {
     }
     
     public ApiResponse syncAll() {
-        if (!isAuthenticated()) {
-            Log.e(TAG, "Not authenticated");
-            return null;
-        }
-        
         Log.d(TAG, "syncAll called");
-        ApiResponse response = postRequest("/sync/all", new HashMap<>(), true);
+        ApiResponse response = postRequest("/sync/all", new HashMap<>(), false);
         Log.d(TAG, "syncAll response - success: " + (response != null ? response.isSuccess() : "null"));
         return response;
     }
     
     public ApiResponse syncDevice(String deviceNum) {
-        if (!isAuthenticated()) {
-            Log.e(TAG, "Not authenticated");
-            return null;
-        }
-        
         Log.d(TAG, "syncDevice called for deviceNum: " + deviceNum);
-        ApiResponse response = postRequest("/sync/device/" + deviceNum, new HashMap<>(), true);
+        ApiResponse response = postRequest("/sync/device/" + deviceNum, new HashMap<>(), false);
         Log.d(TAG, "syncDevice response - success: " + (response != null ? response.isSuccess() : "null"));
         return response;
     }
     
     public ApiResponse bindVendorDevice(String deviceNum, String nickName) {
-        if (!isAuthenticated()) {
-            Log.e(TAG, "Not authenticated");
-            return null;
-        }
-        
         Log.d(TAG, "bindVendorDevice called for deviceNum: " + deviceNum + ", nickName: " + nickName);
         
         Map<String, String> params = new HashMap<>();
@@ -395,20 +262,30 @@ public class NewApiService {
             params.put("nickName", nickName);
         }
         
-        ApiResponse response = postRequest("/sync/bindVendorDevice", params, true);
+        ApiResponse response = postRequest("/sync/bindVendorDevice", params, false);
         Log.d(TAG, "bindVendorDevice response - success: " + (response != null ? response.isSuccess() : "null"));
+        return response;
+    }
+    
+    public ApiResponse updateDevice(String deviceNum, String nickName) {
+        Log.d(TAG, "updateDevice called for deviceNum: " + deviceNum + ", nickName: " + nickName);
+        
+        Map<String, String> params = new HashMap<>();
+        params.put("deviceNum", deviceNum);
+        if (nickName != null && !nickName.isEmpty()) {
+            params.put("nickName", nickName);
+        }
+        
+        // 调用正确的更新端点
+        ApiResponse response = postRequest("/devices/update", params, false);
+        Log.d(TAG, "updateDevice response - success: " + (response != null ? response.isSuccess() : "null"));
         return response;
     }
     
     public DeviceInfo getDeviceLatest(String deviceNum) {
         Log.d(TAG, "getDeviceLatest called for deviceNum: " + deviceNum);
         
-        if (!isAuthenticated()) {
-            Log.e(TAG, "Not authenticated");
-            return null;
-        }
-        
-        ApiResponse response = getRequest("/devices/" + deviceNum + "/latest", true);
+        ApiResponse response = getRequest("/devices/" + deviceNum + "/latest", false);
         Log.d(TAG, "getDeviceLatest response - success: " + (response != null ? response.isSuccess() : "null"));
         
         if (response != null && response.isSuccess() && response.getRawResponse() != null) {
@@ -465,10 +342,8 @@ public class NewApiService {
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
-            
-            if (requireAuth && token != null) {
-                conn.setRequestProperty("Authorization", "Bearer " + token);
-            }
+            conn.setConnectTimeout(CONNECT_TIMEOUT);
+            conn.setReadTimeout(READ_TIMEOUT);
             
             conn.setDoOutput(true);
             
@@ -523,10 +398,8 @@ public class NewApiService {
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
-            
-            if (requireAuth && token != null) {
-                conn.setRequestProperty("Authorization", "Bearer " + token);
-            }
+            conn.setConnectTimeout(CONNECT_TIMEOUT);
+            conn.setReadTimeout(READ_TIMEOUT);
             
             conn.setDoOutput(true);
             
@@ -571,10 +444,8 @@ public class NewApiService {
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Content-Type", "application/json");
-            
-            if (requireAuth && token != null) {
-                conn.setRequestProperty("Authorization", "Bearer " + token);
-            }
+            conn.setConnectTimeout(CONNECT_TIMEOUT);
+            conn.setReadTimeout(READ_TIMEOUT);
             
             int responseCode = conn.getResponseCode();
             Log.d(TAG, "Response code: " + responseCode);

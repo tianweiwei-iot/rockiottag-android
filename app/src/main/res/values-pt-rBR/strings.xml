@@ -220,4 +220,19 @@
     <string name="merged_points">Pontos Mesclados: %d</string>
     <string name="stay_point">Ponto de Parada</string>
     <string name="loaded_stay_points">Carregados %d pontos de rastro (mesclados)</string>
+    <string name="camera_scan">📷 Escanear com Câmera</string>
+    <string name="gallery_scan">🖼️ Escanear da Galeria</string>
+    <string name="scan_tip">Se a câmera falhar, use \"Escanear da Galeria\": tire uma foto do QR code primeiro, depois selecione na galeria!</string>
+    <string name="camera_start_failed">Falha ao iniciar câmera: %s</string>
+    <string name="flash_on">Flash ligado</string>
+    <string name="flash_off">Flash desligado</string>
+    <string name="scan_success">Escaneamento bem-sucedido: %s</string>
+    <string name="scan_no_content">Nenhum conteúdo escaneado</string>
+    <string name="cannot_read_image">Não é possível ler a imagem</string>
+    <string name="cannot_decode_image">Não é possível decodificar a imagem</string>
+    <string name="recognize_success">Reconhecimento bem-sucedido: %s</string>
+    <string name="cannot_recognize_qr">Não é possível reconhecer o QR code, tente outra imagem</string>
+    <string name="recognize_failed">Falha no reconhecimento: %s</string>
+    <string name="refresh_success">Atualização bem-sucedida</string>
+    <string name="no_location_data">Sem dados de localização</string>
 </resources>

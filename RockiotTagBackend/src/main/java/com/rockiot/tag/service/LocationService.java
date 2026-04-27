@@ -24,8 +24,8 @@ public class LocationService {
 
     public List<LocationRecord> getLocations(int userId, String deviceNum, long startTime, long endTime) {
         if (startTime > 0 && endTime > 0) {
-            return locationRecordRepository.findByUserIdAndDeviceNumAndTimestampBetween(userId, deviceNum, startTime, endTime);
+            return locationRecordRepository.findByUserIdAndDeviceNumAndTimestampBetweenOrderByTimestampDesc(userId, deviceNum, startTime, endTime);
         }
-        return locationRecordRepository.findByUserIdAndDeviceNum(userId, deviceNum);
+        return locationRecordRepository.findByUserIdAndDeviceNumOrderByTimestampDesc(userId, deviceNum);
     }
 }

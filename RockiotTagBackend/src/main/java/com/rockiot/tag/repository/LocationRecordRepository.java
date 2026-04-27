@@ -5,8 +5,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface LocationRecordRepository extends JpaRepository<LocationRecord, Long> {
-    List<LocationRecord> findByUserIdAndDeviceNum(int userId, String deviceNum);
-    List<LocationRecord> findByUserIdAndDeviceNumAndTimestampBetween(
+    List<LocationRecord> findByUserIdAndDeviceNumOrderByTimestampDesc(int userId, String deviceNum);
+    List<LocationRecord> findByUserIdAndDeviceNumAndTimestampBetweenOrderByTimestampDesc(
         int userId, String deviceNum, long startTime, long endTime
     );
     LocationRecord findByUserIdAndDeviceNumAndTimestamp(int userId, String deviceNum, long timestamp);

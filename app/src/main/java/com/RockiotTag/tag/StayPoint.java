@@ -97,6 +97,9 @@ public class StayPoint {
     }
 
     public boolean isStayPoint() {
-        return stayDuration >= 60000;
+        // 停留点判断条件：
+        // 1. 停留时间 >= 2 分钟（减少 GPS 漂移和短暂停留的误判）
+        // 2. 至少有 3 个采样点（确保数据可靠性）
+        return stayDuration >= 120000 && mergedRecords.size() >= 3;
     }
 }

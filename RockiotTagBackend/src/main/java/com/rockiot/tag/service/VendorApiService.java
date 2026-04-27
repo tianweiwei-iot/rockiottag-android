@@ -1,5 +1,7 @@
 package com.rockiot.tag.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.http.*;
@@ -19,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 
 @Service
 public class VendorApiService {
+    private static final Logger log = LoggerFactory.getLogger(VendorApiService.class);
     @Value("${vendor.api.url}")
     private String vendorApiUrl;
     
@@ -32,8 +35,8 @@ public class VendorApiService {
     private int userId;
     private String lastErrorCode;
     
-    private static final long REFRESH_LOCATION_CACHE_TTL = 60 * 1000;
-    private static final long GET_DEVICE_LIST_CACHE_TTL = 30 * 1000;
+    private static final long REFRESH_LOCATION_CACHE_TTL = 10 * 1000;  // 减少到10秒，提高实时性
+    private static final long GET_DEVICE_LIST_CACHE_TTL = 10 * 1000;   // 减少到10秒，提高实时性
     
     private Map<String, CacheEntry<Boolean>> refreshLocationCache = new ConcurrentHashMap<>();
     private CacheEntry<List<Map<String, Object>>> deviceListCache = new CacheEntry<>();
@@ -128,7 +131,33 @@ public class VendorApiService {
     }
     
     public List<Map<String, Object>> getDeviceList(int pageNo, int pageSize) {
-        return getDeviceListWithCache(pageNo, pageSize, true);
+        return getDeviceListAll();
+    }
+    
+    public List<Map<String, Object>> getDeviceListAll() {
+        List<Map<String, Object>> allDevices = new ArrayList<>();
+        int pageNo = 1;
+        int pageSize = 200;  // 增加每页数量，减少请求次数
+        boolean hasMore = true;
+        
+        while (hasMore) {
+            System.out.println("Fetching device list page " + pageNo + " with pageSize " + pageSize);
+            List<Map<String, Object>> pageDevices = getDeviceListWithCache(pageNo, pageSize, pageNo > 1);
+            if (pageDevices.isEmpty()) {
+                hasMore = false;
+            } else {
+                allDevices.addAll(pageDevices);
+                System.out.println("Page " + pageNo + ": got " + pageDevices.size() + " devices, total: " + allDevices.size());
+                if (pageDevices.size() < pageSize) {
+                    hasMore = false;
+                } else {
+                    pageNo++;
+                }
+            }
+        }
+        
+        System.out.println("=== Total devices fetched from vendor API: " + allDevices.size() + " ===");
+        return allDevices;
     }
     
     public List<Map<String, Object>> getDeviceListWithCache(int pageNo, int pageSize, boolean useCache) {
@@ -203,11 +232,37 @@ public class VendorApiService {
                                 System.out.println("  Location node: " + location);
                                 
                                 if (location.has("latitude") && !location.get("latitude").isNull()) {
-                                    device.put("latitude", location.get("latitude").asDouble());
+                                    double lat = 0;
+                                    try {
+                                        lat = location.get("latitude").asDouble();
+                                    } catch (Exception e) {
+                                        try {
+                                            String latStr = location.get("latitude").asText();
+                                            if (latStr != null && !latStr.isEmpty()) {
+                                                lat = Double.parseDouble(latStr);
+                                            }
+                                        } catch (Exception ex) {
+                                            lat = 0;
+                                        }
+                                    }
+                                    device.put("latitude", lat);
                                     System.out.println("  latitude: " + device.get("latitude"));
                                 }
                                 if (location.has("longitude") && !location.get("longitude").isNull()) {
-                                    device.put("longitude", location.get("longitude").asDouble());
+                                    double lng = 0;
+                                    try {
+                                        lng = location.get("longitude").asDouble();
+                                    } catch (Exception e) {
+                                        try {
+                                            String lngStr = location.get("longitude").asText();
+                                            if (lngStr != null && !lngStr.isEmpty()) {
+                                                lng = Double.parseDouble(lngStr);
+                                            }
+                                        } catch (Exception ex) {
+                                            lng = 0;
+                                        }
+                                    }
+                                    device.put("longitude", lng);
                                     System.out.println("  longitude: " + device.get("longitude"));
                                 }
                                 if (location.has("battery") && !location.get("battery").isNull()) {
@@ -244,7 +299,7 @@ public class VendorApiService {
     
     public List<Map<String, Object>> getLocationListWithCache(String deviceNum, int pageNo, int pageSize, long beginTime, long endTime, boolean useCache) {
         try {
-            String cacheKey = deviceNum + "_" + beginTime + "_" + endTime;
+            String cacheKey = deviceNum + "_" + pageNo + "_" + beginTime + "_" + endTime;
             
             if (useCache) {
                 CacheEntry<List<Map<String, Object>>> cached = locationListCache.get(cacheKey);
@@ -254,8 +309,8 @@ public class VendorApiService {
                 }
             }
             
-            System.out.println("=== getLocationList called (calling vendor API) ===");
-            System.out.println("deviceNum: " + deviceNum + ", beginTime: " + beginTime + ", endTime: " + endTime);
+            log.info("=== getLocationList called (calling vendor API) ===");
+            log.info("deviceNum: {}, beginTime: {}, endTime: {}", deviceNum, beginTime, endTime);
             
             String url = vendorApiUrl + "/device/getLocationList";
             
@@ -300,17 +355,58 @@ public class VendorApiService {
                         for (JsonNode record : records) {
                             Map<String, Object> location = new HashMap<>();
                             location.put("deviceNum", record.has("deviceNum") ? record.get("deviceNum").asText() : "");
-                            location.put("latitude", record.has("latitude") ? record.get("latitude").asDouble() : 0);
-                            location.put("longitude", record.has("longitude") ? record.get("longitude").asDouble() : 0);
+                            
+                            double lat = 0;
+                            if (record.has("latitude") && !record.get("latitude").isNull()) {
+                                try {
+                                    lat = record.get("latitude").asDouble();
+                                } catch (Exception e) {
+                                    try {
+                                        String latStr = record.get("latitude").asText();
+                                        if (latStr != null && !latStr.isEmpty()) {
+                                            lat = Double.parseDouble(latStr);
+                                        }
+                                    } catch (Exception ex) {
+                                        lat = 0;
+                                    }
+                                }
+                            }
+                            location.put("latitude", lat);
+                            
+                            double lng = 0;
+                            if (record.has("longitude") && !record.get("longitude").isNull()) {
+                                try {
+                                    lng = record.get("longitude").asDouble();
+                                } catch (Exception e) {
+                                    try {
+                                        String lngStr = record.get("longitude").asText();
+                                        if (lngStr != null && !lngStr.isEmpty()) {
+                                            lng = Double.parseDouble(lngStr);
+                                        }
+                                    } catch (Exception ex) {
+                                        lng = 0;
+                                    }
+                                }
+                            }
+                            location.put("longitude", lng);
+                            
                             location.put("battery", record.has("battery") ? record.get("battery").asInt() : 0);
                             location.put("timestamp", record.has("timestamp") ? record.get("timestamp").asLong() : 0);
+                            
+                            if (record.has("accuracy") && !record.get("accuracy").isNull()) {
+                                location.put("accuracy", record.get("accuracy").asText());
+                            }
+                            if (record.has("datePublished") && !record.get("datePublished").isNull()) {
+                                location.put("datePublished", record.get("datePublished").asLong());
+                            }
+                            
                             locations.add(location);
                         }
                     }
                     
                     CacheEntry<List<Map<String, Object>>> entry = new CacheEntry<>(locations);
                     locationListCache.put(cacheKey, entry);
-                    System.out.println("Got " + locations.size() + " location records from vendor API, cached");
+                    log.info("Got {} location records from vendor API, cached", locations.size());
                     
                     return locations;
                 }
@@ -326,6 +422,7 @@ public class VendorApiService {
         try {
             System.out.println("=== bindDevice called ===");
             System.out.println("deviceNum: " + deviceNum);
+            System.out.println("nickName: " + (nickName != null ? nickName : "NULL (empty)"));
             
             String url = vendorApiUrl + "/device/bind";
             
@@ -333,6 +430,10 @@ public class VendorApiService {
             dataMap.put("cid", cid);
             dataMap.put("deviceNum", deviceNum);
             dataMap.put("userId", userId);
+            // 如果提供了昵称，则添加到请求中；否则不添加（供应商API会设为空）
+            if (nickName != null && !nickName.isEmpty()) {
+                dataMap.put("nickName", nickName);
+            }
             
             String dataJson = objectMapper.writeValueAsString(dataMap);
             System.out.println("Request data (before encryption): " + dataJson);

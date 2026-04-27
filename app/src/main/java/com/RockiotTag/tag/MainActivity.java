@@ -97,6 +97,7 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
     private double lastRecordedLongitude = 0;
     private long lastRecordedTimestamp = 0;
     private static final long TRACK_REFRESH_INTERVAL = 30 * 1000; // 30秒
+    private boolean isFetchingDeviceInfo = false; // 防止重复请求
     
     private String getTagIcon(String tag) {
         if (tag == null || tag.isEmpty() || tag.equals("无标签") || tag.equals("No Tag")) {
@@ -671,7 +672,14 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
     }
     
     private void fetchDeviceInfo(String deviceNum) {
+        // 防止重复请求
+        if (isFetchingDeviceInfo) {
+            Log.d(TAG, "Already fetching device info, skipping duplicate request for: " + deviceNum);
+            return;
+        }
+        
         Log.d(TAG, "Starting fetchDeviceInfo for device: " + deviceNum);
+        isFetchingDeviceInfo = true;
         
         // 根据设备号长度设置对应的API URL
         NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNum));
@@ -680,57 +688,17 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
             @Override
             public void run() {
                 try {
-                    if (!apiService.isAuthenticated()) {
-                        Log.d(TAG, "Not authenticated, starting registration and login");
-                        
-                        NewApiService.ApiResponse registerResponse = apiService.register(
-                            ApiConfig.getCid(),
-                            ApiConfig.getCustomerCode(),
-                            ApiConfig.getPassword()
-                        );
-                        Log.d(TAG, "Register response - success: " + (registerResponse != null ? registerResponse.isSuccess() : "null") + 
-                              ", status: " + (registerResponse != null ? registerResponse.getStatus() : "null") + 
-                              ", code: " + (registerResponse != null ? registerResponse.getCode() : "null") + 
-                              ", message: " + (registerResponse != null ? registerResponse.getMessage() : "null"));
-                        
-                        NewApiService.ApiResponse loginResponse = apiService.login(
-                            ApiConfig.getCid(),
-                            ApiConfig.getCustomerCode(),
-                            ApiConfig.getPassword()
-                        );
-                        
-                        Log.d(TAG, "Login response - success: " + (loginResponse != null ? loginResponse.isSuccess() : "null") + 
-                              ", status: " + (loginResponse != null ? loginResponse.getStatus() : "null") + 
-                              ", code: " + (loginResponse != null ? loginResponse.getCode() : "null") + 
-                              ", message: " + (loginResponse != null ? loginResponse.getMessage() : "null"));
-                        
-                        if (loginResponse == null || !loginResponse.isSuccess()) {
-                            Log.e(TAG, "Login failed for fetching device info");
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    Toast.makeText(MainActivity.this, R.string.api_login_failed_no_info, Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                            return;
-                        }
-                        
-                        Log.d(TAG, "Login success, userId: " + apiService.getUserId());
-                    } else {
-                        Log.d(TAG, "Already authenticated, userId: " + apiService.getUserId());
-                    }
-                    
                     NewApiService.DeviceInfo deviceInfo = null;
                     int maxRetries = 3;
                     for (int attempt = 1; attempt <= maxRetries; attempt++) {
-                        Log.d(TAG, "Fetching device info, attempt " + attempt + "/" + maxRetries);
-                        deviceInfo = apiService.getDeviceInfo(deviceNum);
+                        Log.d(TAG, "Fetching device latest info, attempt " + attempt + "/" + maxRetries);
+                        deviceInfo = apiService.getDeviceLatest(deviceNum);
                         
                         if (deviceInfo != null) {
-                            Log.d(TAG, "Device info retrieved successfully on attempt " + attempt);
+                            Log.d(TAG, "Device latest info retrieved successfully on attempt " + attempt);
                             break;
                         } else {
-                            Log.w(TAG, "Device info is null on attempt " + attempt);
+                            Log.w(TAG, "Device latest info is null on attempt " + attempt);
                             if (attempt < maxRetries) {
                                 try {
                                     Thread.sleep(1000);
@@ -747,7 +715,8 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                updateDeviceUI(finalDeviceInfo);
+                                updateDeviceUIWithLatest(finalDeviceInfo);
+                                isFetchingDeviceInfo = false; // 请求完成，释放锁
                             }
                         });
                     } else {
@@ -757,6 +726,7 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                             public void run() {
                                 updateDeviceUIDefault();
                                 Toast.makeText(MainActivity.this, R.string.cannot_get_device_info, Toast.LENGTH_SHORT).show();
+                                isFetchingDeviceInfo = false; // 请求完成，释放锁
                             }
                         });
                     }
@@ -766,6 +736,7 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
                         @Override
                         public void run() {
                             Toast.makeText(MainActivity.this, getString(R.string.get_device_info_error, e.getMessage()), Toast.LENGTH_SHORT).show();
+                            isFetchingDeviceInfo = false; // 请求失败，释放锁
                         }
                     });
                 }
@@ -1311,78 +1282,29 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
         
         final String deviceNum = selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId();
         
-        // 根据设备号长度设置对应的API URL
         NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNum));
         
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    if (!apiService.isAuthenticated()) {
-                        NewApiService.ApiResponse registerResponse = apiService.register(
-                            "6h7lMJOVpVOld5R9CApqH6coCR1W8iqL",
-                            "XHD_HSWL_API",
-                            "123456"
-                        );
-                        
-                        NewApiService.ApiResponse loginResponse = apiService.login(
-                            "6h7lMJOVpVOld5R9CApqH6coCR1W8iqL",
-                            "XHD_HSWL_API",
-                            "123456"
-                        );
-                        
-                        if (loginResponse == null || !loginResponse.isSuccess()) {
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    stopRefreshAnimation();
-                                    Toast.makeText(MainActivity.this, R.string.api_login_failed, Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                            return;
+                    Log.d(TAG, "Refreshing device location from server database: " + deviceNum);
+                    NewApiService.DeviceInfo latestInfo = apiService.getDeviceLatest(deviceNum);
+                    Log.d(TAG, "Got device latest info: " + (latestInfo != null ? "lat=" + latestInfo.latitude : "null"));
+                    
+                    final NewApiService.DeviceInfo finalLatestInfo = latestInfo;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            stopRefreshAnimation();
+                            if (finalLatestInfo != null && finalLatestInfo.latitude != 0 && finalLatestInfo.longitude != 0) {
+                                Toast.makeText(MainActivity.this, R.string.refresh_success, Toast.LENGTH_SHORT).show();
+                                updateDeviceUIWithLatest(finalLatestInfo);
+                            } else {
+                                Toast.makeText(MainActivity.this, R.string.no_location_data, Toast.LENGTH_SHORT).show();
+                            }
                         }
-                    }
-                    
-                    NewApiService.ApiResponse syncResponse = apiService.syncDevice(deviceNum);
-                    Log.d(TAG, "Sync device response: " + (syncResponse != null ? syncResponse.isSuccess() : "null"));
-                    
-                    if (syncResponse != null && syncResponse.isSuccess()) {
-                        NewApiService.DeviceInfo latestInfo = apiService.getDeviceLatest(deviceNum);
-                        
-                        final NewApiService.DeviceInfo finalLatestInfo = latestInfo;
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                stopRefreshAnimation();
-                                if (finalLatestInfo != null) {
-                                    Toast.makeText(MainActivity.this, R.string.data_sync_success, Toast.LENGTH_SHORT).show();
-                                    updateDeviceUIWithLatest(finalLatestInfo);
-                                } else {
-                                    Toast.makeText(MainActivity.this, R.string.data_sync_success_no_info, Toast.LENGTH_SHORT).show();
-                                    fetchDeviceInfo(deviceNum);
-                                }
-                            }
-                        });
-                    } else {
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                stopRefreshAnimation();
-                                String message = getString(R.string.sync_failed);
-                                if (syncResponse != null && syncResponse.getRawResponse() != null) {
-                                    try {
-                                        com.google.gson.JsonObject json = new com.google.gson.JsonParser().parse(syncResponse.getRawResponse()).getAsJsonObject();
-                                        if (json.has("message")) {
-                                            message = json.get("message").getAsString();
-                                        }
-                                    } catch (Exception e) {
-                                        Log.e(TAG, "Error parsing sync response: " + e.getMessage());
-                                    }
-                                }
-                                Toast.makeText(MainActivity.this, getString(R.string.refresh_failed, message), Toast.LENGTH_SHORT).show();
-                            }
-                        });
-                    }
+                    });
                 } catch (Exception e) {
                     Log.e(TAG, "Error refreshing device location: " + e.getMessage(), e);
                     runOnUiThread(new Runnable() {
@@ -1672,8 +1594,22 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_DEVICE_LIST && resultCode == RESULT_OK) {
-            Log.d(TAG, "Device list updated, refreshing device info");
-            restoreSelectedDevice();
+            Log.d(TAG, "=== onActivityResult: Device list updated ===");
+            // 强制刷新选中的设备信息
+            if (selectedDevice != null) {
+                String deviceId = selectedDevice.getDeviceId();
+                Log.d(TAG, "Reloading selected device from database: " + deviceId);
+                
+                // 从数据库重新加载设备信息
+                Device updatedDevice = databaseHelper.getDevice(deviceId);
+                if (updatedDevice != null) {
+                    selectedDevice = updatedDevice;
+                    Log.d(TAG, "Device reloaded: name=" + selectedDevice.getName() + ", tag=" + selectedDevice.getTag());
+                    
+                    // 立即更新UI
+                    updateDeviceNameWithTag(selectedDevice.getName(), selectedDevice.getTag());
+                }
+            }
         }
     }
 
@@ -1681,6 +1617,39 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
     protected void onResume() {
         super.onResume();
         mapView.onResume();
+        
+        Log.d(TAG, "=== onResume called ===");
+        
+        // 从数据库重新加载设备信息，确保立即显示最新的本地数据
+        if (selectedDevice != null) {
+            // 使用 deviceId 查询，而不是 deviceNum
+            String deviceId = selectedDevice.getDeviceId();
+            Log.d(TAG, "Refreshing device info for deviceId: " + deviceId);
+            
+            Device updatedDevice = databaseHelper.getDevice(deviceId);
+            if (updatedDevice != null) {
+                selectedDevice = updatedDevice;
+                Log.d(TAG, "Device info refreshed from database: name=" + selectedDevice.getName() + ", tag=" + selectedDevice.getTag());
+                
+                // 立即更新UI显示最新的本地数据（名称、标签）
+                updateDeviceNameWithTag(selectedDevice.getName(), selectedDevice.getTag());
+                Log.d(TAG, "UI updated with local data");
+                
+                // 重置标志位，允许新的请求
+                isFetchingDeviceInfo = false;
+                Log.d(TAG, "Reset isFetchingDeviceInfo flag");
+                
+                // 从服务器获取最新的设备位置、电量等信息
+                String deviceNum = selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : deviceId;
+                Log.d(TAG, "Calling fetchDeviceInfo for deviceNum: " + deviceNum);
+                fetchDeviceInfo(deviceNum);
+            } else {
+                Log.e(TAG, "Device not found in database: " + deviceId);
+            }
+        } else {
+            Log.d(TAG, "No selected device, skipping refresh");
+        }
+        
         startTrackRefresh();
     }
 
@@ -1729,24 +1698,6 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
             @Override
             public void run() {
                 try {
-                    if (!apiService.isAuthenticated()) {
-                        NewApiService.ApiResponse registerResponse = apiService.register(
-                            "6h7lMJOVpVOld5R9CApqH6coCR1W8iqL",
-                            "XHD_HSWL_API",
-                            "123456"
-                        );
-                        
-                        NewApiService.ApiResponse loginResponse = apiService.login(
-                            "6h7lMJOVpVOld5R9CApqH6coCR1W8iqL",
-                            "XHD_HSWL_API",
-                            "123456"
-                        );
-                        
-                        if (loginResponse == null || !loginResponse.isSuccess()) {
-                            return;
-                        }
-                    }
-                    
                     NewApiService.ApiResponse syncResponse = apiService.syncDevice(deviceNum);
                     Log.d(TAG, "Auto refresh - sync device response: " + (syncResponse != null ? syncResponse.isSuccess() : "null"));
                     
@@ -1961,49 +1912,6 @@ public class MainActivity extends AppCompatActivity implements AMapLocationListe
             public void run() {
                 try {
                     Log.d(TAG, "Starting API sync...");
-                    
-                    if (!apiService.isAuthenticated()) {
-                        Log.d(TAG, "Not authenticated, trying to login directly...");
-                        
-                        // 先尝试直接登录
-                        NewApiService.ApiResponse loginResponse = apiService.login(
-                            "6h7lMJOVpVOld5R9CApqH6coCR1W8iqL",
-                            "XHD_HSWL_API",
-                            "123456"
-                        );
-                        
-                        // 如果登录失败，再尝试注册
-                        if (loginResponse == null || !loginResponse.isSuccess()) {
-                            Log.d(TAG, "Login failed, trying to register first...");
-                            
-                            NewApiService.ApiResponse registerResponse = apiService.register(
-                                "6h7lMJOVpVOld5R9CApqH6coCR1W8iqL",
-                                "XHD_HSWL_API",
-                                "123456"
-                            );
-                            Log.d(TAG, "Register response: " + (registerResponse != null ? registerResponse.isSuccess() : "null"));
-                            
-                            // 注册后再次登录
-                            loginResponse = apiService.login(
-                                "6h7lMJOVpVOld5R9CApqH6coCR1W8iqL",
-                                "XHD_HSWL_API",
-                                "123456"
-                            );
-                        }
-                        
-                        if (loginResponse == null || !loginResponse.isSuccess()) {
-                            Log.e(TAG, "Login failed");
-                            runOnUiThread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    Toast.makeText(MainActivity.this, R.string.api_login_failed, Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                            return;
-                        }
-                        
-                        Log.d(TAG, "Login success, userId: " + apiService.getUserId());
-                    }
                     
                     // 同步数据
                     Log.d(TAG, "Syncing data from vendor API...");
