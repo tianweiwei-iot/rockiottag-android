@@ -27,6 +27,10 @@
     <string name="last_update">Последнее обновление: </string>
     <string name="trigger_buzzer">Включить зуммер</string>
     <string name="buzzer">Зуммер</string>
+    <string name="locate">Найти</string>
+    <string name="map_type">Тип карты</string>
+    <string name="refresh">Обновить</string>
+    <string name="buzzer_triggered">Зуммер сработал</string>
     <string name="device_not_connected">Устройство не подключено</string>
     <string name="scanning_devices">Поиск Bluetooth-устройств...</string>
     <string name="scan_complete">Поиск завершён</string>
@@ -58,6 +62,15 @@
 
     <string name="track">Трек</string>
     <string name="today">Сегодня</string>
+    <string name="yesterday">Вчера</string>
+    <string name="day_before_yesterday">Позавчера</string>
+    <string name="sunday">Вс</string>
+    <string name="monday">Пн</string>
+    <string name="tuesday">Вт</string>
+    <string name="wednesday">Ср</string>
+    <string name="thursday">Чт</string>
+    <string name="friday">Пт</string>
+    <string name="saturday">Сб</string>
     <string name="time_range">Временной диапазон:</string>
     <string name="reset">Сброс</string>
     <string name="loading">Загрузка...</string>
@@ -68,6 +81,12 @@
     <string name="polyline">Линия</string>
     <string name="toggle_satellite_desc">Переключить спутниковую карту</string>
     <string name="satellite">Спутник</string>
+    <string name="toggle_display_mode_desc">Переключить режим отображения</string>
+    <string name="detailed">Подробный</string>
+    <string name="simple">Простой</string>
+    <string name="statistics">Статистика</string>
+    <string name="display_mode_detailed">Режим отображения: Подробный</string>
+    <string name="display_mode_simple">Режим отображения: Простой</string>
     <string name="track_points_count">%d точек трека</string>
     <string name="show_markers">Показать маркеры трека</string>
     <string name="hide_markers">Скрыть маркеры трека</string>
@@ -207,6 +226,8 @@
     <string name="default_address">Научно-технический парк Гаосиньци, фаза 2, улица Синьань, Шэньчжэнь, Гуандун</string>
     <string name="test_device">Тестовое устройство</string>
     <string name="loading_track_data">Загрузка данных трека...</string>
+    <string name="loading_track_title">Загрузка трека</string>
+    <string name="loading_track_message">Загрузка трека, пожалуйста подождите...</string>
     <string name="sync_track_failed">Ошибка синхронизации данных трека</string>
     <string name="sync_track_error">Ошибка при синхронизации данных трека</string>
     <string name="scan_qr_code">Сканировать QR-код</string>
@@ -235,4 +256,86 @@
     <string name="recognize_failed">Ошибка распознавания: %s</string>
     <string name="refresh_success">Обновление успешно</string>
     <string name="no_location_data">Нет данных о местоположении</string>
+    
+    <!-- Статистика трека -->
+    <string name="track_statistics_title">Статистика трека</string>
+    <string name="track_statistics_title_short">Статистика трека</string>
+    <string name="track_statistics_header">📊 Информация о статистике трека</string>
+    <string name="track_statistics_info">📊 Информация о статистике трека</string>
+    <string name="track_points_label">📍 Всего точек: </string>
+    <string name="track_points_count_label">📍 Всего точек: </string>
+    <string name="track_points_unit"></string>
+    <string name="valid_segments_label">✅ Действительных сегментов: </string>
+    <string name="valid_segments_unit"></string>
+    <string name="total_distance_label">📏 Общее расстояние: </string>
+    <string name="time_span_label">⏱️ Временной промежуток: </string>
+    <string name="start_time_label">🕐 Время начала: </string>
+    <string name="end_time_label">🕑 Время окончания: </string>
+    <string name="stay_points_label">🛑 Точек остановки: </string>
+    <string name="stay_points_unit"></string>
+    <string name="total_stay_label">⏳ Общее время остановки: </string>
+    <string name="average_speed_label">🚀 Средняя скорость: </string>
+    <string name="hour_minute_format">%1$d ч. %2$d мин.</string>
+    <string name="minute_second_format">%1$d мин. %2$d сек.</string>
+    <string name="second_format">%d сек.</string>
+    
+    <!-- Новые строки -->
+    <string name="tag">Метка</string>
+    <string name="default_radius">100</string>
+    <string name="time_separator">-</string>
+    <string name="start_time_default">00:00</string>
+    <string name="end_time_default">23:59</string>
+    <string name="time_format_hh_mm_ss">00:00:00</string>
+    <string name="speed_1x">1x</string>
+    <string name="time_placeholder">--:--:--</string>
+    <string name="distance_format">0.00 км</string>
+    <string name="edit_device_content_desc">Редактировать устройство</string>
+    <string name="cid">CID</string>
+    <string name="scan_qr_instruction">Сканировать QR-код устройства</string>
+    <string name="scan_qr_tip">Поместите QR-код в рамку, автоматическое распознавание</string>
+    <string name="toggle_flashlight">Переключить фонарик</string>
+    <string name="close">Закрыть</string>
+    <string name="prev_day">◀</string>
+    <string name="next_day">▶</string>
+    <string name="date_placeholder">2024-01-01</string>
+    <string name="play_pause">Воспроизвести/Пауза</string>
+    <string name="time_separator_slash"> / </string>
+    <string name="date_time_format">yyyy-MM-dd HH:mm:ss</string>
+    <string name="toggle_markers">Переключить маркеры</string>
+    <string name="toggle_polyline">Переключить линию</string>
+    <string name="toggle_satellite">Переключить спутник</string>
+    <string name="toggle_display_mode">Переключить режим отображения</string>
+    <string name="detailed_mode">Подробный режим</string>
+    <string name="statistics_info">Информация о статистике</string>
+    <string name="flashlight_tip">Нажмите кнопку фонарика ниже, чтобы улучшить контраст</string>
+    <string name="please_enter_device_num">Пожалуйста, введите номер устройства</string>
+    <string name="input_latitude_hint">Введите широту (например: 22.575367)</string>
+    <string name="input_longitude_hint">Введите долготу (например: 113.918252)</string>
+    <string name="saving">Сохранение...</string>
+    <string name="device_id_invalid">Неверный ID устройства</string>
+    <string name="device_info_empty">Информация об устройстве пуста</string>
+    <string name="device_info_empty_unbind">Информация об устройстве пуста, невозможно отвязать</string>
+    <string name="device_identifier_invalid">Неверный идентификатор устройства, невозможно отвязать</string>
+    <string name="missing_location_permission">Отсутствует разрешение на определение местоположения, проверьте настройки разрешений приложения</string>
+    <string name="location_service_init_failed">Ошибка инициализации службы определения местоположения: %s</string>
+    <string name="bluetooth_connected">Bluetooth подключен</string>
+    <string name="track_activity_init_failed">Ошибка инициализации активности трека: %s</string>
+    <string name="clearing_old_data_syncing">Очистка старых данных и повторная синхронизация...</string>
+    <string name="syncing_track_from_server">Синхронизация данных трека с сервера...</string>
+    <string name="playback_start_failed">Ошибка запуска воспроизведения: %s</string>
+    <string name="google_map_init_failed">Ошибка инициализации Google Map: %s</string>
+    <string name="cleared_old_data_re_sync">Очищено %d старых записей, повторная синхронизация...</string>
+    <string name="load_track_failed">Ошибка загрузки данных трека: %s</string>
+    <string name="loading_data">Загрузка...</string>
+    <string name="no_device_data">Нет данных об устройстве</string>
+    <string name="unknown_location_short">Неизвестное местоположение</string>
+    <string name="get_address_failed_short">Ошибка получения адреса</string>
+    <string name="camera_permission_needed">Требуется разрешение камеры для сканирования QR-кода</string>
+    <string name="google_map_loaded">Google Map загружен!</string>
+    <string name="google_map_init_error">Ошибка инициализации Google Map: %s</string>
+    <string name="google_map_check_settings">Google Map может не загрузиться. Проверьте API-ключ, сеть и настройки VPN.</string>
+    <string name="google_map_init_failed_check">Ошибка инициализации Google Map. Проверьте доступность сервисов Google Play.</string>
+    
+    <!-- Auto refresh -->
+    <string name="auto_refreshing">Автоматическое обновление...</string>
 </resources>

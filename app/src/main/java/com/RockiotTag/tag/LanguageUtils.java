@@ -31,6 +31,12 @@ public class LanguageUtils {
                 return "pt-rBR";
             }
             return "pt-rBR";
+        } else if (language.equals("tr")) {
+            return "tr";
+        } else if (language.equals("ru")) {
+            return "ru";
+        } else if (language.equals("hi")) {
+            return "hi";
         } else {
             return "zh";
         }

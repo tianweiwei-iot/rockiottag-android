@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="16dp">
+
+    <TableLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:stretchColumns="1">
+
+        <!-- 标题 -->
+        <TableRow
+            android:layout_marginBottom="12dp">
+            <TextView
+                android:id="@+id/tv_stats_info"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/track_statistics_info"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#333333"
+                android:layout_span="2" />
+        </TableRow>
+
+        <!-- 轨迹点数 -->
+        <TableRow
+            android:layout_marginBottom="8dp">
+            <TextView
+                android:id="@+id/label_track_points"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/track_points_count_label"
+                android:textSize="15sp"
+                android:textColor="#666666"
+                android:layout_marginEnd="8dp" />
+            <TextView
+                android:id="@+id/value_track_points"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="#333333"
+                android:textStyle="bold" />
+        </TableRow>
+
+        <!-- 有效段数 -->
+        <TableRow
+            android:layout_marginBottom="8dp">
+            <TextView
+                android:id="@+id/label_valid_segments"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/valid_segments_label"
+                android:textSize="15sp"
+                android:textColor="#666666"
+                android:layout_marginEnd="8dp" />
+            <TextView
+                android:id="@+id/value_valid_segments"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="#333333"
+                android:textStyle="bold" />
+        </TableRow>
+
+        <!-- 总距离 -->
+        <TableRow
+            android:layout_marginBottom="8dp">
+            <TextView
+                android:id="@+id/label_total_distance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/total_distance_label"
+                android:textSize="15sp"
+                android:textColor="#666666"
+                android:layout_marginEnd="8dp" />
+            <TextView
+                android:id="@+id/value_total_distance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="#333333"
+                android:textStyle="bold" />
+        </TableRow>
+
+        <!-- 时间跨度 -->
+        <TableRow
+            android:layout_marginBottom="8dp">
+            <TextView
+                android:id="@+id/label_time_span"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/time_span_label"
+                android:textSize="15sp"
+                android:textColor="#666666"
+                android:layout_marginEnd="8dp" />
+            <TextView
+                android:id="@+id/value_time_span"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="#333333"
+                android:textStyle="bold" />
+        </TableRow>
+
+        <!-- 开始时间 -->
+        <TableRow
+            android:layout_marginBottom="8dp">
+            <TextView
+                android:id="@+id/label_start_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/start_time_label"
+                android:textSize="15sp"
+                android:textColor="#666666"
+                android:layout_marginEnd="8dp" />
+            <TextView
+                android:id="@+id/value_start_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="#333333"
+                android:textStyle="bold" />
+        </TableRow>
+
+        <!-- 结束时间 -->
+        <TableRow
+            android:layout_marginBottom="8dp">
+            <TextView
+                android:id="@+id/label_end_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/end_time_label"
+                android:textSize="15sp"
+                android:textColor="#666666"
+                android:layout_marginEnd="8dp" />
+            <TextView
+                android:id="@+id/value_end_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="#333333"
+                android:textStyle="bold" />
+        </TableRow>
+
+        <!-- 停留点 -->
+        <TableRow
+            android:layout_marginBottom="8dp">
+            <TextView
+                android:id="@+id/label_stay_points"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/stay_points_label"
+                android:textSize="15sp"
+                android:textColor="#666666"
+                android:layout_marginEnd="8dp" />
+            <TextView
+                android:id="@+id/value_stay_points"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="#333333"
+                android:textStyle="bold" />
+        </TableRow>
+
+        <!-- 平均速度 -->
+        <TableRow
+            android:layout_marginBottom="8dp">
+            <TextView
+                android:id="@+id/label_average_speed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/average_speed_label"
+                android:textSize="15sp"
+                android:textColor="#666666"
+                android:layout_marginEnd="8dp" />
+            <TextView
+                android:id="@+id/value_average_speed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="#333333"
+                android:textStyle="bold" />
+        </TableRow>
+
+    </TableLayout>
+</ScrollView>

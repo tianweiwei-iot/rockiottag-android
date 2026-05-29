@@ -1,0 +1,62 @@
+========================================
+MAC地址匹配调试指南
+========================================
+
+问题：扫描到设备但无法匹配上
+
+需要在 Logcat 中查看的关键日志：
+
+1. 搜索关键词：LocationOptimizationManager
+
+2. 查找以下关键日志行：
+
+   📡 BLE Scanner found device: ...
+      ↓ 这个显示扫描到的设备信息
+   
+   [DEBUG] device.getDeviceId(): [...]
+      ↓ 这是扫描到的设备的deviceId（应该是MAC地址）
+   
+   [DEBUG] device.getMac(): [...]
+      ↓ 这是扫描到的设备的mac字段
+   
+   [DEBUG] currentSelectedDeviceId: [...]
+      ↓ 这是当前选中设备的MAC地址
+   
+   [DEBUG] Match result: true/false
+      ↓ 匹配结果
+
+3. 如果 Match result 是 false，查看：
+   
+   ❌ MAC not matching: selected='...' vs scanned='...'
+   
+   对比这两个MAC地址，看哪里不一样
+
+4. 特别注意：
+   - 长度是否相同（应该都是17个字符）
+   - 是否有空格
+   - 大小写是否一致
+   - 分隔符是冒号(:)还是横线(-)
+
+5. 正常情况应该看到：
+   
+   ✓✓✓ Matched selected device by MAC: DA:A9:54:96:11:E8
+    Step 1: Updating timestamp immediately...
+   ✅ 设备(96:11:E8)  <- Toast提示
+
+========================================
+可能的问题排查：
+========================================
+
+1. 如果 device.getDeviceId() 和 currentSelectedDeviceId 看起来一样但匹配失败
+   → 可能是隐藏字符（空格、换行等）
+
+2. 如果 device.getMac() 是 null
+   → 说明Device对象的mac字段没有设置（正常，因为用的是deviceId存MAC）
+
+3. 如果 boundDeviceIds 是空的
+   → 说明没有已绑定的设备
+
+4. 如果 currentSelectedDeviceId 是 null
+   → 说明没有选中任何设备
+
+========================================

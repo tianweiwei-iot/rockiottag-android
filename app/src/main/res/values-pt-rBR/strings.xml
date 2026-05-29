@@ -27,6 +27,10 @@
     <string name="last_update">Última Atualização: </string>
     <string name="trigger_buzzer">Acionar buzzer</string>
     <string name="buzzer">Buzzer</string>
+    <string name="locate">Localizar</string>
+    <string name="map_type">Tipo de Mapa</string>
+    <string name="refresh">Atualizar</string>
+    <string name="buzzer_triggered">Buzzer acionado</string>
     <string name="device_not_connected">Dispositivo não conectado</string>
     <string name="scanning_devices">Pesquisando dispositivos Bluetooth...</string>
     <string name="scan_complete">Pesquisa concluída</string>
@@ -58,6 +62,15 @@
 
     <string name="track">Rastro</string>
     <string name="today">Hoje</string>
+    <string name="yesterday">Ontem</string>
+    <string name="day_before_yesterday">Anteontem</string>
+    <string name="sunday">Dom</string>
+    <string name="monday">Seg</string>
+    <string name="tuesday">Ter</string>
+    <string name="wednesday">Qua</string>
+    <string name="thursday">Qui</string>
+    <string name="friday">Sex</string>
+    <string name="saturday">Sáb</string>
     <string name="time_range">Período:</string>
     <string name="reset">Redefinir</string>
     <string name="loading">Carregando...</string>
@@ -68,6 +81,12 @@
     <string name="polyline">Linha</string>
     <string name="toggle_satellite_desc">Alternar mapa satélite</string>
     <string name="satellite">Satélite</string>
+    <string name="toggle_display_mode_desc">Alternar modo de exibição</string>
+    <string name="detailed">Detalhado</string>
+    <string name="simple">Simples</string>
+    <string name="statistics">Estatísticas</string>
+    <string name="display_mode_detailed">Modo de exibição: Detalhado</string>
+    <string name="display_mode_simple">Modo de exibição: Simples</string>
     <string name="track_points_count">%d pontos de rastro</string>
     <string name="show_markers">Mostrar marcadores do rastro</string>
     <string name="hide_markers">Ocultar marcadores do rastro</string>
@@ -207,6 +226,8 @@
     <string name="default_address">Parque Científico Gaoxinqi Fase 2, Rua Xin\'an, Shenzhen, Guangdong</string>
     <string name="test_device">Dispositivo de Teste</string>
     <string name="loading_track_data">Carregando dados de rastro...</string>
+    <string name="loading_track_title">Carregando Rastro</string>
+    <string name="loading_track_message">Carregando rastro, por favor aguarde...</string>
     <string name="sync_track_failed">Falha ao sincronizar dados de rastro</string>
     <string name="sync_track_error">Erro ao sincronizar dados de rastro</string>
     <string name="scan_qr_code">Escanear QR Code</string>
@@ -235,4 +256,86 @@
     <string name="recognize_failed">Falha no reconhecimento: %s</string>
     <string name="refresh_success">Atualização bem-sucedida</string>
     <string name="no_location_data">Sem dados de localização</string>
+    
+    <!-- Estatísticas de Rastreamento -->
+    <string name="track_statistics_title">Estatísticas de Rastreamento</string>
+    <string name="track_statistics_title_short">Estatísticas de Rastreamento</string>
+    <string name="track_statistics_header">📊 Informações de Estatísticas de Rastreamento</string>
+    <string name="track_statistics_info">📊 Informações de Estatísticas de Rastreamento</string>
+    <string name="track_points_label"> Total de Pontos: </string>
+    <string name="track_points_count_label"> Total de Pontos: </string>
+    <string name="track_points_unit"></string>
+    <string name="valid_segments_label">✅ Segmentos Válidos: </string>
+    <string name="valid_segments_unit"></string>
+    <string name="total_distance_label">📏 Distância Total: </string>
+    <string name="time_span_label">⏱️ Período de Tempo: </string>
+    <string name="start_time_label">🕐 Hora de Início: </string>
+    <string name="end_time_label"> Hora de Término: </string>
+    <string name="stay_points_label">🛑 Pontos de Parada: </string>
+    <string name="stay_points_unit"></string>
+    <string name="total_stay_label">⏳ Tempo Total de Parada: </string>
+    <string name="average_speed_label">🚀 Velocidade Média: </string>
+    <string name="hour_minute_format">%1$d horas %2$d minutos</string>
+    <string name="minute_second_format">%1$d minutos %2$d segundos</string>
+    <string name="second_format">%d segundos</string>
+    
+    <!-- 新增的字符串资源 -->
+    <string name="tag">Etiqueta</string>
+    <string name="default_radius">100</string>
+    <string name="time_separator">-</string>
+    <string name="start_time_default">00:00</string>
+    <string name="end_time_default">23:59</string>
+    <string name="time_format_hh_mm_ss">00:00:00</string>
+    <string name="speed_1x">1x</string>
+    <string name="time_placeholder">--:--:--</string>
+    <string name="distance_format">0.00 km</string>
+    <string name="edit_device_content_desc">Editar dispositivo</string>
+    <string name="cid">CID</string>
+    <string name="scan_qr_instruction">Escanear código QR do dispositivo</string>
+    <string name="scan_qr_tip">Coloque o código QR na caixa, reconhecimento automático</string>
+    <string name="toggle_flashlight">Alternar lanterna</string>
+    <string name="close">Fechar</string>
+    <string name="prev_day">◀</string>
+    <string name="next_day">▶</string>
+    <string name="date_placeholder">2024-01-01</string>
+    <string name="play_pause">Reproduzir/Pausar</string>
+    <string name="time_separator_slash"> / </string>
+    <string name="date_time_format">yyyy-MM-dd HH:mm:ss</string>
+    <string name="toggle_markers">Alternar marcadores</string>
+    <string name="toggle_polyline">Alternar linha</string>
+    <string name="toggle_satellite">Alternar satélite</string>
+    <string name="toggle_display_mode">Alternar modo de exibição</string>
+    <string name="detailed_mode">Modo detalhado</string>
+    <string name="statistics_info">Informações de estatísticas</string>
+    <string name="flashlight_tip">Clique no botão da lanterna abaixo para melhorar o contraste</string>
+    <string name="please_enter_device_num">Por favor, insira o número do dispositivo</string>
+    <string name="input_latitude_hint">Insira a latitude (ex.: 22.575367)</string>
+    <string name="input_longitude_hint">Insira a longitude (ex.: 113.918252)</string>
+    <string name="saving">Salvando...</string>
+    <string name="device_id_invalid">ID do dispositivo inválido</string>
+    <string name="device_info_empty">Informações do dispositivo vazias</string>
+    <string name="device_info_empty_unbind">Informações do dispositivo vazias, não é possível desvincular</string>
+    <string name="device_identifier_invalid">Identificador do dispositivo inválido, não é possível desvincular</string>
+    <string name="missing_location_permission">Permissão de localização ausente, verifique as configurações de permissão do aplicativo</string>
+    <string name="location_service_init_failed">Falha na inicialização do serviço de localização: %s</string>
+    <string name="bluetooth_connected">Bluetooth conectado</string>
+    <string name="track_activity_init_failed">Falha na inicialização da atividade de rastreamento: %s</string>
+    <string name="clearing_old_data_syncing">Limpando dados antigos e re-sincronizando...</string>
+    <string name="syncing_track_from_server">Sincronizando dados de rastreamento do servidor...</string>
+    <string name="playback_start_failed">Falha ao iniciar reprodução: %s</string>
+    <string name="google_map_init_failed">Falha na inicialização do Google Map: %s</string>
+    <string name="cleared_old_data_re_sync">Limpados %d registros antigos, re-sincronizando...</string>
+    <string name="load_track_failed">Falha ao carregar dados de rastreamento: %s</string>
+    <string name="loading_data">Carregando...</string>
+    <string name="no_device_data">Sem dados do dispositivo</string>
+    <string name="unknown_location_short">Localização desconhecida</string>
+    <string name="get_address_failed_short">Falha ao obter endereço</string>
+    <string name="camera_permission_needed">Permissão de câmera necessária para escanear código QR</string>
+    <string name="google_map_loaded">Google Map carregado!</string>
+    <string name="google_map_init_error">Erro na inicialização do Google Map: %s</string>
+    <string name="google_map_check_settings">O Google Map pode não ter carregado. Verifique a chave API, rede e configurações de VPN.</string>
+    <string name="google_map_init_failed_check">Falha na inicialização do Google Map. Verifique se os Serviços do Google Play estão disponíveis.</string>
+    
+    <!-- Auto refresh -->
+    <string name="auto_refreshing">Atualizando automaticamente...</string>
 </resources>

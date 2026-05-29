@@ -8,6 +8,7 @@ import android.hardware.camera2.CaptureRequest;
 import android.os.Bundle;
 import android.util.Log;
 import android.util.Size;
+import android.view.View;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
@@ -56,8 +57,30 @@ public class CustomCaptureActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 先恢复用户的语言偏好，如果没有设置过则使用系统语言
+        android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
+        String languageCode;
+        
+        // 检查用户是否已经选择过语言
+        if (LanguageUtils.hasUserSelectedLanguage(this)) {
+            // 用户已经选择过语言，使用保存的语言
+            languageCode = prefs.getString("language", "zh");
+        } else {
+            // 首次启动，自动使用系统语言
+            languageCode = LanguageUtils.getSystemLanguage();
+            // 保存系统语言作为默认语言（但不标记为用户已选择）
+            prefs.edit().putString("language", languageCode).apply();
+        }
+        
+        LanguageUtils.applyLanguage(this, languageCode);
+        
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_custom_capture);
+        
+        // 隐藏系统 ActionBar（使用自定义标题栏）
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().hide();
+        }
         
         Log.d(TAG, "ML Kit CustomCaptureActivity onCreate");
         
@@ -206,7 +229,7 @@ public class CustomCaptureActivity extends AppCompatActivity {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 startCamera();
             } else {
-                Toast.makeText(this, "需要相机权限才能扫码", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.camera_permission_needed, Toast.LENGTH_SHORT).show();
                 finish();
             }
         }

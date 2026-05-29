@@ -9,69 +9,74 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/top_bar"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:background="@color/top_bar_background"
-        android:elevation="2dp"
+        android:layout_height="wrap_content"
+        android:background="#FFFFFF"
+        android:elevation="4dp"
+        android:paddingTop="0dp"
+        android:paddingBottom="4dp"
         app:layout_constraintTop_toTopOf="parent">
 
         <ImageButton
             android:id="@+id/back_btn"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginTop="4dp"
             android:src="@android:drawable/ic_menu_revert"
             android:background="?attr/selectableItemBackgroundBorderless"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+            app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
             android:id="@+id/title_text"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:text="@string/track"
-            android:textSize="16sp"
+            android:textSize="18sp"
             android:textStyle="bold"
+            android:textColor="#000000"
             android:gravity="center"
             app:layout_constraintStart_toEndOf="@id/back_btn"
             app:layout_constraintEnd_toStartOf="@id/prev_day_btn"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageButton
             android:id="@+id/prev_day_btn"
             android:layout_width="36dp"
             android:layout_height="36dp"
+            android:layout_marginTop="8dp"
             android:src="@drawable/ic_prev_day"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:scaleType="centerInside"
             app:layout_constraintEnd_toStartOf="@id/date_btn"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+            app:layout_constraintTop_toTopOf="parent" />
 
         <Button
             android:id="@+id/date_btn"
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
+            android:layout_height="40dp"
+            android:layout_marginTop="6dp"
             android:text="@string/today"
             android:textSize="13sp"
             android:textColor="#FFFFFF"
             android:backgroundTint="#2196F3"
             android:minWidth="60dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="4dp"
             app:layout_constraintEnd_toStartOf="@id/next_day_btn"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageButton
             android:id="@+id/next_day_btn"
             android:layout_width="36dp"
             android:layout_height="36dp"
+            android:layout_marginTop="8dp"
             android:layout_marginEnd="4dp"
             android:src="@drawable/ic_next_day"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:scaleType="centerInside"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+            app:layout_constraintTop_toTopOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -101,7 +106,8 @@
             android:id="@+id/start_time_btn"
             android:layout_width="wrap_content"
             android:layout_height="32dp"
-            android:text="00:00"
+            android:text="@string/start_time_default"
+            android:contentDescription="@string/select_start_time"
             android:textSize="11sp"
             android:textColor="#FFFFFF"
             android:backgroundTint="#4CAF50"
@@ -113,7 +119,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="-"
+            android:text="@string/time_separator"
             android:textSize="14sp"
             android:textColor="#333333"
             android:layout_marginStart="6dp"
@@ -123,7 +129,8 @@
             android:id="@+id/end_time_btn"
             android:layout_width="wrap_content"
             android:layout_height="32dp"
-            android:text="23:59"
+            android:text="@string/end_time_default"
+            android:contentDescription="@string/select_end_time"
             android:textSize="11sp"
             android:textColor="#FFFFFF"
             android:backgroundTint="#FF9800"
@@ -163,6 +170,17 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="2dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/playback_control_bar"
+        app:layout_constraintTop_toBottomOf="@id/time_range_container" />
+
+    <fragment
+        android:id="@+id/googleMapFragment"
+        android:name="com.google.android.gms.maps.SupportMapFragment"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="2dp"
+        android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@id/playback_control_bar"
         app:layout_constraintTop_toBottomOf="@id/time_range_container" />
 
@@ -253,32 +271,6 @@
 
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:layout_marginTop="2dp">
-
-            <ImageButton
-                android:id="@+id/toggle_display_mode_btn"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@android:drawable/ic_menu_view"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:scaleType="centerInside"
-                android:contentDescription="@string/toggle_display_mode_desc" />
-
-            <TextView
-                android:id="@+id/display_mode_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/detailed"
-                android:textSize="9sp"
-                android:textColor="#333333" />
-
-        </LinearLayout>
-
         <!-- 统计按钮 -->
         <LinearLayout
             android:layout_width="wrap_content"
@@ -305,6 +297,32 @@
 
         </LinearLayout>
 
+        <!-- 刷新按钮 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_marginTop="2dp">
+
+            <ImageButton
+                android:id="@+id/refresh_btn"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@android:drawable/ic_menu_rotate"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:scaleType="centerInside"
+                android:contentDescription="@string/refresh" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/refresh"
+                android:textSize="9sp"
+                android:textColor="#333333" />
+
+        </LinearLayout>
+
     </LinearLayout>
 
     <LinearLayout
@@ -319,6 +337,69 @@
         android:paddingTop="3dp"
         android:paddingBottom="4dp"
         app:layout_constraintBottom_toBottomOf="parent">
+
+        <!-- 精度调节控件 -->
+        <LinearLayout
+            android:id="@+id/accuracy_control_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#F5F5F5"
+            android:padding="6dp"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/accuracy_adjustment"
+                android:textSize="11sp"
+                android:textColor="#333333"
+                android:textStyle="bold"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginBottom="4dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/high_accuracy"
+                    android:textSize="10sp"
+                    android:textColor="#666666" />
+
+                <SeekBar
+                    android:id="@+id/accuracy_seekbar"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginEnd="6dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/low_accuracy"
+                    android:textSize="10sp"
+                    android:textColor="#666666" />
+
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/accuracy_value_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/accuracy_default_value"
+                android:textSize="10sp"
+                android:textColor="#2196F3"
+                android:textStyle="bold"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="2dp" />
+
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -338,7 +419,7 @@
                 android:id="@+id/current_time_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="00:00:00"
+                android:text="@string/time_format_hh_mm_ss"
                 android:textSize="10sp"
                 android:textColor="#333333"
                 android:layout_marginStart="3dp" />
@@ -355,7 +436,7 @@
                 android:id="@+id/total_time_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="00:00:00"
+                android:text="@string/time_format_hh_mm_ss"
                 android:textSize="10sp"
                 android:textColor="#333333"
                 android:layout_marginEnd="3dp" />
@@ -364,7 +445,7 @@
                 android:id="@+id/speed_btn"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="1x"
+                android:text="@string/speed_1x"
                 android:textSize="12sp"
                 android:textColor="#2196F3"
                 android:padding="3dp"
@@ -395,7 +476,7 @@
                         android:id="@+id/track_point_time"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="--:--:--"
+                        android:text="@string/time_placeholder"
                         android:textSize="11sp"
                         android:textColor="#333333"
                         android:textStyle="bold" />
@@ -435,7 +516,7 @@
                         android:id="@+id/total_distance_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="0.00 km"
+                        android:text="@string/distance_format"
                         android:textSize="12sp"
                         android:textColor="#2196F3"
                         android:textStyle="bold"

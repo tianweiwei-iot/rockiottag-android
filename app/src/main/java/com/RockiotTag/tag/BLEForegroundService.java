@@ -33,7 +33,7 @@ public class BLEForegroundService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(TAG, "Service created");
+
 
         bleManager = new BLEManager(this);
         databaseHelper = new DatabaseHelper(this);
@@ -56,7 +56,7 @@ public class BLEForegroundService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(TAG, "Service started");
+
         return START_STICKY;
     }
 
@@ -68,7 +68,7 @@ public class BLEForegroundService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Log.d(TAG, "Service destroyed");
+
         if (bleManager != null) {
             bleManager.stopScanning();
         }
@@ -110,7 +110,7 @@ public class BLEForegroundService extends Service {
             bleManager.startScanning(new BLEManager.DeviceScanCallback() {
                 @Override
                 public void onDeviceFound(Device device) {
-                    Log.d(TAG, "Found device in service: " + device.getName());
+
                     databaseHelper.addDevice(device);
                     
                     // 检查是否是已绑定的设备
@@ -125,12 +125,12 @@ public class BLEForegroundService extends Service {
 
                 @Override
                 public void onScanComplete() {
-                    Log.d(TAG, "BLE scanning completed in service");
+
                     // 扫描完成后，不再继续扫描
                 }
             });
         } else {
-            Log.e(TAG, "Bluetooth is not enabled");
+
         }
     }
 
@@ -144,7 +144,7 @@ public class BLEForegroundService extends Service {
         // 尝试连接已绑定的设备
         // 这里需要获取BluetoothDevice对象
         // 实际实现中应该通过BluetoothAdapter.getRemoteDevice(deviceId)获取
-        Log.d(TAG, "Connecting to bound device: " + device.getName());
+
         // 暂时只记录日志，实际应用中需要实现连接逻辑
     }
 

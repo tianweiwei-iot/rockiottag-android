@@ -2,6 +2,7 @@ package com.RockiotTag.tag;
 
 import android.util.Log;
 
+import com.RockiotTag.tag.network.HttpHelper;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -40,14 +41,37 @@ public class NewApiService {
         return instance;
     }
     
+    /**
+     * 检查是否已认证（API Key 模式下始终返回 true）
+     */
+    public boolean isAuthenticated() {
+        // API Key 认证模式，始终认为已认证
+        return true;
+    }
+    
+    /**
+     * 登录方法（API Key 模式下不需要登录，直接返回成功）
+     */
+    public ApiResponse login(String cid, String customerCode, String password) {
+        Log.d(TAG, "Login called (API Key mode - no actual login needed)");
+        ApiResponse response = new ApiResponse();
+        response.setStatusCode(200);
+        response.setStatus(200);
+        response.setCode("0000");
+        response.setMessage("Login successful (API Key authenticated)");
+        return response;
+    }
+    
     public List<DeviceInfo> getDevices() {
         Log.d(TAG, "getDevices called");
         List<DeviceInfo> deviceInfoList = new ArrayList<>();
         
+        // 使用公开API获取所有设备（包含MAC地址）
         ApiResponse response = getRequest("/devices", false);
         Log.d(TAG, "getDevices response - success: " + (response != null ? response.isSuccess() : "null"));
         
         if (response != null && response.isSuccess() && response.getRawResponse() != null) {
+            Log.d(TAG, "Raw response: " + response.getRawResponse());
             try {
                 Gson gson = new Gson();
                 JsonParser parser = new JsonParser();
@@ -55,6 +79,7 @@ public class NewApiService {
                 
                 if (jsonElement.isJsonArray()) {
                     var devicesArray = jsonElement.getAsJsonArray();
+                    Log.d(TAG, "Parsing " + devicesArray.size() + " devices from array");
                     for (int i = 0; i < devicesArray.size(); i++) {
                         JsonObject deviceObj = devicesArray.get(i).getAsJsonObject();
                         DeviceInfo info = new DeviceInfo();
@@ -62,6 +87,7 @@ public class NewApiService {
                         info.nickName = getStringValue(deviceObj, "nickName");
                         info.mac = getStringValue(deviceObj, "mac");
                         deviceInfoList.add(info);
+                        Log.d(TAG, "  Device[" + i + "]: num=" + info.deviceNum + ", name=" + info.nickName + ", mac=" + info.mac);
                     }
                 } else if (jsonElement.isJsonObject()) {
                     JsonObject jsonObject = jsonElement.getAsJsonObject();
@@ -71,6 +97,7 @@ public class NewApiService {
                         info.nickName = getStringValue(jsonObject, "nickName");
                         info.mac = getStringValue(jsonObject, "mac");
                         deviceInfoList.add(info);
+                        Log.d(TAG, "  Single device: num=" + info.deviceNum + ", name=" + info.nickName + ", mac=" + info.mac);
                     }
                 }
                 
@@ -97,7 +124,11 @@ public class NewApiService {
     }
     
     public ApiResponse bindDevice(String deviceNum, String sn, String nickName) {
-        Log.d(TAG, "bindDevice called with deviceNum: " + deviceNum + ", sn: " + sn + ", nickName: " + nickName);
+        return bindDevice(deviceNum, sn, nickName, null);
+    }
+    
+    public ApiResponse bindDevice(String deviceNum, String sn, String nickName, String customerCode) {
+        Log.d(TAG, "bindDevice called with deviceNum: " + deviceNum + ", sn: " + sn + ", nickName: " + nickName + ", customerCode: " + customerCode);
         
         Map<String, String> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
@@ -108,43 +139,63 @@ public class NewApiService {
             params.put("nickName", nickName);
         }
         
-        return postRequest("/devices/bind", params, false);
+        return postRequest("/devices/bind", params, false, customerCode);
     }
     
     public ApiResponse unbindDevice(String deviceNum) {
-        Log.d(TAG, "unbindDevice called for deviceNum: " + deviceNum);
+        return unbindDevice(deviceNum, null);
+    }
+    
+    public ApiResponse unbindDevice(String deviceNum, String customerCode) {
+        Log.d(TAG, "unbindDevice called for deviceNum: " + deviceNum + ", customerCode: " + customerCode);
         
         Map<String, String> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
         
-        return postRequest("/devices/unbind", params, false);
+        return postRequest("/devices/unbind", params, false, customerCode);
     }
     
     public ApiResponse refreshLocation(String deviceNum) {
-        Log.d(TAG, "refreshLocation called for deviceNum: " + deviceNum);
+        return refreshLocation(deviceNum, null);
+    }
+    
+    public ApiResponse refreshLocation(String deviceNum, String customerCode) {
+        Log.d(TAG, "refreshLocation called for deviceNum: " + deviceNum + ", customerCode: " + customerCode);
         
         Map<String, String> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
         
-        return postRequest("/devices/refresh", params, false);
+        return postRequest("/devices/refresh", params, false, customerCode);
     }
     
     public ApiResponse syncLocation(String deviceNum, double latitude, double longitude, int battery, long timestamp) {
         Log.d(TAG, "syncLocation called - deviceNum: " + deviceNum + ", lat: " + latitude + ", lng: " + longitude + ", battery: " + battery);
         
+        double roundedLat = roundTo8Decimals(latitude);
+        double roundedLng = roundTo8Decimals(longitude);
+        Log.d(TAG, "Coordinates rounded: lat=" + latitude + " -> " + roundedLat + ", lng=" + longitude + " -> " + roundedLng);
+        
         Map<String, Object> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
-        params.put("latitude", latitude);
-        params.put("longitude", longitude);
+        params.put("latitude", roundedLat);
+        params.put("longitude", roundedLng);
         params.put("battery", battery);
         params.put("timestamp", timestamp);
         
         return postRequestWithObject("/locations/sync", params, false);
     }
     
+    private double roundTo8Decimals(double value) {
+        return Math.round(value * 100000000.0) / 100000000.0;
+    }
+    
     public List<LocationInfo> getLocations(String deviceNum, long startTime, long endTime) {
+        return getLocations(deviceNum, startTime, endTime, null);
+    }
+    
+    public List<LocationInfo> getLocations(String deviceNum, long startTime, long endTime, String customerCode) {
         Log.d(TAG, "=== getLocations START ===");
-        Log.d(TAG, "deviceNum: " + deviceNum + ", startTime: " + startTime + ", endTime: " + endTime);
+        Log.d(TAG, "deviceNum: " + deviceNum + ", startTime: " + startTime + ", endTime: " + endTime + ", customerCode: " + customerCode);
         List<LocationInfo> locationInfoList = new ArrayList<>();
         
         String endpoint = "/locations?deviceNum=" + deviceNum;
@@ -153,7 +204,7 @@ public class NewApiService {
         }
         Log.d(TAG, "Request endpoint: " + endpoint);
         
-        ApiResponse response = getRequest(endpoint, false);
+        ApiResponse response = getRequest(endpoint, false, customerCode);
         Log.d(TAG, "Response received - success: " + (response != null ? response.isSuccess() : "null"));
         if (response != null) {
             Log.d(TAG, "Response code: " + response.getStatusCode());
@@ -283,33 +334,62 @@ public class NewApiService {
     }
     
     public DeviceInfo getDeviceLatest(String deviceNum) {
-        Log.d(TAG, "getDeviceLatest called for deviceNum: " + deviceNum);
+        return getDeviceLatest(deviceNum, null);
+    }
+    
+    public DeviceInfo getDeviceLatest(String deviceNum, String customerCode) {
+        if (deviceNum != null) {
+            deviceNum = deviceNum.trim().replaceAll("\\s+", "").toUpperCase();
+        }
         
-        ApiResponse response = getRequest("/devices/" + deviceNum + "/latest", false);
+        Log.d(TAG, "getDeviceLatest called for deviceNum: [" + deviceNum + "], customerCode: " + customerCode);
+        Log.d(TAG, "Using API Key: " + ApiConfig.getApiKeyForCustomer(customerCode));
+        
+        ApiResponse response = getRequest("/devices/" + deviceNum + "/latest", false, customerCode);
+        Log.d(TAG, "getDeviceLatest response - statusCode: " + (response != null ? response.getStatusCode() : "null response"));
         Log.d(TAG, "getDeviceLatest response - success: " + (response != null ? response.isSuccess() : "null"));
         
-        if (response != null && response.isSuccess() && response.getRawResponse() != null) {
-            try {
-                Gson gson = new Gson();
-                JsonParser parser = new JsonParser();
-                JsonObject json = parser.parse(response.getRawResponse()).getAsJsonObject();
-                
-                DeviceInfo info = new DeviceInfo();
-                info.deviceNum = getStringValue(json, "deviceNum");
-                info.nickName = getStringValue(json, "nickName");
-                info.latitude = getDoubleValue(json, "latitude", 0);
-                info.longitude = getDoubleValue(json, "longitude", 0);
-                info.battery = getIntValue(json, "battery", 0);
-                info.timestamp = getLongValue(json, "timestamp", 0);
-                info.address = getStringValue(json, "address");
-                info.updatedAt = getStringValue(json, "updatedAt");
-                
-                Log.d(TAG, "Got device latest info: lat=" + info.latitude + ", lng=" + info.longitude + 
-                      ", battery=" + info.battery + ", address=" + info.address);
-                
-                return info;
-            } catch (Exception e) {
-                Log.e(TAG, "Error parsing device latest info: " + e.getMessage(), e);
+        if (response != null) {
+            Log.d(TAG, "=== Raw Response ===");
+            Log.d(TAG, response.getRawResponse() != null ? response.getRawResponse() : "null body");
+            Log.d(TAG, "=== End Raw Response ===");
+            
+            if (response.getRawResponse() != null) {
+                try {
+                    Gson gson = new Gson();
+                    JsonParser parser = new JsonParser();
+                    var jsonElement = parser.parse(response.getRawResponse());
+                    
+                    if (jsonElement.isJsonObject()) {
+                        JsonObject json = jsonElement.getAsJsonObject();
+                        
+                        if (json.has("success") && !json.get("success").getAsBoolean()) {
+                            String message = json.has("message") ? json.get("message").getAsString() : "Unknown error";
+                            Log.e(TAG, "Device not found or not activated: " + message);
+                            return null;
+                        }
+                        
+                        DeviceInfo info = new DeviceInfo();
+                        info.deviceNum = getStringValue(json, "deviceNum");
+                        info.nickName = getStringValue(json, "nickName");
+                        info.mac = getStringValue(json, "mac");
+                        info.latitude = getDoubleValue(json, "latitude", 0);
+                        info.longitude = getDoubleValue(json, "longitude", 0);
+                        info.battery = getIntValue(json, "battery", 0);
+                        info.timestamp = getLongValue(json, "timestamp", 0);
+                        info.address = getStringValue(json, "address");
+                        info.updatedAt = getStringValue(json, "updatedAt");
+                        
+                        Log.d(TAG, "Got device latest info: deviceNum=" + info.deviceNum + ", lat=" + info.latitude + ", lng=" + info.longitude + 
+                              ", battery=" + info.battery + ", mac=" + info.mac + ", address=" + info.address);
+                        
+                        if (info.deviceNum != null && !info.deviceNum.isEmpty()) {
+                            return info;
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error parsing device latest info: " + e.getMessage(), e);
+                }
             }
         }
         
@@ -337,140 +417,78 @@ public class NewApiService {
     }
     
     private ApiResponse postRequest(String endpoint, Map<String, String> params, boolean requireAuth) {
+        return postRequest(endpoint, params, requireAuth, null);
+    }
+    
+    private ApiResponse postRequest(String endpoint, Map<String, String> params, boolean requireAuth, String customerCode) {
         try {
-            URL url = new URL(API_BASE_URL + endpoint);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setConnectTimeout(CONNECT_TIMEOUT);
-            conn.setReadTimeout(READ_TIMEOUT);
-            
-            conn.setDoOutput(true);
-            
+            String url = API_BASE_URL + endpoint;
             String jsonParams = buildJson(params);
-            Log.d(TAG, "Request: " + jsonParams);
+            Log.d(TAG, "Request: " + jsonParams + ", customerCode: " + customerCode);
             
-            OutputStream os = conn.getOutputStream();
-            os.write(jsonParams.getBytes(StandardCharsets.UTF_8));
-            os.flush();
-            os.close();
+            HttpHelper.HttpResponse response = HttpHelper.post(url, jsonParams, customerCode);
             
-            int responseCode = conn.getResponseCode();
-            Log.d(TAG, "Response code: " + responseCode);
-            
-            if (responseCode == HttpURLConnection.HTTP_OK || responseCode == HttpURLConnection.HTTP_CREATED) {
-                BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                String inputLine;
-                StringBuilder response = new StringBuilder();
-                
-                while ((inputLine = in.readLine()) != null) {
-                    response.append(inputLine);
-                }
-                in.close();
-                
-                String responseString = response.toString();
-                Log.d(TAG, "Response: " + responseString);
-                
-                return parseResponse(responseString, responseCode);
+            Log.d(TAG, "Response code: " + response.statusCode);
+            if (response.isSuccess()) {
+                Log.d(TAG, "Response: " + response.body);
             } else {
-                Log.e(TAG, "Request failed with code: " + responseCode);
-                BufferedReader in = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
-                String inputLine;
-                StringBuilder response = new StringBuilder();
-                
-                while ((inputLine = in.readLine()) != null) {
-                    response.append(inputLine);
-                }
-                in.close();
-                
-                Log.e(TAG, "Error response: " + response.toString());
-                return parseResponse(response.toString(), responseCode);
+                Log.e(TAG, "Error response: " + (response.error != null ? response.error : response.body));
             }
+            
+            return parseResponse(response.body, response.statusCode);
         } catch (Exception e) {
             Log.e(TAG, "Error making API request: " + e.getMessage(), e);
-            return null;
+            return parseResponse("Internal Error: " + e.getMessage(), -1);
         }
     }
     
     private ApiResponse postRequestWithObject(String endpoint, Map<String, Object> params, boolean requireAuth) {
+        return postRequestWithObject(endpoint, params, requireAuth, null);
+    }
+    
+    private ApiResponse postRequestWithObject(String endpoint, Map<String, Object> params, boolean requireAuth, String customerCode) {
         try {
-            URL url = new URL(API_BASE_URL + endpoint);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setConnectTimeout(CONNECT_TIMEOUT);
-            conn.setReadTimeout(READ_TIMEOUT);
-            
-            conn.setDoOutput(true);
-            
+            String url = API_BASE_URL + endpoint;
             String jsonParams = buildJsonFromObject(params);
-            Log.d(TAG, "Request: " + jsonParams);
+            Log.d(TAG, "Request: " + jsonParams + ", customerCode: " + customerCode);
             
-            OutputStream os = conn.getOutputStream();
-            os.write(jsonParams.getBytes(StandardCharsets.UTF_8));
-            os.flush();
-            os.close();
+            HttpHelper.HttpResponse response = HttpHelper.post(url, jsonParams, customerCode);
             
-            int responseCode = conn.getResponseCode();
-            Log.d(TAG, "Response code: " + responseCode);
-            
-            if (responseCode == HttpURLConnection.HTTP_OK || responseCode == HttpURLConnection.HTTP_CREATED) {
-                BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                String inputLine;
-                StringBuilder response = new StringBuilder();
-                
-                while ((inputLine = in.readLine()) != null) {
-                    response.append(inputLine);
-                }
-                in.close();
-                
-                String responseString = response.toString();
-                Log.d(TAG, "Response: " + responseString);
-                
-                return parseResponse(responseString, responseCode);
+            Log.d(TAG, "Response code: " + response.statusCode);
+            if (response.isSuccess()) {
+                Log.d(TAG, "Response: " + response.body);
             } else {
-                Log.e(TAG, "Request failed with code: " + responseCode);
-                return parseResponse("", responseCode);
+                Log.e(TAG, "Error response: " + (response.error != null ? response.error : response.body));
             }
+            
+            return parseResponse(response.body, response.statusCode);
         } catch (Exception e) {
             Log.e(TAG, "Error making API request: " + e.getMessage(), e);
-            return null;
+            return parseResponse("Internal Error: " + e.getMessage(), -1);
         }
     }
     
     private ApiResponse getRequest(String endpoint, boolean requireAuth) {
+        return getRequest(endpoint, requireAuth, null);
+    }
+    
+    private ApiResponse getRequest(String endpoint, boolean requireAuth, String customerCode) {
         try {
-            URL url = new URL(API_BASE_URL + endpoint);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setConnectTimeout(CONNECT_TIMEOUT);
-            conn.setReadTimeout(READ_TIMEOUT);
+            String url = API_BASE_URL + endpoint;
+            Log.d(TAG, "GET request: " + url + ", customerCode: " + customerCode);
+            HttpHelper.HttpResponse response = HttpHelper.get(url, customerCode);
             
-            int responseCode = conn.getResponseCode();
-            Log.d(TAG, "Response code: " + responseCode);
-            
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                String inputLine;
-                StringBuilder response = new StringBuilder();
-                
-                while ((inputLine = in.readLine()) != null) {
-                    response.append(inputLine);
-                }
-                in.close();
-                
-                String responseString = response.toString();
-                Log.d(TAG, "Response: " + responseString);
-                
-                return parseResponse(responseString, responseCode);
+            Log.d(TAG, "Response code: " + response.statusCode);
+            if (response.isSuccess()) {
+                Log.d(TAG, "Response: " + response.body);
             } else {
-                Log.e(TAG, "Request failed with code: " + responseCode);
-                return parseResponse("", responseCode);
+                Log.e(TAG, "Error response: " + (response.error != null ? response.error : response.body));
             }
+            
+            return parseResponse(response.body, response.statusCode);
         } catch (Exception e) {
             Log.e(TAG, "Error making API request: " + e.getMessage(), e);
-            return null;
+            return parseResponse("Internal Error: " + e.getMessage(), -1);
         }
     }
     

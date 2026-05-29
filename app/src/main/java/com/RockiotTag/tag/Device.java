@@ -6,10 +6,15 @@ public class Device {
     private String name;
     private String address;
     private String tag;
+    private String mac;
+    private String customerCode;
     private double latitude;
     private double longitude;
     private int signalStrength;
     private long lastSeen;
+    private boolean isNearby;
+    private Long bluetoothScanTime;
+    private int battery;
 
     public Device(String deviceId, String name) {
         this.deviceId = deviceId;
@@ -17,10 +22,12 @@ public class Device {
         this.name = name;
         this.address = deviceId;
         this.tag = "";
+        this.customerCode = "";
         this.latitude = 0;
         this.longitude = 0;
         this.signalStrength = 0;
         this.lastSeen = System.currentTimeMillis();
+        this.battery = -1;
     }
 
     public Device(String deviceId, String name, String address) {
@@ -29,10 +36,12 @@ public class Device {
         this.name = name;
         this.address = address;
         this.tag = "";
+        this.customerCode = "";
         this.latitude = 0;
         this.longitude = 0;
         this.signalStrength = 0;
         this.lastSeen = System.currentTimeMillis();
+        this.battery = -1;
     }
 
     public String getDeviceNum() {
@@ -71,6 +80,14 @@ public class Device {
         this.name = name;
     }
 
+    public String getCustomerCode() {
+        return customerCode;
+    }
+
+    public void setCustomerCode(String customerCode) {
+        this.customerCode = customerCode;
+    }
+
     public double getLatitude() {
         return latitude;
     }
@@ -103,15 +120,49 @@ public class Device {
         this.lastSeen = lastSeen;
     }
 
+    public boolean isNearby() {
+        return isNearby;
+    }
+
+    public void setNearby(boolean nearby) {
+        isNearby = nearby;
+    }
+
+    public Long getBluetoothScanTime() {
+        return bluetoothScanTime;
+    }
+
+    public void setBluetoothScanTime(Long bluetoothScanTime) {
+        this.bluetoothScanTime = bluetoothScanTime;
+    }
+
+    public String getMac() {
+        return mac;
+    }
+
+    public void setMac(String mac) {
+        this.mac = mac;
+    }
+
+    public int getBattery() {
+        return battery;
+    }
+
+    public void setBattery(int battery) {
+        this.battery = battery;
+    }
+
     @Override
     public String toString() {
         return "Device{" +
                 "deviceId='" + deviceId + '\'' +
                 ", name='" + name + '\'' +
+                ", customerCode='" + customerCode + '\'' +
                 ", latitude=" + latitude +
                 ", longitude=" + longitude +
                 ", signalStrength=" + signalStrength +
                 ", lastSeen=" + lastSeen +
+                ", battery=" + battery +
                 '}';
     }
 }

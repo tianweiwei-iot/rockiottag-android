@@ -59,7 +59,7 @@
         android:layout_marginStart="8dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@android:drawable/ic_menu_edit"
-        android:contentDescription="编辑设备"
+        android:contentDescription="@string/edit_device_content_desc"
         android:scaleType="centerInside"
         android:padding="8dp" />
 

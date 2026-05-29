@@ -7,6 +7,8 @@
     <string name="geofence_settings">安全范围设置</string>
     <string name="toggle_dark_mode">切换深色模式</string>
     <string name="change_language">切换语言</string>
+    <string name="version_info">版本信息</string>
+    <string name="version_format">版本: %1$s (%2$d)</string>
     <string name="cancel">取消</string>
     <string name="language_title">选择语言</string>
     <string name="chinese">中文</string>
@@ -27,6 +29,10 @@
     <string name="last_update">最后更新: </string>
     <string name="trigger_buzzer">触发蜂鸣器</string>
     <string name="buzzer">蜂鸣器</string>
+    <string name="locate">定位</string>
+    <string name="map_type">地图类型</string>
+    <string name="refresh">刷新</string>
+    <string name="buzzer_triggered">蜂鸣器已触发</string>
     <string name="device_not_connected">设备未连接</string>
     <string name="scanning_devices">正在扫描蓝牙设备...</string>
     <string name="scan_complete">扫描完成</string>
@@ -58,6 +64,15 @@
 
     <string name="track">轨迹</string>
     <string name="today">今天</string>
+    <string name="yesterday">昨天</string>
+    <string name="day_before_yesterday">前天</string>
+    <string name="sunday">周日</string>
+    <string name="monday">周一</string>
+    <string name="tuesday">周二</string>
+    <string name="wednesday">周三</string>
+    <string name="thursday">周四</string>
+    <string name="friday">周五</string>
+    <string name="saturday">周六</string>
     <string name="time_range">时间段：</string>
     <string name="reset">重置</string>
     <string name="loading">加载中...</string>
@@ -86,6 +101,9 @@
     <string name="select_start_time">选择开始时间</string>
     <string name="select_end_time">选择结束时间</string>
     <string name="confirm">确定</string>
+    <string name="export">导出</string>
+    <string name="export_success">导出成功，已保存到相册</string>
+    <string name="export_failed">导出失败: %s</string>
     <string name="only_last_month_track">只能查看最近一个月的轨迹</string>
     <string name="cannot_view_future_track">不能查看未来的轨迹</string>
     <string name="please_select_device">请先选择设备</string>
@@ -150,6 +168,7 @@
     <string name="enter_device_or_scan">请输入设备号或扫码绑定</string>
     <string name="device_number">设备号</string>
     <string name="select_tag">选择标签</string>
+    <string name="select_customer_hint">选择客户%s</string>
     <string name="install_qr_scanner">请安装二维码扫描应用</string>
     <string name="need_camera_permission">需要相机权限才能扫码</string>
     <string name="got_device_number">已获取设备号</string>
@@ -213,6 +232,8 @@
     <string name="default_address">广东省深圳市新安街道高新奇科技园二期</string>
     <string name="test_device">测试设备</string>
     <string name="loading_track_data">正在加载轨迹数据...</string>
+    <string name="loading_track_title">加载轨迹</string>
+    <string name="loading_track_message">正在加载轨迹，请稍后...</string>
     <string name="sync_track_failed">同步轨迹数据失败</string>
     <string name="sync_track_error">同步轨迹数据出错</string>
     <string name="scan_qr_code">扫描二维码</string>
@@ -242,4 +263,111 @@
     <string name="refresh_success">刷新成功</string>
     <string name="no_location_data">暂无位置数据</string>
     <string name="please_login_first">请先登录</string>
+    
+    <!-- 轨迹统计 -->
+    <string name="track_statistics_title">轨迹统计</string>
+    <string name="track_statistics_title_short">轨迹统计</string>
+    <string name="track_statistics_header">📊 轨迹统计信息</string>
+    <string name="track_statistics_info">📊 轨迹统计信息</string>
+    <string name="track_points_label"> 总点数: </string>
+    <string name="track_points_count_label"> 总点数: </string>
+    <string name="track_points_unit"> 个</string>
+    <string name="valid_segments_label">有效段: </string>
+    <string name="valid_segments_unit"> 段</string>
+    <string name="total_distance_label">总距离: </string>
+    <string name="time_span_label">时间跨度: </string>
+    <string name="start_time_label">开始时间: </string>
+    <string name="end_time_label">结束时间: </string>
+    <string name="stay_points_label">停留点: </string>
+    <string name="stay_points_unit"> 个</string>
+    <string name="total_stay_label">总停留: </string>
+    <string name="average_speed_label">平均速度: </string>
+    <string name="hour_minute_format">%1$d小时%2$d分钟</string>
+    <string name="minute_second_format">%1$d分钟%2$d秒</string>
+    <string name="second_format">%d秒</string>
+    
+    <!-- 错误消息 -->
+    <string name="error_unknown">发生未知错误，请稍后重试</string>
+    <string name="error_network_timeout">网络连接超时，请检查您的网络设置后重试</string>
+    <string name="error_network_unreachable">无法连接到服务器，请确保网络正常</string>
+    <string name="error_auth_expired">登录已过期，请重新登录</string>
+    <string name="error_permission_denied">没有权限执行此操作</string>
+    <string name="error_resource_not_found">请求的资源不存在</string>
+    <string name="error_server_internal">服务器内部错误，请稍后重试</string>
+    <string name="error_request_failed">请求失败，请稍后重试</string>
+    <string name="error_network_io">网络异常，请检查网络连接</string>
+    <string name="error_no_network">网络不可用，请检查网络连接</string>
+    
+    <!-- 新增的字符串资源 -->
+    <string name="tag">标签</string>
+    <string name="default_radius">100</string>
+    <string name="time_separator">-</string>
+    <string name="start_time_default">00:00</string>
+    <string name="end_time_default">23:59</string>
+    <string name="time_format_hh_mm_ss">00:00:00</string>
+    <string name="speed_1x">1x</string>
+    <string name="time_placeholder">--:--:--</string>
+    <string name="distance_format">0.00 km</string>
+    <string name="edit_device_content_desc">编辑设备</string>
+    <string name="cid">CID</string>
+    <string name="scan_qr_instruction">扫描设备二维码</string>
+    <string name="scan_qr_tip">将二维码放入框内，自动识别</string>
+    <string name="toggle_flashlight">切换闪光灯</string>
+    <string name="close">关闭</string>
+    <string name="prev_day">◀</string>
+    <string name="next_day">▶</string>
+    <string name="date_placeholder">2024-01-01</string>
+    <string name="play_pause">播放/暂停</string>
+    <string name="time_separator_slash"> / </string>
+    <string name="date_time_format">yyyy-MM-dd HH:mm:ss</string>
+    <string name="toggle_markers">切换标记</string>
+    <string name="toggle_polyline">切换轨迹线</string>
+    <string name="toggle_satellite">切换卫星图</string>
+    <string name="toggle_display_mode">切换显示模式</string>
+    <string name="detailed_mode">详细模式</string>
+    <string name="statistics_info">统计信息</string>
+    <string name="flashlight_tip">点击下方闪光灯按钮提高对比度</string>
+    <string name="please_enter_device_num">请输入设备号</string>
+    <string name="input_latitude_hint">输入纬度 (如: 22.575367)</string>
+    <string name="input_longitude_hint">输入经度 (如: 113.918252)</string>
+    <string name="saving">保存中...</string>
+    <string name="device_id_invalid">设备ID无效</string>
+    <string name="device_info_empty">设备信息为空</string>
+    <string name="device_info_empty_unbind">设备信息为空，无法解绑</string>
+    <string name="device_identifier_invalid">设备标识符无效，无法解绑</string>
+    <string name="missing_location_permission">缺少位置权限，请检查应用权限设置</string>
+    <string name="location_service_init_failed">定位服务初始化失败: %s</string>
+    <string name="bluetooth_connected">蓝牙已连接</string>
+    <string name="track_activity_init_failed">轨迹界面初始化失败: %s</string>
+    <string name="clearing_old_data_syncing">正在清除旧数据并重新同步...</string>
+    <string name="syncing_track_from_server">正在从服务器同步轨迹数据...</string>
+    <string name="playback_start_failed">播放启动失败: %s</string>
+    <string name="google_map_init_failed">Google 地图初始化失败: %s</string>
+    <string name="cleared_old_data_re_sync">已清除 %d 条旧数据，正在重新同步...</string>
+    <string name="load_track_failed">加载轨迹数据失败: %s</string>
+    <string name="loading_data">加载中...</string>
+    <string name="no_device_data">暂无设备数据</string>
+    <string name="unknown_location_short">未知位置</string>
+    <string name="get_address_failed_short">获取地址失败</string>
+    <string name="camera_permission_needed">需要相机权限才能扫码</string>
+    <string name="google_map_loaded">Google Map loaded!</string>
+    <string name="google_map_init_error">Google Map initialization error: %s</string>
+    <string name="google_map_check_settings">Google Map may not have loaded. Check API Key, network, and VPN settings.</string>
+    <string name="google_map_init_failed_check">Google Map initialization failed. Please check if Google Play Services is available.</string>
+    
+    <!-- 蓝牙扫描位置更新 -->
+    <string name="device_location_updated">发现设备 %s，位置已更新</string>
+    
+    <!-- 自动刷新 -->
+    <string name="auto_refreshing">正在自动刷新...</string>
+    
+    <!-- 轨迹终点更新 -->
+    <string name="track_endpoint_updated">轨迹终点已更新为设备最新位置</string>
+    
+    <!-- 精度调节 -->
+    <string name="accuracy_adjustment">精度调节</string>
+    <string name="high_accuracy">高</string>
+    <string name="low_accuracy">低</string>
+    <string name="accuracy_default_value">当前精度: 150米</string>
+    <string name="accuracy_current_value">当前精度: %d米</string>
 </resources>

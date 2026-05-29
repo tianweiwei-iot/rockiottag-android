@@ -40,6 +40,10 @@ public class MapManager implements OnMapReadyCallback {
     private double defaultLat = 22.543611;
     private double defaultLng = 113.881944;
     private boolean googleMapReady = false;
+    private double targetLat = 0;
+    private double targetLng = 0;
+    private float targetZoom = 17;
+    private boolean userHasInteractedWithMap = false; // 标记用户是否已经手动交互过地图
     
     public interface MapCallback {
         void onMapReady();
@@ -47,12 +51,13 @@ public class MapManager implements OnMapReadyCallback {
     }
     
     public MapManager(Context context, MapView amapView, SupportMapFragment googleMapFragment) {
-        this.context = context;
+        // 关键修复：使用 ApplicationContext 防止内存泄漏
+        this.context = context.getApplicationContext();
         this.amapView = amapView;
         this.googleMapFragment = googleMapFragment;
         this.handler = new Handler();
         
-        android.content.SharedPreferences prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+        android.content.SharedPreferences prefs = this.context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         this.currentProvider = prefs.getString("map_provider", MAP_PROVIDER_AMAP);
         Log.d(TAG, "MapManager initialized, current provider: " + currentProvider);
         Log.d(TAG, "googleMapFragment: " + googleMapFragment);
@@ -124,9 +129,19 @@ public class MapManager implements OnMapReadyCallback {
             try {
                 Log.d(TAG, "Configuring Google Map UI settings...");
                 googleMap.getUiSettings().setMyLocationButtonEnabled(false);
-                googleMap.getUiSettings().setCompassEnabled(false);
+                googleMap.getUiSettings().setCompassEnabled(true); // 启用指南针
                 googleMap.getUiSettings().setMapToolbarEnabled(false);
                 googleMap.getUiSettings().setZoomControlsEnabled(true);
+                googleMap.getUiSettings().setRotateGesturesEnabled(true); // 启用旋转手势
+                googleMap.getUiSettings().setTiltGesturesEnabled(true); // 启用倾斜手势
+                
+                // 设置地图语言和地区
+                String languageCode = getMapLanguageCode();
+                String regionCode = getRegionCode();
+                Log.d(TAG, "Setting map language: " + languageCode + ", region: " + regionCode);
+                
+                // Google地图没有内置标尺控件，但可以通过其他方式显示
+                // 注意：Google Maps Android API 不直接提供标尺UI控件
                 
                 // 设置默认地图类型为普通地图
                 googleMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
@@ -139,7 +154,7 @@ public class MapManager implements OnMapReadyCallback {
                         Log.d(TAG, "Google Map loaded successfully!");
                         isCheckingMapLoad = false;
                         if (context != null) {
-                            Toast.makeText(context, "Google Map loaded!", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(context, R.string.google_map_loaded, Toast.LENGTH_SHORT).show();
                         }
                     }
                 });
@@ -152,19 +167,26 @@ public class MapManager implements OnMapReadyCallback {
                     }
                 });
                 
-                // 添加相机移动开始监听
+                // 添加相机移动开始监听 - 检测用户手动交互
                 googleMap.setOnCameraMoveStartedListener(new GoogleMap.OnCameraMoveStartedListener() {
                     @Override
                     public void onCameraMoveStarted(int reason) {
                         Log.d(TAG, "Camera move started, reason: " + reason);
+                        // REASON_GESTURE = 1 (用户手势)
+                        // REASON_API_ANIMATION = 2 (API动画)
+                        // REASON_DEVELOPER_ANIMATION = 3 (开发者动画)
+                        if (reason == 1) {
+                            userHasInteractedWithMap = true;
+                            Log.d(TAG, "User manually interacted with map - disabling auto camera moves");
+                        }
                     }
                 });
                 
-                Log.d(TAG, "Setting default location: lat=" + defaultLat + ", lng=" + defaultLng);
+                Log.d(TAG, "Setting initial location: lat=" + defaultLat + ", lng=" + defaultLng);
                 com.google.android.gms.maps.model.LatLng defaultLatLng =
                     new com.google.android.gms.maps.model.LatLng(defaultLat, defaultLng);
-                googleMap.moveCamera(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(defaultLatLng, 12));
-                Log.d(TAG, "Camera moved to initial position with zoom 12");
+                // 完全禁用自动移动相机，由用户手动控制地图位置
+                Log.d(TAG, "Auto camera movement disabled - user controls map position");
                 
                 // 添加地图点击事件监听以确保地图已激活
                 googleMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
@@ -192,18 +214,7 @@ public class MapManager implements OnMapReadyCallback {
                     }
                 }
                 
-                // 延迟一会儿再设置最终缩放级别，给地图更多时间加载
-                handler.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (googleMap != null) {
-                            Log.d(TAG, "Setting final zoom level to 17");
-                            com.google.android.gms.maps.model.LatLng finalLatLng =
-                                new com.google.android.gms.maps.model.LatLng(defaultLat, defaultLng);
-                            googleMap.animateCamera(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(finalLatLng, 17));
-                        }
-                    }
-                }, 2000);
+
                 
                 // 启动地图加载监控
                 startMapLoadMonitoring();
@@ -211,7 +222,7 @@ public class MapManager implements OnMapReadyCallback {
                 Log.e(TAG, "Error initializing Google Map: " + e.getMessage(), e);
                 e.printStackTrace();
                 if (context != null) {
-                    Toast.makeText(context, "Google Map initialization error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    Toast.makeText(context, context.getString(R.string.google_map_init_error, e.getMessage()), Toast.LENGTH_LONG).show();
                 }
             }
         } else {
@@ -236,7 +247,7 @@ public class MapManager implements OnMapReadyCallback {
                     isCheckingMapLoad = false;
                     
                     if (context != null) {
-                        Toast.makeText(context, "Google Map may not have loaded. Check API Key, network, and VPN settings.", Toast.LENGTH_LONG).show();
+                        Toast.makeText(context, R.string.google_map_check_settings, Toast.LENGTH_LONG).show();
                     }
                     
                     // 尝试多种方法来触发地图重新加载
@@ -258,35 +269,9 @@ public class MapManager implements OnMapReadyCallback {
                                 }
                             }, 1000);
                             
-                            // 策略2：稍微移动相机
-                            handler.postDelayed(new Runnable() {
-                                @Override
-                                public void run() {
-                                    if (googleMap != null) {
-                                        try {
-                                            com.google.android.gms.maps.model.LatLng currentPos = googleMap.getCameraPosition().target;
-                                            com.google.android.gms.maps.model.LatLng newPos = new com.google.android.gms.maps.model.LatLng(
-                                                currentPos.latitude + 0.01,
-                                                currentPos.longitude + 0.01
-                                            );
-                                            Log.d(TAG, "Strategy 2: Move camera slightly");
-                                            googleMap.animateCamera(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(newPos, 10), 1000, null);
-                                            
-                                            handler.postDelayed(new Runnable() {
-                                                @Override
-                                                public void run() {
-                                                    if (googleMap != null) {
-                                                        googleMap.animateCamera(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(currentPos, 15), 1000, null);
-                                                        Log.d(TAG, "Camera moved back");
-                                                    }
-                                                }
-                                            }, 1500);
-                                        } catch (Exception e) {
-                                            Log.e(TAG, "Error in strategy 2: " + e.getMessage(), e);
-                                        }
-                                    }
-                                }
-                            }, 2000);
+                            // 策略2：禁用（不再强制移动相机，避免干扰用户）
+                            // 之前的策略会强制移动相机到错误位置，导致用户体验差
+                            Log.d(TAG, "Strategy 2: Disabled - do not force camera movement");
                             
                             // 策略3：尝试清除并重新设置
                             handler.postDelayed(new Runnable() {
@@ -372,12 +357,27 @@ public class MapManager implements OnMapReadyCallback {
                 Log.w(TAG, "Google Map not ready yet, re-initializing...");
                 initGoogleMap();
             } else {
-                Log.d(TAG, "Google Map is already ready");
+                Log.d(TAG, "Google Map is already ready, re-applying UI settings...");
+                // 重新应用UI设置，确保指南针等控件启用
+                if (googleMap != null) {
+                    try {
+                        googleMap.getUiSettings().setCompassEnabled(true);
+                        googleMap.getUiSettings().setRotateGesturesEnabled(true);
+                        googleMap.getUiSettings().setTiltGesturesEnabled(true);
+                        googleMap.getUiSettings().setZoomControlsEnabled(true);
+                        Log.d(TAG, "Google Map UI settings re-applied");
+                        
+                        // 禁用自动旋转地图以显示指南针，避免地图跳转
+                        Log.d(TAG, "Auto rotation disabled to prevent map jumping");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error re-applying Google Map UI settings: " + e.getMessage(), e);
+                    }
+                }
             }
         } else {
             Log.e(TAG, "Cannot show Google Map - fragment is null");
             if (context != null) {
-                Toast.makeText(context, "Google Map initialization failed. Please check if Google Play Services is available.", Toast.LENGTH_LONG).show();
+                Toast.makeText(context, R.string.google_map_init_failed_check, Toast.LENGTH_LONG).show();
             }
         }
     }
@@ -399,11 +399,9 @@ public class MapManager implements OnMapReadyCallback {
             LatLng latLng = com.RockiotTag.tag.CoordinateUtils.wgs84ToGcj02(latitude, longitude);
             amap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, zoom));
         } else if (isGoogleMap() && googleMap != null) {
-            com.google.android.gms.maps.model.LatLng latLng = 
-                new com.google.android.gms.maps.model.LatLng(latitude, longitude);
-            googleMap.animateCamera(
-                com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(latLng, zoom)
-            );
+            // 完全禁用谷歌地图的自动相机移动
+            Log.d(TAG, "Google Map - Auto camera move COMPLETELY DISABLED. Requested: " + latitude + ", " + longitude);
+            // 不执行任何相机移动操作
         } else {
             Log.w(TAG, "moveCamera called but map is null, provider: " + currentProvider);
         }
@@ -489,9 +487,82 @@ public class MapManager implements OnMapReadyCallback {
             LatLng latLng = new LatLng(lat, lng);
             amap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 17));
         } else if (isGoogleMap() && googleMap != null) {
-            com.google.android.gms.maps.model.LatLng latLng = 
-                new com.google.android.gms.maps.model.LatLng(lat, lng);
-            googleMap.moveCamera(com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(latLng, 17));
+            // 完全禁用谷歌地图的自动相机移动
+            Log.d(TAG, "Google Map - setDefaultLocation COMPLETELY DISABLED. Requested: " + lat + ", " + lng);
+            // 不执行任何相机移动操作
+        }
+    }
+    
+    public void setTargetLocation(double lat, double lng, float zoom) {
+        this.targetLat = lat;
+        this.targetLng = lng;
+        this.targetZoom = zoom;
+        
+        Log.d(TAG, "Target location set: lat=" + lat + ", lng=" + lng + ", zoom=" + zoom);
+        
+        // 完全禁用自动移动相机，由用户手动控制地图位置
+        Log.d(TAG, "Auto camera movement disabled - user controls map position");
+    }
+    
+    /**
+     * 重置用户交互状态（仅在必要时调用，如切换设备时）
+     */
+    public void resetUserInteractionState() {
+        this.userHasInteractedWithMap = false;
+        Log.d(TAG, "User interaction state reset");
+    }
+    
+    /**
+     * 获取地图显示使用的语言代码
+     * @return Google Maps 支持的语言代码
+     */
+    private String getMapLanguageCode() {
+        android.content.SharedPreferences prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+        String languageCode = prefs.getString("language", "zh");
+        
+        // 将应用的语言代码转换为 Google Maps 支持的语言代码
+        switch (languageCode) {
+            case "zh":
+                return "zh-CN";  // 中文（简体）
+            case "en":
+                return "en";     // 英语
+            case "pt-rBR":
+                return "pt-BR";  // 巴西葡萄牙语
+            case "ru":
+                return "ru";     // 俄语
+            case "hi":
+                return "hi";     // 印地语
+            case "tr":
+                return "tr";     // 土耳其语
+            default:
+                return "en";     // 默认使用英语
+        }
+    }
+    
+    /**
+     * 获取地区代码，影响地图POI和边界显示
+     * @return ISO 3166-1 alpha-2 地区代码
+     */
+    private String getRegionCode() {
+        android.content.SharedPreferences prefs = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
+        String languageCode = prefs.getString("language", "zh");
+        
+        // 根据语言返回对应的地区代码
+        switch (languageCode) {
+            case "zh":
+                return "CN";     // 中国
+            case "en":
+                return "US";     // 美国
+            case "pt-rBR":
+                return "BR";     // 巴西
+            case "ru":
+                return "RU";     // 俄罗斯
+            case "hi":
+                return "IN";     // 印度
+            case "tr":
+                return "TR";     // 土耳其
+            default:
+                return "US";     // 默认使用美国
         }
     }
 }

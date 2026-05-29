@@ -1,0 +1,18 @@
+# Rockiot Tag Platform - 定时任务配置
+# 使用方法：crontab -e 然后添加以下内容
+
+# ===== 数据库备份 =====
+# 每天凌晨2点自动备份两个数据库
+0 2 * * * /opt/backup_databases.sh >> /var/log/db_backup.log 2>&1
+
+# ===== 日志清理 =====
+# 每周日凌晨3点清理7天前的日志文件
+0 3 * * 0 find /opt -name "*.log" -mtime +7 -delete
+
+# ===== 服务监控 =====
+# 每5分钟检查服务状态，如果宕机自动重启
+*/5 * * * * /opt/manage_services.sh | grep "未运行" && /opt/restart_services.sh
+
+# ===== 磁盘空间监控 =====
+# 每天上午9点检查磁盘使用情况
+0 9 * * * df -h / | mail -s "Disk Usage Report" admin@example.com

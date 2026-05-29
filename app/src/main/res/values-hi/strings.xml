@@ -27,6 +27,10 @@
     <string name="last_update">अंतिम अपडेट: </string>
     <string name="trigger_buzzer">बज़र ट्रिगर करें</string>
     <string name="buzzer">बज़र</string>
+    <string name="locate">स्थान</string>
+    <string name="map_type">मानचित्र प्रकार</string>
+    <string name="refresh">रीफ्रेश</string>
+    <string name="buzzer_triggered">बज़र ट्रिगर हुआ</string>
     <string name="device_not_connected">डिवाइस कनेक्टेड नहीं है</string>
     <string name="scanning_devices">ब्लूटूथ डिवाइसेस स्कैन कर रहा है...</string>
     <string name="scan_complete">स्कैन पूरा</string>
@@ -58,6 +62,15 @@
 
     <string name="track">ट्रैक</string>
     <string name="today">आज</string>
+    <string name="yesterday">कल</string>
+    <string name="day_before_yesterday">परसों</string>
+    <string name="sunday">रवि</string>
+    <string name="monday">सोम</string>
+    <string name="tuesday">मंगल</string>
+    <string name="wednesday">बुध</string>
+    <string name="thursday">गुरु</string>
+    <string name="friday">शुक्र</string>
+    <string name="saturday">शनि</string>
     <string name="time_range">समय सीमा:</string>
     <string name="reset">रीसेट</string>
     <string name="loading">लोड हो रहा है...</string>
@@ -68,6 +81,12 @@
     <string name="polyline">लाइन</string>
     <string name="toggle_satellite_desc">सैटेलाइट मैप टॉगल करें</string>
     <string name="satellite">सैटेलाइट</string>
+    <string name="toggle_display_mode_desc">डिस्प्ले मोड टॉगल करें</string>
+    <string name="detailed">विस्तृत</string>
+    <string name="simple">सरल</string>
+    <string name="statistics">सांख्यिकी</string>
+    <string name="display_mode_detailed">डिस्प्ले मोड: विस्तृत</string>
+    <string name="display_mode_simple">डिस्प्ले मोड: सरल</string>
     <string name="track_points_count">%d ट्रैक पॉइंट्स</string>
     <string name="show_markers">ट्रैक मार्कर दिखाएं</string>
     <string name="hide_markers">ट्रैक मार्कर छिपाएं</string>
@@ -207,6 +226,8 @@
     <string name="default_address">गाओक्सिनकी साइंस पार्क फेज 2, ज़िनआन स्ट्रीट, शेन्ज़ेन, गुआंगdong</string>
     <string name="test_device">टेस्ट डिवाइस</string>
     <string name="loading_track_data">ट्रैक डेटा लोड हो रहा है...</string>
+    <string name="loading_track_title">ट्रैक लोड हो रहा है</string>
+    <string name="loading_track_message">ट्रैक लोड हो रहा है, कृपया प्रतीक्षा करें...</string>
     <string name="sync_track_failed">ट्रैक डेटा सिंक विफल</string>
     <string name="sync_track_error">ट्रैक डेटा सिंक में त्रुटि</string>
     <string name="scan_qr_code">QR कोड स्कैन करें</string>
@@ -235,4 +256,86 @@
     <string name="recognize_failed">पहचान विफल: %s</string>
     <string name="refresh_success">रिफ्रेश सफल</string>
     <string name="no_location_data">कोई स्थान डेटा नहीं</string>
+    
+    <!-- ट्रैक आंकड़े -->
+    <string name="track_statistics_title">ट्रैक आंकड़े</string>
+    <string name="track_statistics_title_short">ट्रैक सांख्यिकी</string>
+    <string name="track_statistics_header">📊 ट्रैक आंकड़े जानकारी</string>
+    <string name="track_statistics_info">📊 ट्रैक आंकड़े जानकारी</string>
+    <string name="track_points_label"> कुल पॉइंट: </string>
+    <string name="track_points_count_label"> कुल पॉइंट: </string>
+    <string name="track_points_unit"></string>
+    <string name="valid_segments_label">✅ वैध सेगमेंट: </string>
+    <string name="valid_segments_unit"></string>
+    <string name="total_distance_label">📏 कुल दूरी: </string>
+    <string name="time_span_label">⏱️ समय अवधि: </string>
+    <string name="start_time_label">🕐 प्रारंभ समय: </string>
+    <string name="end_time_label">🕑 समाप्ति समय: </string>
+    <string name="stay_points_label"> ठहराव बिंदु: </string>
+    <string name="stay_points_unit"></string>
+    <string name="total_stay_label">⏳ कुल ठहराव: </string>
+    <string name="average_speed_label">🚀 औसत गति: </string>
+    <string name="hour_minute_format">%1$d घंटे %2$d मिनट</string>
+    <string name="minute_second_format">%1$d मिनट %2$d सेकंड</string>
+    <string name="second_format">%d सेकंड</string>
+    
+    <!-- 新增的 स्ट्रिंग संसाधन -->
+    <string name="tag">टैग</string>
+    <string name="default_radius">100</string>
+    <string name="time_separator">-</string>
+    <string name="start_time_default">00:00</string>
+    <string name="end_time_default">23:59</string>
+    <string name="time_format_hh_mm_ss">00:00:00</string>
+    <string name="speed_1x">1x</string>
+    <string name="time_placeholder">--:--:--</string>
+    <string name="distance_format">0.00 किमी</string>
+    <string name="edit_device_content_desc">डिवाइस संपादित करें</string>
+    <string name="cid">CID</string>
+    <string name="scan_qr_instruction">डिवाइस QR कोड स्कैन करें</string>
+    <string name="scan_qr_tip">QR कोड को बॉक्स में रखें, स्वचालित पहचान</string>
+    <string name="toggle_flashlight">फ्लैशलाइट टॉगल करें</string>
+    <string name="close">बंद करें</string>
+    <string name="prev_day">◀</string>
+    <string name="next_day">▶</string>
+    <string name="date_placeholder">2024-01-01</string>
+    <string name="play_pause">प्ले/पॉज</string>
+    <string name="time_separator_slash"> / </string>
+    <string name="date_time_format">yyyy-MM-dd HH:mm:ss</string>
+    <string name="toggle_markers">मार्कर टॉगल करें</string>
+    <string name="toggle_polyline">पॉलीलाइन टॉगल करें</string>
+    <string name="toggle_satellite">सेटेलाइट टॉगल करें</string>
+    <string name="toggle_display_mode">डिस्प्ले मोड टॉगल करें</string>
+    <string name="detailed_mode">विस्तृत मोड</string>
+    <string name="statistics_info">सांख्यिकी जानकारी</string>
+    <string name="flashlight_tip">कंट्रास्ट सुधारने के लिए नीचे फ्लैशलाइट बटन दबाएं</string>
+    <string name="please_enter_device_num">कृपया डिवाइस नंबर दर्ज करें</string>
+    <string name="input_latitude_hint">अक्षांक दर्ज करें (उदा.: 22.575367)</string>
+    <string name="input_longitude_hint">देशांतर दर्ज करें (उदा.: 113.918252)</string>
+    <string name="saving">सहेजा जा रहा है...</string>
+    <string name="device_id_invalid">डिवाइस ID अमान्य</string>
+    <string name="device_info_empty">डिवाइस जानकारी खाली है</string>
+    <string name="device_info_empty_unbind">डिवाइस जानकारी खाली है, अनबाइंड नहीं कर सकते</string>
+    <string name="device_identifier_invalid">डिवाइस पहचानकर्ता अमान्य, अनबाइंड नहीं कर सकते</string>
+    <string name="missing_location_permission">स्थान अनुमति अनुपलब्ध, कृपया ऐप अनुमति सेटिंग्स जांचें</string>
+    <string name="location_service_init_failed">स्थान सेवा प्रारंभ विफल: %s</string>
+    <string name="bluetooth_connected">ब्लूटूथ जुड़ा हुआ है</string>
+    <string name="track_activity_init_failed">ट्रैक गतिविधि प्रारंभ विफल: %s</string>
+    <string name="clearing_old_data_syncing">पुराना डेटा साफ़ किया जा रहा है और पुनः सिंक किया जा रहा है...</string>
+    <string name="syncing_track_from_server">सर्वर से ट्रैक डेटा सिंक किया जा रहा है...</string>
+    <string name="playback_start_failed">प्लेबैक प्रारंभ विफल: %s</string>
+    <string name="google_map_init_failed">Google Map प्रारंभ विफल: %s</string>
+    <string name="cleared_old_data_re_sync">%d पुराने रिकॉर्ड साफ़ किए गए, पुनः सिंक किया जा रहा है...</string>
+    <string name="load_track_failed">ट्रैक डेटा लोड विफल: %s</string>
+    <string name="loading_data">लोड हो रहा है...</string>
+    <string name="no_device_data">कोई डिवाइस डेटा नहीं</string>
+    <string name="unknown_location_short">अज्ञात स्थान</string>
+    <string name="get_address_failed_short">पता प्राप्त करने में विफल</string>
+    <string name="camera_permission_needed">QR कोड स्कैन करने के लिए कैमरा अनुमति आवश्यक</string>
+    <string name="google_map_loaded">Google Map लोड हुआ!</string>
+    <string name="google_map_init_error">Google Map प्रारंभ त्रुटि: %s</string>
+    <string name="google_map_check_settings">Google Map लोड नहीं हुआ हो सकता। API कुंजी, नेटवर्क और VPN सेटिंग्स जांचें।</string>
+    <string name="google_map_init_failed_check">Google Map प्रारंभ विफल। कृपया जांचें कि Google Play Services उपलब्ध है या नहीं।</string>
+    
+    <!-- Auto refresh -->
+    <string name="auto_refreshing">स्वचालित रूप से रिफ्रेश हो रहा है...</string>
 </resources>

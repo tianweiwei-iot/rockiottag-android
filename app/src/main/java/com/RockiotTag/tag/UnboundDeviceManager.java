@@ -2,7 +2,11 @@ package com.RockiotTag.tag;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+
+import com.RockiotTag.tag.model.TagDevice;
+
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class UnboundDeviceManager {
@@ -62,6 +66,21 @@ public class UnboundDeviceManager {
     
     public int getUnboundCount() {
         return unboundDevices.size();
+    }
+    
+    /**
+     * 更新未绑定设备列表（用于 MVVM 扫描结果同步）
+     */
+    public void updateUnboundDevices(List<TagDevice> devices) {
+        // 这里可以根据需求处理扫描到的新设备
+        // 例如：如果发现新设备且不在已绑定列表中，可以提示用户
+        if (devices != null) {
+            for (TagDevice device : devices) {
+                if (!isDeviceUnbound(device.getDeviceId())) {
+                    // 可以在这里触发一个回调或者日志记录
+                }
+            }
+        }
     }
     
     private void saveUnboundDevices() {

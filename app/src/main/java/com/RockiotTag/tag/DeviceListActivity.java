@@ -4,10 +4,13 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -20,6 +23,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,7 +54,25 @@ public class DeviceListActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        
         setContentView(R.layout.activity_device_list);
+
+        LinearLayout titleBar = findViewById(R.id.title_bar);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            titleBar.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                @Override
+                public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                    android.util.Log.d(TAG, "statusBarInsets: " + insets.getInsets(WindowInsets.Type.statusBars()).top);
+                    v.setPadding(0, insets.getInsets(WindowInsets.Type.statusBars()).top, 0, 0);
+                    return insets;
+                }
+            });
+        } else {
+            int statusBarHeight = getStatusBarHeight();
+            titleBar.setPadding(0, statusBarHeight, 0, 0);
+        }
 
         databaseHelper = new DatabaseHelper(this);
         apiService = NewApiService.getInstance();
@@ -605,14 +627,28 @@ public class DeviceListActivity extends AppCompatActivity {
     private void loadBoundDevices() {
         Log.d(TAG, "=== loadBoundDevices called ===");
         
-        // 完全清空列表
         boundDeviceList.clear();
         
-        // 从数据库重新加载
         List<Device> devices = databaseHelper.getAllDevices();
         Log.d(TAG, "Loaded " + (devices != null ? devices.size() : 0) + " devices from database");
         
         if (devices != null) {
+            java.util.Collections.sort(devices, new java.util.Comparator<Device>() {
+                @Override
+                public int compare(Device d1, Device d2) {
+                    String num1 = d1.getDeviceNum() != null ? d1.getDeviceNum() : d1.getDeviceId();
+                    String num2 = d2.getDeviceNum() != null ? d2.getDeviceNum() : d2.getDeviceId();
+                    
+                    try {
+                        long n1 = Long.parseLong(num1);
+                        long n2 = Long.parseLong(num2);
+                        return Long.compare(n1, n2);
+                    } catch (NumberFormatException e) {
+                        return num1.compareTo(num2);
+                    }
+                }
+            });
+            
             for (Device d : devices) {
                 if (d != null) {
                     Log.d(TAG, "  Device: " + d.getName() + ", id=" + d.getDeviceId() + ", num=" + d.getDeviceNum() + ", tag=" + d.getTag());
@@ -621,7 +657,6 @@ public class DeviceListActivity extends AppCompatActivity {
             boundDeviceList.addAll(devices);
         }
         
-        // 强制刷新 Adapter
         boundDeviceAdapter.notifyDataSetChanged();
         updateEmptyView();
         
@@ -681,5 +716,14 @@ public class DeviceListActivity extends AppCompatActivity {
         } else {
             super.onBackPressed();
         }
+    }
+    
+    private int getStatusBarHeight() {
+        int result = 0;
+        int resourceId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (resourceId > 0) {
+            result = getResources().getDimensionPixelSize(resourceId);
+        }
+        return result;
     }
 }

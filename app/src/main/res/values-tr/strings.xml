@@ -7,6 +7,8 @@
     <string name="geofence_settings">Geofence Ayarları</string>
     <string name="toggle_dark_mode">Karanlık Mod</string>
     <string name="change_language">Dili Değiştir</string>
+    <string name="version_info">Sürüm Bilgisi</string>
+    <string name="version_format">Sürüm: %1$s (%2$d)</string>
     <string name="cancel">İptal</string>
     <string name="language_title">Dil Seçin</string>
     <string name="chinese">Çince</string>
@@ -27,6 +29,10 @@
     <string name="last_update">Son Güncelleme: </string>
     <string name="trigger_buzzer">Buzzer\'ı tetikle</string>
     <string name="buzzer">Buzzer</string>
+    <string name="locate">Konumlandır</string>
+    <string name="map_type">Harita Türü</string>
+    <string name="refresh">Yenile</string>
+    <string name="buzzer_triggered">Buzzer tetiklendi</string>
     <string name="device_not_connected">Cihaz bağlı değil</string>
     <string name="scanning_devices">Bluetooth cihazları taranıyor...</string>
     <string name="scan_complete">Tarama tamamlandı</string>
@@ -58,6 +64,15 @@
 
     <string name="track">İz</string>
     <string name="today">Bugün</string>
+    <string name="yesterday">Dün</string>
+    <string name="day_before_yesterday">İki gün önce</string>
+    <string name="sunday">Paz</string>
+    <string name="monday">Pzt</string>
+    <string name="tuesday">Sal</string>
+    <string name="wednesday">Çar</string>
+    <string name="thursday">Per</string>
+    <string name="friday">Cum</string>
+    <string name="saturday">Cmt</string>
     <string name="time_range">Zaman Aralığı:</string>
     <string name="reset">Sıfırla</string>
     <string name="loading">Yükleniyor...</string>
@@ -68,6 +83,12 @@
     <string name="polyline">Çizgi</string>
     <string name="toggle_satellite_desc">Uydu haritasını aç/kapat</string>
     <string name="satellite">Uydu</string>
+    <string name="toggle_display_mode_desc">Görüntü modunu değiştir</string>
+    <string name="detailed">Detaylı</string>
+    <string name="simple">Basit</string>
+    <string name="statistics">İstatistikler</string>
+    <string name="display_mode_detailed">Görüntü modu: Detaylı</string>
+    <string name="display_mode_simple">Görüntü modu: Basit</string>
     <string name="track_points_count">%d iz noktası</string>
     <string name="show_markers">İz işaretlerini göster</string>
     <string name="hide_markers">İz işaretlerini gizle</string>
@@ -144,6 +165,7 @@
     <string name="enter_device_or_scan">Cihaz numarası girin veya QR kod tarayın</string>
     <string name="device_number">Cihaz No.</string>
     <string name="select_tag">Etiket Seç</string>
+    <string name="select_customer_hint">Müşteri Seç%s</string>
     <string name="install_qr_scanner">Lütfen bir QR tarayıcı uygulaması yükleyin</string>
     <string name="need_camera_permission">QR kod taramak için kamera izni gerekli</string>
     <string name="got_device_number">Cihaz numarası alındı</string>
@@ -207,6 +229,8 @@
     <string name="default_address">Gaoxinqi Bilim Parkı 2. Aşama, Xin\'an Caddesi, Shenzhen, Guangdong</string>
     <string name="test_device">Test Cihazı</string>
     <string name="loading_track_data">İz verileri yükleniyor...</string>
+    <string name="loading_track_title">İz Yükleniyor</string>
+    <string name="loading_track_message">İz yükleniyor, lütfen bekleyin...</string>
     <string name="sync_track_failed">İz verisi senkronizasyonu başarısız</string>
     <string name="sync_track_error">İz verisi senkronizasyon hatası</string>
     <string name="scan_qr_code">QR Kod Tara</string>
@@ -235,4 +259,117 @@
     <string name="recognize_failed">Tanıma başarısız: %s</string>
     <string name="refresh_success">Yenileme başarılı</string>
     <string name="no_location_data">Konum verisi yok</string>
+    <string name="please_login_first">Lütfen önce giriş yapın</string>
+    
+    <!-- İz İstatistikleri -->
+    <string name="track_statistics_title">İz İstatistikleri</string>
+    <string name="track_statistics_title_short">İz İstatistikleri</string>
+    <string name="track_statistics_header">📊 İz İstatistikleri Bilgisi</string>
+    <string name="track_statistics_info">📊 İz İstatistikleri Bilgisi</string>
+    <string name="track_points_label">📍 Toplam Nokta: </string>
+    <string name="track_points_count_label">📍 Toplam Nokta: </string>
+    <string name="track_points_unit"></string>
+    <string name="valid_segments_label">✅ Geçerli Segmentler: </string>
+    <string name="valid_segments_unit"></string>
+    <string name="total_distance_label">📏 Toplam Mesafe: </string>
+    <string name="time_span_label">⏱️ Zaman Aralığı: </string>
+    <string name="start_time_label">🕐 Başlangıç Zamanı: </string>
+    <string name="end_time_label">🕑 Bitiş Zamanı: </string>
+    <string name="stay_points_label">🛑 Duraklama Noktaları: </string>
+    <string name="stay_points_unit"></string>
+    <string name="total_stay_label">⏳ Toplam Duraklama: </string>
+    <string name="average_speed_label">🚀 Ortalama Hız: </string>
+    <string name="hour_minute_format">%1$d saat %2$d dakika</string>
+    <string name="minute_second_format">%1$d dakika %2$d saniye</string>
+    <string name="second_format">%d saniye</string>
+    
+    <!-- Yeni eklenen string kaynakları -->
+    <string name="tag">Etiket</string>
+    <string name="default_radius">100</string>
+    <string name="time_separator">-</string>
+    <string name="start_time_default">00:00</string>
+    <string name="end_time_default">23:59</string>
+    <string name="time_format_hh_mm_ss">00:00:00</string>
+    <string name="speed_1x">1x</string>
+    <string name="time_placeholder">--:--:--</string>
+    <string name="distance_format">0.00 km</string>
+    <string name="edit_device_content_desc">Cihazı düzenle</string>
+    <string name="cid">CID</string>
+    <string name="scan_qr_instruction">Cihaz QR kodunu tara</string>
+    <string name="scan_qr_tip">QR kodu kutuya yerleştirin, otomatik tanıma</string>
+    <string name="toggle_flashlight">Feneri aç/kapat</string>
+    <string name="close">Kapat</string>
+    <string name="prev_day">◀</string>
+    <string name="next_day">▶</string>
+    <string name="date_placeholder">2024-01-01</string>
+    <string name="play_pause">Oynat/Duraklat</string>
+    <string name="time_separator_slash"> / </string>
+    <string name="date_time_format">yyyy-MM-dd HH:mm:ss</string>
+    <string name="toggle_markers">İşaretçileri aç/kapat</string>
+    <string name="toggle_polyline">Çizgiyi aç/kapat</string>
+    <string name="toggle_satellite">Uyduyu aç/kapat</string>
+    <string name="toggle_display_mode">Görüntü modunu aç/kapat</string>
+    <string name="detailed_mode">Detaylı mod</string>
+    <string name="statistics_info">İstatistik bilgisi</string>
+    <string name="flashlight_tip">Kontrastı artırmak için aşağıdaki fener düğmesine tıklayın</string>
+    <string name="please_enter_device_num">Lütfen cihaz numarasını girin</string>
+    <string name="input_latitude_hint">Enlem girin (örn.: 22.575367)</string>
+    <string name="input_longitude_hint">Boylam girin (örn.: 113.918252)</string>
+    <string name="saving">Kaydediliyor...</string>
+    <string name="device_id_invalid">Cihaz ID geçersiz</string>
+    <string name="device_info_empty">Cihaz bilgisi boş</string>
+    <string name="device_info_empty_unbind">Cihaz bilgisi boş, bağlantı kesilemiyor</string>
+    <string name="device_identifier_invalid">Cihaz tanımlayıcısı geçersiz, bağlantı kesilemiyor</string>
+    <string name="missing_location_permission">Konum izni eksik, lütfen uygulama izin ayarlarını kontrol edin</string>
+    <string name="location_service_init_failed">Konum servisi başlatma hatası: %s</string>
+    <string name="bluetooth_connected">Bluetooth bağlandı</string>
+    <string name="track_activity_init_failed">İz aktivitesi başlatma hatası: %s</string>
+    <string name="clearing_old_data_syncing">Eski veriler temizleniyor ve yeniden senkronize ediliyor...</string>
+    <string name="syncing_track_from_server">Sunucudan iz verisi senkronize ediliyor...</string>
+    <string name="playback_start_failed">Oynatma başlatma hatası: %s</string>
+    <string name="google_map_init_failed">Google Map başlatma hatası: %s</string>
+    <string name="cleared_old_data_re_sync">%d eski kayıt temizlendi, yeniden senkronize ediliyor...</string>
+    <string name="load_track_failed">İz verisi yükleme hatası: %s</string>
+    <string name="loading_data">Yükleniyor...</string>
+    <string name="no_device_data">Cihaz verisi yok</string>
+    <string name="unknown_location_short">Bilinmeyen konum</string>
+    <string name="get_address_failed_short">Adres alınamadı</string>
+    <string name="camera_permission_needed">QR kodu taramak için kamera izni gerekli</string>
+    <string name="google_map_loaded">Google Map yüklendi!</string>
+    <string name="google_map_init_error">Google Map başlatma hatası: %s</string>
+    <string name="google_map_check_settings">Google Map yüklenmemiş olabilir. API Anahtarını, ağı ve VPN ayarlarını kontrol edin.</string>
+    <string name="google_map_init_failed_check">Google Map başlatma hatası. Lütfen Google Play Services\'in kullanılabilir olup olmadığını kontrol edin.</string>
+    
+    <!-- Auto refresh -->
+    <string name="auto_refreshing">Otomatik yenileniyor...</string>
+    
+    <!-- Track endpoint updated -->
+    <string name="track_endpoint_updated">İz bitiş noktası cihazın en son konumuna güncellendi</string>
+    
+    <!-- Bluetooth scan location update -->
+    <string name="device_location_updated">%s cihazı bulundu, konum güncellendi</string>
+    
+    <!-- Export -->
+    <string name="export">Dışa Aktar</string>
+    <string name="export_success">Dışa aktarma başarılı, albüme kaydedildi</string>
+    <string name="export_failed">Dışa aktarma başarısız: %s</string>
+    
+    <!-- Error messages -->
+    <string name="error_unknown">Bilinmeyen bir hata oluştu, lütfen daha sonra tekrar deneyin</string>
+    <string name="error_network_timeout">Ağ bağlantısı zaman aşımına uğradı, lütfen ağ ayarlarınızı kontrol edip tekrar deneyin</string>
+    <string name="error_network_unreachable">Sunucuya bağlanılamıyor, lütfen ağın normal olduğundan emin olun</string>
+    <string name="error_auth_expired">Oturum süresi doldu, lütfen tekrar giriş yapın</string>
+    <string name="error_permission_denied">Bu işlemi gerçekleştirmek için izin yok</string>
+    <string name="error_resource_not_found">İstenen kaynak mevcut değil</string>
+    <string name="error_server_internal">Sunucu iç hatası, lütfen daha sonra tekrar deneyin</string>
+    <string name="error_request_failed">İstek başarısız, lütfen daha sonra tekrar deneyin</string>
+    <string name="error_network_io">Ağ hatası, lütfen ağ bağlantısını kontrol edin</string>
+    <string name="error_no_network">Ağ kullanılamıyor, lütfen ağ bağlantısını kontrol edin</string>
+    
+    <!-- Accuracy adjustment -->
+    <string name="accuracy_adjustment">Hassasiyet Ayarı</string>
+    <string name="high_accuracy">Yüksek</string>
+    <string name="low_accuracy">Düşük</string>
+    <string name="accuracy_default_value">Mevcut hassasiyet: 150 metre</string>
+    <string name="accuracy_current_value">Mevcut hassasiyet: %d metre</string>
 </resources>

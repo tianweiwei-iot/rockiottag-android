@@ -16,6 +16,9 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.lifecycle.ViewModelProvider;
+
+import com.RockiotTag.tag.viewmodel.GeofenceViewModel;
 
 import com.amap.api.maps.AMap;
 import com.amap.api.maps.MapView;
@@ -44,13 +47,28 @@ public class GeofenceActivity extends AppCompatActivity {
     private double currentLongitude = 113.881944;
     private float geofenceRadius = 100;
     private Map<String, Device> deviceMap = new HashMap<>();
+    
+    // MVVM - ViewModel
+    private GeofenceViewModel viewModel;
 
 
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-        String languageCode = prefs.getString("language", "zh");
+        String languageCode;
+        
+        // 检查用户是否已经选择过语言
+        if (LanguageUtils.hasUserSelectedLanguage(this)) {
+            // 用户已经选择过语言，使用保存的语言
+            languageCode = prefs.getString("language", "zh");
+        } else {
+            // 首次启动，自动使用系统语言
+            languageCode = LanguageUtils.getSystemLanguage();
+            // 保存系统语言作为默认语言（但不标记为用户已选择）
+            prefs.edit().putString("language", languageCode).apply();
+        }
+        
         LanguageUtils.applyLanguage(this, languageCode);
         
         boolean isDarkMode = prefs.getBoolean("dark_mode", false);
@@ -63,12 +81,21 @@ public class GeofenceActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_geofence);
         
+        // 隐藏系统 ActionBar（使用自定义标题栏）
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().hide();
+        }
+        
         mapView = findViewById(R.id.mapView);
         mapView.onCreate(savedInstanceState);
         radiusEditText = findViewById(R.id.radiusEditText);
         deviceSpinner = findViewById(R.id.deviceSpinner);
         saveButton = findViewById(R.id.saveButton);
         Button backButton = findViewById(R.id.back_btn);
+        
+        // MVVM - 初始化 ViewModel
+        viewModel = new ViewModelProvider(this).get(GeofenceViewModel.class);
+        setupViewModelObservers();
         
         initMap();
         initNotificationChannel();
@@ -85,6 +112,23 @@ public class GeofenceActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 finish();
+            }
+        });
+    }
+    
+    /**
+     * MVVM - 设置 ViewModel 观察者
+     */
+    private void setupViewModelObservers() {
+        viewModel.getStatusMessage().observe(this, message -> {
+            if (message != null) {
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+            }
+        });
+        
+        viewModel.getSaveSuccess().observe(this, success -> {
+            if (success) {
+                // 保存成功后的操作
             }
         });
     }
@@ -151,23 +195,31 @@ public class GeofenceActivity extends AppCompatActivity {
     }
     
     private void saveGeofenceSettings() {
-        try {
-            float radius = Float.parseFloat(radiusEditText.getText().toString());
-            if (radius <= 0) {
-                Toast.makeText(this, R.string.invalid_radius, Toast.LENGTH_SHORT).show();
-                return;
+        String radiusText = radiusEditText.getText().toString();
+        
+        // MVVM - 验证半径
+        if (!viewModel.validateRadius(radiusText)) {
+            Toast.makeText(this, R.string.enter_valid_radius, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        float radius = viewModel.parseRadius(radiusText);
+        
+        // MVVM - 使用 ViewModel 保存设置
+        viewModel.saveGeofenceSettings(radius, new GeofenceViewModel.SaveCallback() {
+            @Override
+            public void onSuccess(float savedRadius) {
+                geofenceRadius = savedRadius;
+                LatLng center = deviceMarker.getPosition();
+                updateGeofenceCircle(center, savedRadius);
+                simulateGeofenceViolation();
             }
             
-            geofenceRadius = radius;
-            LatLng center = deviceMarker.getPosition();
-            updateGeofenceCircle(center, radius);
-            
-            Toast.makeText(this, R.string.save_geofence, Toast.LENGTH_SHORT).show();
-            
-            simulateGeofenceViolation();
-        } catch (NumberFormatException e) {
-            Toast.makeText(this, R.string.enter_valid_radius, Toast.LENGTH_SHORT).show();
-        }
+            @Override
+            public void onError(String error) {
+                // 错误已在观察者中处理
+            }
+        });
     }
     
     private void simulateGeofenceViolation() {
@@ -176,6 +228,15 @@ public class GeofenceActivity extends AppCompatActivity {
     }
     
     public void sendGeofenceNotification(String deviceName, String message) {
+        // 检查通知权限（Android 13+）
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                // 没有权限，不发送通知
+                return;
+            }
+        }
+        
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
                 .setContentTitle(getString(R.string.geofence_reminder))

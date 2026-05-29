@@ -3,13 +3,15 @@ package com.RockiotTag.tag;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.RockiotTag.tag.model.LocationData;
+
 public class StayPoint {
     private double latitude;
     private double longitude;
     private long arriveTime;
     private long leaveTime;
     private long stayDuration;
-    private List<LocationRecord> mergedRecords;
+    private List<LocationData> mergedRecords;
     private int originalIndex;
 
     public StayPoint(double latitude, double longitude, long arriveTime, long leaveTime) {
@@ -76,11 +78,11 @@ public class StayPoint {
         }
     }
 
-    public List<LocationRecord> getMergedRecords() {
+    public List<LocationData> getMergedRecords() {
         return mergedRecords;
     }
 
-    public void addMergedRecord(LocationRecord record) {
+    public void addMergedRecord(LocationData record) {
         this.mergedRecords.add(record);
     }
 

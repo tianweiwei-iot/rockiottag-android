@@ -109,6 +109,7 @@ public class DeviceController {
         if (device != null) {
             result.put("deviceNum", device.getDeviceNum());
             result.put("nickName", device.getNickName());
+            result.put("mac", device.getMac()); // 【关键】添加MAC地址
             result.put("latitude", device.getLatitude());
             result.put("longitude", device.getLongitude());
             result.put("battery", device.getBattery());

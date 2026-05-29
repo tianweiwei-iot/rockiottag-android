@@ -9,19 +9,16 @@ import android.widget.CheckBox;
 import android.widget.ImageButton;
 import android.widget.TextView;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
+
+import com.RockiotTag.tag.model.DeviceTag;
 
 public class BoundDeviceAdapter extends ArrayAdapter<Device> {
 
     private OnDeviceEditListener editListener;
     private OnCheckedChangeListener checkedChangeListener;
     private boolean isMultiSelectMode = false;
-    private Set<Integer> selectedPositions = new HashSet<>();
-    private Map<String, String> tagIconMap;
+    private java.util.Set<Integer> selectedPositions = new java.util.HashSet<>();
 
     public interface OnDeviceEditListener {
         void onEditDevice(Device device, int position);
@@ -41,24 +38,6 @@ public class BoundDeviceAdapter extends ArrayAdapter<Device> {
 
     public BoundDeviceAdapter(Context context, List<Device> devices) {
         super(context, 0, devices);
-        initTagIconMap();
-    }
-
-    private void initTagIconMap() {
-        tagIconMap = new HashMap<>();
-        tagIconMap.put("dog", "🐕");
-        tagIconMap.put("boy", "👦");
-        tagIconMap.put("car", "🚗");
-        tagIconMap.put("bike", "🚴");
-        tagIconMap.put("bank_card", "💳");
-        tagIconMap.put("girl", "👧");
-        tagIconMap.put("key", "🔑");
-        tagIconMap.put("moto", "🏍️");
-        tagIconMap.put("pig", "🐷");
-        tagIconMap.put("wallet", "👛");
-        tagIconMap.put("bag", "👜");
-        tagIconMap.put("cat", "🐱");
-        tagIconMap.put("bird", "🐦");
     }
 
     public void setMultiSelectMode(boolean mode) {
@@ -108,21 +87,30 @@ public class BoundDeviceAdapter extends ArrayAdapter<Device> {
             holder = (ViewHolder) convertView.getTag();
         }
 
-        Device device = getItem(position);
+        Device device = (Device) getItem(position);
         if (device != null) {
             String name = device.getName();
             holder.deviceNameText.setText(name != null && !name.isEmpty() ? name : getContext().getString(R.string.unknown_device));
-            holder.deviceAddressText.setText(device.getAddress());
+            
+            // 在设备号后面显示 MAC 地址
+            String address = device.getAddress();
+            String mac = device.getMac();
+            
+            // 【调试】打印MAC地址信息
+            android.util.Log.d("BoundDeviceAdapter", "Displaying device: name=" + device.getName() + ", address=" + address + ", mac=" + mac);
+            
+            if (mac != null && !mac.isEmpty()) {
+                holder.deviceAddressText.setText(address + " (" + mac + ")");
+            } else {
+                holder.deviceAddressText.setText(address);
+            }
 
+            // 设置设备标签图标（使用 DeviceTag 枚举）
             String tag = device.getTag();
             if (tag != null && !tag.isEmpty()) {
                 holder.deviceTagText.setVisibility(View.VISIBLE);
-                String icon = tagIconMap.get(tag);
-                if (icon != null) {
-                    holder.deviceTagText.setText(icon + " " + tag);
-                } else {
-                    holder.deviceTagText.setText(tag);
-                }
+                String icon = DeviceTag.getEmoji(tag);
+                holder.deviceTagText.setText(icon + " " + tag);
             } else {
                 holder.deviceTagText.setVisibility(View.GONE);
             }

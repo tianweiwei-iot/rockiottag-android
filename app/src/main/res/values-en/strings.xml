@@ -7,6 +7,8 @@
     <string name="geofence_settings">Geofence Settings</string>
     <string name="toggle_dark_mode">Toggle Dark Mode</string>
     <string name="change_language">Change Language</string>
+    <string name="version_info">Version Info</string>
+    <string name="version_format">Version: %1$s (%2$d)</string>
     <string name="cancel">Cancel</string>
     <string name="language_title">Select Language</string>
     <string name="chinese">Chinese</string>
@@ -27,6 +29,10 @@
     <string name="last_update">Last Update: </string>
     <string name="trigger_buzzer">Trigger buzzer</string>
     <string name="buzzer">Buzzer</string>
+    <string name="locate">Locate</string>
+    <string name="map_type">Map Type</string>
+    <string name="refresh">Refresh</string>
+    <string name="buzzer_triggered">Buzzer triggered</string>
     <string name="device_not_connected">Device not connected</string>
     <string name="scanning_devices">Scanning for Bluetooth devices...</string>
     <string name="scan_complete">Scan complete</string>
@@ -58,6 +64,15 @@
 
     <string name="track">Track</string>
     <string name="today">Today</string>
+    <string name="yesterday">Yesterday</string>
+    <string name="day_before_yesterday">2 days ago</string>
+    <string name="sunday">Sun</string>
+    <string name="monday">Mon</string>
+    <string name="tuesday">Tue</string>
+    <string name="wednesday">Wed</string>
+    <string name="thursday">Thu</string>
+    <string name="friday">Fri</string>
+    <string name="saturday">Sat</string>
     <string name="time_range">Time Range:</string>
     <string name="reset">Reset</string>
     <string name="loading">Loading...</string>
@@ -68,6 +83,12 @@
     <string name="polyline">Polyline</string>
     <string name="toggle_satellite_desc">Toggle satellite map</string>
     <string name="satellite">Satellite</string>
+    <string name="toggle_display_mode_desc">Toggle display mode</string>
+    <string name="detailed">Detailed</string>
+    <string name="simple">Simple</string>
+    <string name="statistics">Statistics</string>
+    <string name="display_mode_detailed">Display mode: Detailed</string>
+    <string name="display_mode_simple">Display mode: Simple</string>
     <string name="track_points_count">%d track points</string>
     <string name="show_markers">Show track markers</string>
     <string name="hide_markers">Hide track markers</string>
@@ -80,6 +101,9 @@
     <string name="select_start_time">Select Start Time</string>
     <string name="select_end_time">Select End Time</string>
     <string name="confirm">OK</string>
+    <string name="export">Export</string>
+    <string name="export_success">Exported successfully, saved to album</string>
+    <string name="export_failed">Export failed: %s</string>
     <string name="only_last_month_track">Can only view tracks from the last month</string>
     <string name="cannot_view_future_track">Cannot view future tracks</string>
     <string name="please_select_device">Please select a device first</string>
@@ -144,6 +168,7 @@
     <string name="enter_device_or_scan">Enter device number or scan QR code</string>
     <string name="device_number">Device No.</string>
     <string name="select_tag">Select Tag</string>
+    <string name="select_customer_hint">Select Customer%s</string>
     <string name="install_qr_scanner">Please install a QR scanner app</string>
     <string name="need_camera_permission">Camera permission required to scan QR code</string>
     <string name="got_device_number">Device number obtained</string>
@@ -207,6 +232,8 @@
     <string name="default_address">Gaoxinqi Science Park Phase 2, Xin\'an Street, Shenzhen, Guangdong</string>
     <string name="test_device">Test Device</string>
     <string name="loading_track_data">Loading track data...</string>
+    <string name="loading_track_title">Loading Track</string>
+    <string name="loading_track_message">Loading track, please wait...</string>
     <string name="sync_track_failed">Failed to sync track data</string>
     <string name="sync_track_error">Error syncing track data</string>
     <string name="scan_qr_code">Scan QR Code</string>
@@ -235,4 +262,92 @@
     <string name="recognize_failed">Recognition failed: %s</string>
     <string name="refresh_success">Refresh successful</string>
     <string name="no_location_data">No location data available</string>
+    
+    <!-- Track Statistics -->
+    <string name="track_statistics_title">Track Statistics</string>
+    <string name="track_statistics_title_short">Track Statistics</string>
+    <string name="track_statistics_header">📊 Track Statistics Information</string>
+    <string name="track_statistics_info">📊 Track Statistics Information</string>
+    <string name="track_points_label"> Total Points: </string>
+    <string name="track_points_count_label"> Total Points: </string>
+    <string name="track_points_unit"></string>
+    <string name="valid_segments_label"> Valid Segments: </string>
+    <string name="valid_segments_unit"></string>
+    <string name="total_distance_label"> Total Distance: </string>
+    <string name="time_span_label"> Time Span: </string>
+    <string name="start_time_label"> Start Time: </string>
+    <string name="end_time_label"> End Time: </string>
+    <string name="stay_points_label"> Stay Points: </string>
+    <string name="stay_points_unit"></string>
+    <string name="total_stay_label"> Total Stay: </string>
+    <string name="average_speed_label"> Average Speed: </string>
+    <string name="hour_minute_format">%1$d hours %2$d minutes</string>
+    <string name="minute_second_format">%1$d minutes %2$d seconds</string>
+    <string name="second_format">%d seconds</string>
+    
+    <!-- 新增的字符串资源 -->
+    <string name="tag">Tag</string>
+    <string name="default_radius">100</string>
+    <string name="time_separator">-</string>
+    <string name="start_time_default">00:00</string>
+    <string name="end_time_default">23:59</string>
+    <string name="time_format_hh_mm_ss">00:00:00</string>
+    <string name="speed_1x">1x</string>
+    <string name="time_placeholder">--:--:--</string>
+    <string name="distance_format">0.00 km</string>
+    <string name="edit_device_content_desc">Edit device</string>
+    <string name="cid">CID</string>
+    <string name="scan_qr_instruction">Scan device QR code</string>
+    <string name="scan_qr_tip">Place QR code in the box, auto recognition</string>
+    <string name="toggle_flashlight">Toggle flashlight</string>
+    <string name="close">Close</string>
+    <string name="prev_day">◀</string>
+    <string name="next_day">▶</string>
+    <string name="date_placeholder">2024-01-01</string>
+    <string name="play_pause">Play/Pause</string>
+    <string name="time_separator_slash"> / </string>
+    <string name="date_time_format">yyyy-MM-dd HH:mm:ss</string>
+    <string name="toggle_markers">Toggle markers</string>
+    <string name="toggle_polyline">Toggle polyline</string>
+    <string name="toggle_satellite">Toggle satellite</string>
+    <string name="toggle_display_mode">Toggle display mode</string>
+    <string name="detailed_mode">Detailed mode</string>
+    <string name="statistics_info">Statistics info</string>
+    <string name="flashlight_tip">Click flashlight button below to improve contrast</string>
+    <string name="please_enter_device_num">Please enter device number</string>
+    <string name="input_latitude_hint">Input latitude (e.g.: 22.575367)</string>
+    <string name="input_longitude_hint">Input longitude (e.g.: 113.918252)</string>
+    <string name="saving">Saving...</string>
+    <string name="device_id_invalid">Device ID invalid</string>
+    <string name="device_info_empty">Device info is empty</string>
+    <string name="device_info_empty_unbind">Device info is empty, cannot unbind</string>
+    <string name="device_identifier_invalid">Device identifier invalid, cannot unbind</string>
+    <string name="missing_location_permission">Missing location permission, please check app permission settings</string>
+    <string name="location_service_init_failed">Location service initialization failed: %s</string>
+    <string name="bluetooth_connected">Bluetooth connected</string>
+    <string name="track_activity_init_failed">Track activity initialization failed: %s</string>
+    <string name="clearing_old_data_syncing">Clearing old data and re-syncing...</string>
+    <string name="syncing_track_from_server">Syncing track data from server...</string>
+    <string name="playback_start_failed">Playback start failed: %s</string>
+    <string name="google_map_init_failed">Google Map initialization failed: %s</string>
+    <string name="cleared_old_data_re_sync">Cleared %d old records, re-syncing...</string>
+    <string name="load_track_failed">Load track data failed: %s</string>
+    <string name="loading_data">Loading...</string>
+    <string name="no_device_data">No device data</string>
+    <string name="unknown_location_short">Unknown location</string>
+    <string name="get_address_failed_short">Get address failed</string>
+    <string name="camera_permission_needed">Camera permission needed to scan QR code</string>
+    <string name="google_map_loaded">Google Map loaded!</string>
+    <string name="google_map_init_error">Google Map initialization error: %s</string>
+    <string name="google_map_check_settings">Google Map may not have loaded. Check API Key, network, and VPN settings.</string>
+    <string name="google_map_init_failed_check">Google Map initialization failed. Please check if Google Play Services is available.</string>
+    
+    <!-- Bluetooth scan location update -->
+    <string name="device_location_updated">Device %s found, location updated</string>
+    
+    <!-- Auto refresh -->
+    <string name="auto_refreshing">Auto refreshing...</string>
+    
+    <!-- Track endpoint updated -->
+    <string name="track_endpoint_updated">Track endpoint updated to latest device location</string>
 </resources>

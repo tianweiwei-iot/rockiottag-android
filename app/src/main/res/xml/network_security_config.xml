@@ -1,8 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true">
+    <!-- HTTPS域名配置 - 信任系统证书 -->
+    <domain-config>
+        <domain includeSubdomains="true">5gp.blackrockiot.com</domain>
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
-    </base-config>
+    </domain-config>
+    
+    <!-- 其他HTTPS域名 -->
+    <domain-config>
+        <domain includeSubdomains="true">device.vernal.ltd</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
 </network-security-config>

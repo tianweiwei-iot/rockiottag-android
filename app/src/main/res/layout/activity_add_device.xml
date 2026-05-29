@@ -6,11 +6,16 @@
     android:background="#FFFFFF">
 
     <LinearLayout
+        android:id="@+id/title_bar"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:background="#6200EE"
+        android:layout_height="wrap_content"
+        android:background="#FFFFFF"
+        android:elevation="4dp"
         android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        android:minHeight="56dp">
 
         <ImageButton
             android:id="@+id/back_btn"
@@ -27,8 +32,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/add_device"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
+            android:textColor="#000000"
+            android:textSize="18sp"
             android:gravity="center" />
 
         <ImageButton

@@ -22,7 +22,7 @@ import java.util.UUID;
 
 public class BLEManager {
     private static final String TAG = "BLEManager";
-    private static final long SCAN_PERIOD = 10000; // 10 seconds
+    private static final long SCAN_PERIOD = 5000; // 5 seconds - 优化：缩短扫描周期提高响应速度
 
     private Context context;
     private BluetoothAdapter bluetoothAdapter;
@@ -32,12 +32,19 @@ public class BLEManager {
     private Handler handler;
     private DeviceScanCallback userCallback;
     private DeviceConnectionCallback connectionCallback;
+    
+    // 用于停止扫描的 Runnable，方便移除回调
+    private Runnable stopScanRunnable;
 
     public BLEManager(Context context) {
-        this.context = context;
+        // 关键修复：使用 ApplicationContext 防止内存泄漏
+        this.context = context.getApplicationContext();
+        // 关键修复：BluetoothAdapter.getDefaultAdapter() 可能返回 null
         this.bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         if (bluetoothAdapter != null) {
             this.bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
+        } else {
+            Log.w(TAG, "Bluetooth adapter is not available on this device");
         }
         this.handler = new Handler();
     }
@@ -47,29 +54,26 @@ public class BLEManager {
     }
 
     public void startScanning(final DeviceScanCallback callback) {
+        Log.d(TAG, "=== BLE Scanning Starting ===");
+        
         if (bluetoothAdapter == null) {
-            Log.e(TAG, "Bluetooth adapter is not available");
-            if (callback != null) {
-                // 可以考虑添加onScanFailed回调
-            }
+            Log.e(TAG, "Bluetooth adapter is null - device may not support BLE");
             return;
         }
 
         if (!bluetoothAdapter.isEnabled()) {
             Log.e(TAG, "Bluetooth is not enabled");
-            if (callback != null) {
-                // 可以考虑添加onScanFailed回调
-            }
             return;
         }
 
         if (bluetoothLeScanner == null) {
-            Log.e(TAG, "Bluetooth LE scanner is not available");
-            if (callback != null) {
-                // 可以考虑添加onScanFailed回调
-            }
+            Log.e(TAG, "BluetoothLeScanner is null");
             return;
         }
+        
+        Log.d(TAG, "Bluetooth adapter: OK");
+        Log.d(TAG, "Bluetooth enabled: YES");
+        Log.d(TAG, "BLE scanner: OK");
 
         this.userCallback = callback;
 
@@ -82,6 +86,9 @@ public class BLEManager {
         List<ScanFilter> filters = new ArrayList<>();
         // 这里可以添加特定设备的过滤条件
 
+        Log.d(TAG, "Scan settings configured: LOW_LATENCY mode");
+        Log.d(TAG, "Starting BLE scan...");
+
         // 开始扫描
         scanCallback = new ScanCallback() {
             @Override
@@ -89,9 +96,11 @@ public class BLEManager {
                 try {
                     BluetoothDevice device = result.getDevice();
                     int rssi = result.getRssi();
+                    String deviceName = device.getName() != null ? device.getName() : "Unknown";
+                    String deviceAddress = device.getAddress();
 
                     // 创建设备对象
-                    Device deviceObj = new Device(device.getAddress(), device.getName() != null ? device.getName() : "Unknown Device");
+                    Device deviceObj = new Device(deviceAddress, deviceName);
                     deviceObj.setSignalStrength(rssi);
 
                     // 调用用户回调
@@ -99,7 +108,7 @@ public class BLEManager {
                         userCallback.onDeviceFound(deviceObj);
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "Error processing scan result: " + e.getMessage());
+                    Log.e(TAG, "Error in onScanResult", e);
                 }
             }
 
@@ -109,8 +118,10 @@ public class BLEManager {
                     for (ScanResult result : results) {
                         BluetoothDevice device = result.getDevice();
                         int rssi = result.getRssi();
+                        String deviceName = device.getName() != null ? device.getName() : "Unknown";
+                        String deviceAddress = device.getAddress();
 
-                        Device deviceObj = new Device(device.getAddress(), device.getName() != null ? device.getName() : "Unknown Device");
+                        Device deviceObj = new Device(deviceAddress, deviceName);
                         deviceObj.setSignalStrength(rssi);
 
                         if (userCallback != null) {
@@ -118,13 +129,14 @@ public class BLEManager {
                         }
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "Error processing batch scan results: " + e.getMessage());
+                    Log.e(TAG, "Error in onBatchScanResults", e);
                 }
             }
 
             @Override
             public void onScanFailed(int errorCode) {
-                Log.e(TAG, "Scan failed with error code: " + errorCode);
+                Log.e(TAG, "!!! BLE Scan Failed !!!");
+                
                 // 这里可以根据错误代码提供更具体的错误信息
                 String errorMessage = "Unknown error";
                 switch (errorCode) {
@@ -141,16 +153,16 @@ public class BLEManager {
                         errorMessage = "Internal error";
                         break;
                 }
-                Log.e(TAG, "Scan failed: " + errorMessage);
+                
+                Log.e(TAG, "Error code: " + errorCode + " - " + errorMessage);
             }
         };
 
         try {
             bluetoothLeScanner.startScan(filters, settings, scanCallback);
-            Log.d(TAG, "Started BLE scanning");
 
             // 定时停止扫描
-            handler.postDelayed(new Runnable() {
+            stopScanRunnable = new Runnable() {
                 @Override
                 public void run() {
                     stopScanning();
@@ -158,27 +170,46 @@ public class BLEManager {
                         userCallback.onScanComplete();
                     }
                 }
-            }, SCAN_PERIOD);
+            };
+            handler.postDelayed(stopScanRunnable, SCAN_PERIOD);
         } catch (SecurityException e) {
-            Log.e(TAG, "Security exception when starting scan: " + e.getMessage());
-            // 这里需要处理权限错误
+            Log.e(TAG, "Security exception starting scan", e);
         } catch (Exception e) {
-            Log.e(TAG, "Error starting scan: " + e.getMessage());
+            Log.e(TAG, "Error starting scan", e);
         }
     }
 
     public void stopScanning() {
-        if (bluetoothLeScanner != null && scanCallback != null) {
-            bluetoothLeScanner.stopScan(scanCallback);
-            scanCallback = null;
-            Log.d(TAG, "Stopped BLE scanning");
+        Log.d(TAG, "=== Stopping BLE Scanning ===");
+        
+        // 移除停止扫描的回调，防止内存泄漏
+        if (stopScanRunnable != null && handler != null) {
+            handler.removeCallbacks(stopScanRunnable);
+            stopScanRunnable = null;
+            Log.d(TAG, "Removed stop scan runnable");
         }
+        
+        if (bluetoothLeScanner != null && scanCallback != null) {
+            try {
+                bluetoothLeScanner.stopScan(scanCallback);
+                scanCallback = null;
+                Log.d(TAG, "✓ BLE scan stopped");
+            } catch (Exception e) {
+                Log.e(TAG, "Error stopping scan", e);
+            }
+        } else {
+            Log.d(TAG, "Scan already stopped or not started");
+        }
+        
+        // 关键修复：不要清空userCallback，让调用者决定何时清理
+        // userCallback = null;  // 注释掉这行，保持回调有效
+        Log.d(TAG, "Keep user callback for restart");
     }
 
     // 连接到设备
     public void connectToDevice(BluetoothDevice device, final DeviceConnectionCallback callback) {
         if (device == null) {
-            Log.e(TAG, "Bluetooth device is null");
+
             if (callback != null) {
                 // 可以考虑添加错误回调
             }
@@ -186,11 +217,11 @@ public class BLEManager {
         }
 
         if (bluetoothGatt != null) {
-            Log.d(TAG, "Closing existing GATT connection");
+
             try {
                 bluetoothGatt.close();
             } catch (Exception e) {
-                Log.e(TAG, "Error closing GATT connection: " + e.getMessage());
+
             }
             bluetoothGatt = null;
         }
@@ -198,13 +229,13 @@ public class BLEManager {
         this.connectionCallback = callback;
         
         try {
-            Log.d(TAG, "Connecting to device: " + device.getName() + " (" + device.getAddress() + ")");
+
             bluetoothGatt = device.connectGatt(context, false, new BluetoothGattCallback() {
                 @Override
                 public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
                     try {
                         if (status != BluetoothGatt.GATT_SUCCESS) {
-                            Log.e(TAG, "Connection state change failed with status: " + status);
+
                             if (connectionCallback != null) {
                                 // 可以考虑添加错误回调
                             }
@@ -212,18 +243,18 @@ public class BLEManager {
                         }
 
                         if (newState == BluetoothProfile.STATE_CONNECTED) {
-                            Log.d(TAG, "Connected to GATT server");
+
                             // 连接成功后发现服务
                             boolean success = gatt.discoverServices();
-                            Log.d(TAG, "Discover services started: " + success);
+
                         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                            Log.d(TAG, "Disconnected from GATT server");
+
                             if (connectionCallback != null) {
                                 connectionCallback.onDisconnected();
                             }
                         }
                     } catch (Exception e) {
-                        Log.e(TAG, "Error in onConnectionStateChange: " + e.getMessage());
+
                     }
                 }
                 
@@ -231,23 +262,23 @@ public class BLEManager {
                 public void onServicesDiscovered(BluetoothGatt gatt, int status) {
                     try {
                         if (status == BluetoothGatt.GATT_SUCCESS) {
-                            Log.d(TAG, "Services discovered successfully");
+
                             // 打印发现的服务
                             List<BluetoothGattService> services = gatt.getServices();
                             for (BluetoothGattService service : services) {
-                                Log.d(TAG, "Found service: " + service.getUuid());
+
                             }
                             if (connectionCallback != null) {
                                 connectionCallback.onConnected();
                             }
                         } else {
-                            Log.e(TAG, "onServicesDiscovered failed with status: " + status);
+
                             if (connectionCallback != null) {
                                 // 可以考虑添加错误回调
                             }
                         }
                     } catch (Exception e) {
-                        Log.e(TAG, "Error in onServicesDiscovered: " + e.getMessage());
+
                     }
                 }
                 
@@ -255,19 +286,19 @@ public class BLEManager {
                 public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
                     try {
                         if (status == BluetoothGatt.GATT_SUCCESS) {
-                            Log.d(TAG, "Characteristic read: " + characteristic.getUuid());
+
                             // 处理读取到的数据
                             if (connectionCallback != null) {
                                 connectionCallback.onDataReceived(characteristic.getValue());
                             }
                         } else {
-                            Log.e(TAG, "Characteristic read failed with status: " + status);
+
                             if (connectionCallback != null) {
                                 // 可以考虑添加错误回调
                             }
                         }
                     } catch (Exception e) {
-                        Log.e(TAG, "Error in onCharacteristicRead: " + e.getMessage());
+
                     }
                 }
                 
@@ -275,31 +306,31 @@ public class BLEManager {
                 public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
                     try {
                         if (status == BluetoothGatt.GATT_SUCCESS) {
-                            Log.d(TAG, "Characteristic written successfully: " + characteristic.getUuid());
+
                             if (connectionCallback != null) {
                                 connectionCallback.onWriteSuccess();
                             }
                         } else {
-                            Log.e(TAG, "Characteristic write failed with status: " + status);
+
                             if (connectionCallback != null) {
                                 connectionCallback.onWriteFailed();
                             }
                         }
                     } catch (Exception e) {
-                        Log.e(TAG, "Error in onCharacteristicWrite: " + e.getMessage());
+
                     }
                 }
 
                 @Override
                 public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
                     try {
-                        Log.d(TAG, "Characteristic changed: " + characteristic.getUuid());
+
                         // 处理特征值变化
                         if (connectionCallback != null) {
                             connectionCallback.onDataReceived(characteristic.getValue());
                         }
                     } catch (Exception e) {
-                        Log.e(TAG, "Error in onCharacteristicChanged: " + e.getMessage());
+
                     }
                 }
 
@@ -307,12 +338,12 @@ public class BLEManager {
                 public void onReliableWriteCompleted(BluetoothGatt gatt, int status) {
                     try {
                         if (status == BluetoothGatt.GATT_SUCCESS) {
-                            Log.d(TAG, "Reliable write completed successfully");
+
                         } else {
-                            Log.e(TAG, "Reliable write completed with status: " + status);
+
                         }
                     } catch (Exception e) {
-                        Log.e(TAG, "Error in onReliableWriteCompleted: " + e.getMessage());
+
                     }
                 }
 
@@ -320,12 +351,12 @@ public class BLEManager {
                 public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
                     try {
                         if (status == BluetoothGatt.GATT_SUCCESS) {
-                            Log.d(TAG, "Remote RSSI: " + rssi + " dBm");
+
                         } else {
-                            Log.e(TAG, "Read remote RSSI failed with status: " + status);
+
                         }
                     } catch (Exception e) {
-                        Log.e(TAG, "Error in onReadRemoteRssi: " + e.getMessage());
+
                     }
                 }
 
@@ -333,22 +364,22 @@ public class BLEManager {
                 public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
                     try {
                         if (status == BluetoothGatt.GATT_SUCCESS) {
-                            Log.d(TAG, "MTU changed to: " + mtu);
+
                         } else {
-                            Log.e(TAG, "MTU change failed with status: " + status);
+
                         }
                     } catch (Exception e) {
-                        Log.e(TAG, "Error in onMtuChanged: " + e.getMessage());
+
                     }
                 }
             });
         } catch (SecurityException e) {
-            Log.e(TAG, "Security exception when connecting: " + e.getMessage());
+
             if (callback != null) {
                 // 可以考虑添加错误回调
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error connecting to device: " + e.getMessage());
+
             if (callback != null) {
                 // 可以考虑添加错误回调
             }
