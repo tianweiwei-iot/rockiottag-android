@@ -1,5 +1,7 @@
 package com.RockiotTag.tag.viewmodel;
 
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.lifecycle.LiveData;
@@ -124,7 +126,9 @@ public class TrackViewModel extends ViewModel {
     }
     
     public void loadTrackData(String deviceId, Calendar date, boolean forceSync) {
+        Log.d(TAG, "=== ViewModel.loadTrackData START === deviceId=" + deviceId + ", forceSync=" + forceSync);
         if (databaseHelper == null) {
+            Log.e(TAG, "[VM_ERROR] databaseHelper is null");
             errorMessage.setValue("Database not initialized");
             isLoading.setValue(false);
             return;
@@ -134,59 +138,78 @@ public class TrackViewModel extends ViewModel {
         isLoadCancelled = new AtomicBoolean(false);
         
         isLoading.setValue(true);
+        Log.d(TAG, "[VM_STATE] isLoading set to TRUE");
         this.selectedDate = date;
         
         final AtomicBoolean currentTaskCancelled = isLoadCancelled;
         executor.submit(() -> {
+            Log.d(TAG, "[VM_THREAD] Background thread started");
             try {
                 long startTime = getDayStartTime(date);
                 long endTime = getDayEndTime(date);
+                Log.d(TAG, "[VM_QUERY] Querying database: startTime=" + startTime + ", endTime=" + endTime);
                 
                 if (currentTaskCancelled.get()) {
-                    Log.d(TAG, "Task cancelled before database query");
+                    Log.w(TAG, "[VM_CANCELLED] Task cancelled before database query");
+                    isLoading.postValue(false);
                     return;
                 }
                 
                 List<LocationRecord> records = databaseHelper.getLocationRecords(deviceId, startTime, endTime);
                 
                 if (currentTaskCancelled.get()) {
-                    Log.d(TAG, "Task cancelled after database query");
+                    Log.w(TAG, "[VM_CANCELLED] Task cancelled after database query");
+                    isLoading.postValue(false);
                     return;
                 }
                 
-                Log.d(TAG, "Loaded " + (records != null ? records.size() : 0) + " records from database");
+                Log.d(TAG, "[VM_RESULT] Loaded " + (records != null ? records.size() : 0) + " records from database");
                 
                 if (currentTaskCancelled.get()) {
-                    Log.d(TAG, "Task cancelled before processing records");
+                    Log.w(TAG, "[VM_CANCELLED] Task cancelled before processing records");
+                    isLoading.postValue(false);
                     return;
                 }
                 
                 if (records != null && !records.isEmpty()) {
+                    Log.d(TAG, "[VM_PROCESS] Processing " + records.size() + " records");
                     currentLocationRecords = new ArrayList<>(records);
                     locationRecords.postValue(records);
+                    Log.d(TAG, "[VM_POST] locationRecords posted to observer");
                     isSyncingFromServer.postValue(false);
                     
                     List<StayPoint> points = generateStayPoints(records);
                     currentStayPoints = points;
                     stayPoints.postValue(points);
+                    Log.d(TAG, "[VM_POST] stayPoints posted to observer, count=" + points.size());
                     
                     TrackStatistics stats = calculateStatistics(records);
                     statistics.postValue(stats);
                     
-                    Log.d(TAG, "Loaded " + records.size() + " records, " + points.size() + " stay points");
+                    isLoading.postValue(false);
+                    Log.d(TAG, "[VM_STATE] isLoading set to FALSE (data loaded)");
+                    Log.d(TAG, "=== ViewModel.loadTrackData END (success) ===");
                 } else {
-                    Log.d(TAG, "No local track data found for device: " + deviceId + ", triggering server sync");
+                    Log.d(TAG, "[VM_NO_DATA] No local data, triggering server sync");
                     isSyncingFromServer.postValue(true);
                     isLoading.postValue(false);
-                    needsServerSync.postValue(new SyncParams(deviceId, startTime, endTime));
+                    Log.d(TAG, "[VM_STATE] isLoading set to FALSE (no data, need sync)");
+                    
+                    final SyncParams syncParams = new SyncParams(deviceId, startTime, endTime);
+                    final Handler mainHandler = new Handler(Looper.getMainLooper());
+                    mainHandler.post(() -> {
+                        Log.d(TAG, "[VM_MAIN_THREAD] Setting needsServerSync on main thread");
+                        needsServerSync.setValue(syncParams);
+                        Log.d(TAG, "[VM_POST] needsServerSync setValue completed");
+                    });
                     return;
                 }
                 
-                isLoading.postValue(false);
             } catch (Exception e) {
-                Log.e(TAG, "Error loading track data: " + e.getMessage(), e);
+                Log.e(TAG, "[VM_EXCEPTION] Error loading track data: " + e.getMessage(), e);
                 errorMessage.postValue("加载失败: " + e.getMessage());
                 isLoading.postValue(false);
+                Log.d(TAG, "[VM_STATE] isLoading set to FALSE (exception)");
             }
         });
     }
@@ -323,7 +346,7 @@ public class TrackViewModel extends ViewModel {
     }
     
     public List<StayPoint> generateStayPointsFromRecords(List<LocationData> records) {
-        return generateStayPointsWithAccuracy(records, 200);
+        return generateStayPointsWithAccuracy(records, 140);
     }
     
     public void setSyncingCompleted(boolean completed) {
@@ -352,26 +375,65 @@ public class TrackViewModel extends ViewModel {
     }
     
     private List<StayPoint> generateStayPoints(List<LocationRecord> records) {
-        return generateStayPointsWithAccuracy(convertToLocationData(records), 200);
+        return generateStayPointsWithAccuracy(convertToLocationData(records), 140);
     }
     
     private List<StayPoint> generateStayPointsWithAccuracy(List<LocationData> records, int accuracyThreshold) {
         List<StayPoint> stayPoints = new ArrayList<>();
         if (records == null || records.isEmpty()) {
+            Log.d(TAG, "[ACCURACY_FILTER] No records to filter");
             return stayPoints;
         }
         
+        Log.d(TAG, "[ACCURACY_FILTER] Input records: " + records.size() + ", threshold: " + accuracyThreshold + "m");
+        
+        List<LocationData> validRecords = new ArrayList<>();
         for (LocationData record : records) {
+            if (record.getLatitude() != 0 && record.getLongitude() != 0 && record.getTimestamp() > 0) {
+                validRecords.add(record);
+            }
+        }
+        
+        if (validRecords.isEmpty()) {
+            Log.d(TAG, "[ACCURACY_FILTER] No valid records after filtering zeros");
+            return stayPoints;
+        }
+        
+        List<LocationData> filteredRecords = new ArrayList<>();
+        LocationData basePoint = validRecords.get(0);
+        filteredRecords.add(basePoint);
+        
+        for (int i = 1; i < validRecords.size(); i++) {
+            LocationData currentPoint = validRecords.get(i);
+            double distance = CoordinateUtils.calculateDistanceMeters(
+                basePoint.getLatitude(), basePoint.getLongitude(),
+                currentPoint.getLatitude(), currentPoint.getLongitude()
+            );
+            
+            if (distance >= accuracyThreshold) {
+                filteredRecords.add(currentPoint);
+                basePoint = currentPoint;
+                Log.d(TAG, "[ACCURACY_FILTER] Point " + i + " kept, distance=" + String.format("%.1f", distance) + "m >= " + accuracyThreshold + "m");
+            } else {
+                Log.d(TAG, "[ACCURACY_FILTER] Point " + i + " skipped, distance=" + String.format("%.1f", distance) + "m < " + accuracyThreshold + "m");
+            }
+        }
+        
+        Log.d(TAG, "[ACCURACY_FILTER] Filtered records: " + filteredRecords.size() + " (from " + validRecords.size() + ")");
+        
+        for (int i = 0; i < filteredRecords.size(); i++) {
+            LocationData record = filteredRecords.get(i);
             StayPoint point = new StayPoint(
                 record.getLatitude(),
                 record.getLongitude(),
                 record.getTimestamp(),
                 record.getTimestamp()
             );
-            point.setOriginalIndex(stayPoints.size() + 1);
+            point.setOriginalIndex(i + 1);
             stayPoints.add(point);
         }
         
+        Log.d(TAG, "[ACCURACY_FILTER] Generated " + stayPoints.size() + " stay points");
         return stayPoints;
     }
     

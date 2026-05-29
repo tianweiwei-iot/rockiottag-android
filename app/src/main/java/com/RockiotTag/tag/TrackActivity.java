@@ -165,7 +165,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     // 精度调节相关变量
     private SeekBar accuracySeekBar;
     private TextView accuracyValueText;
-    private int currentAccuracyThreshold = 200; // 默认精度阈值（米），高精度模式
+    private int currentAccuracyThreshold = 140;
     
     // 加载进度条
     private ProgressBar loadingProgress;
@@ -677,22 +677,16 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         
         // 初始化精度调节SeekBar
         if (accuracySeekBar != null) {
-            // SeekBar范围：20米 - 200米
-            // 左侧（progress小）= 高精度 = 200米阈值 → 合并更多点，显示更少的轨迹点
-            // 右侧（progress大）= 低精度 = 20米阈值 → 保留更多点，显示更多的轨迹点
-            // 默认居中：110米（(200+20)/2）
-            accuracySeekBar.setMax(180); // 最大值180 (200-20)
-            accuracySeekBar.setProgress(90); // 初始值对应110米（居中）
-            currentAccuracyThreshold = 110; // 同步更新当前阈值变量
+            accuracySeekBar.setMax(180);
+            accuracySeekBar.setProgress(90);
+            currentAccuracyThreshold = 140;
             
             accuracySeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                 @Override
                 public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                     if (fromUser) {
-                        // 计算实际阈值：progress=0 → 200米，progress=180 → 20米
-                        currentAccuracyThreshold = 200 - progress;
-                        Log.d(TAG, "=== ACCURACY SWITCH === 阈值: " + currentAccuracyThreshold + "m");
-                        // 重新加载轨迹数据以应用新的精度阈值
+                        currentAccuracyThreshold = 230 - progress;
+                        Log.d(TAG, "=== ACCURACY SWITCH === 阈值: " + currentAccuracyThreshold + "m, progress=" + progress);
                         if (!allLocationRecords.isEmpty()) {
                             reloadTrackWithNewAccuracy();
                         }
@@ -701,16 +695,13 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 
                 @Override
                 public void onStartTrackingTouch(SeekBar seekBar) {
-                    // 不需要处理
                 }
                 
                 @Override
                 public void onStopTrackingTouch(SeekBar seekBar) {
-                    // 不需要处理
                 }
             });
             
-            // 更新初始显示
             if (accuracyValueText != null) {
                 accuracyValueText.setVisibility(View.GONE);
             }
@@ -753,10 +744,11 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
      * MVVM - 设置 ViewModel 观察者
      */
     private void setupViewModelObservers() {
-        // 观察位置记录
+        Log.d(TAG, "=== setupViewModelObservers() called ===");
+        
         viewModel.getLocationRecords().observe(this, records -> {
+            Log.d(TAG, "[OBSERVER] locationRecords observer triggered, records=" + (records != null ? records.size() : "null"));
             if (records != null) {
-                // 关键修复：使用临时列表避免并发修改异常
                 List<LocationData> newRecords = new ArrayList<>();
                 for (LocationRecord record : records) {
                     LocationData data = new LocationData();
@@ -768,33 +760,29 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     newRecords.add(data);
                 }
                 
-                // 在主线程中安全地替换列表
                 synchronized (allLocationRecords) {
                     allLocationRecords.clear();
                     allLocationRecords.addAll(newRecords);
                 }
+                Log.d(TAG, "[OBSERVER] allLocationRecords updated, size=" + allLocationRecords.size());
                 
-                // 关键修复：更新播放进度条最大值前检查是否为 null
                 if (playbackSeekbar != null && !newRecords.isEmpty()) {
                     playbackSeekbar.setMax(newRecords.size() - 1);
                 } else if (playbackSeekbar == null) {
-                    Log.w(TAG, "playbackSeekbar is null in location records observer");
+                    Log.w(TAG, "[OBSERVER] playbackSeekbar is null");
                 }
             }
         });
         
-        // 观察停留点 - 这是触发渲染的关键点
         viewModel.getStayPoints().observe(this, stays -> {
+            Log.d(TAG, "[OBSERVER] stayPoints observer triggered, stays=" + (stays != null ? stays.size() : "null") + ", allLocationRecords=" + allLocationRecords.size());
             if (stays != null) {
-                // 关键修复：使用当前选定的精度阈值重新生成停留点，而不是直接使用 ViewModel 的默认结果
                 List<StayPoint> finalStayPoints;
-                if (currentAccuracyThreshold != 200) {
-                    // 如果用户调整了精度，则按用户选择的阈值重新计算
+                if (currentAccuracyThreshold != 140) {
                     finalStayPoints = viewModel.generateStayPointsFromRecordsWithAccuracy(
                         new ArrayList<>(allLocationRecords), currentAccuracyThreshold);
-                    Log.d(TAG, "Observer: Re-generated stay points with threshold " + currentAccuracyThreshold + "m, count: " + finalStayPoints.size());
+                    Log.d(TAG, "[OBSERVER] Re-generated stay points with threshold " + currentAccuracyThreshold + "m, count=" + finalStayPoints.size());
                 } else {
-                    // 否则使用默认（高精度）结果
                     finalStayPoints = new ArrayList<>(stays);
                 }
                 
@@ -803,91 +791,78 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     stayPoints.addAll(finalStayPoints);
                 }
                 
-                // 停留点更新后，触发轨迹渲染（此时 locationRecords 和 stayPoints 都已就绪）
                 synchronized (allLocationRecords) {
                     if (!allLocationRecords.isEmpty()) {
-                        // 关键修复：渲染前检查 Activity 状态
                         if (!isFinishing() && !isDestroyed()) {
-                            // 创建副本传递给renderTrack，避免并发修改
+                            Log.d(TAG, "[OBSERVER] Calling renderTrack with " + allLocationRecords.size() + " records");
                             List<LocationData> recordsCopy = new ArrayList<>(allLocationRecords);
                             renderTrack(recordsCopy);
                         } else {
-                            Log.d(TAG, "Activity is finishing/destroyed, skip renderTrack in observer");
-                            // 确保在Activity销毁时释放加载锁
+                            Log.w(TAG, "[OBSERVER] Activity is finishing/destroyed, skip renderTrack");
                             isLoadingTrackData = false;
+                            Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (activity destroyed)");
                         }
                     } else {
-                        // 无数据时，静默清除UI，不显示Toast
-                        Log.d(TAG, "No location records for selected date, clearing old track UI");
+                        Log.d(TAG, "[OBSERVER] No location records, clearing UI and hiding loading");
                         if (!isFinishing() && !isDestroyed()) {
                             clearTrackUI();
                             updatePlaybackInfo(0);
                             hideLoading();
                         }
-                        // 释放加载锁
                         isLoadingTrackData = false;
+                        Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (no records)");
                     }
                 }
             } else {
-                // 如果stays为null，也要释放加载锁
+                Log.w(TAG, "[OBSERVER] stays is null");
                 isLoadingTrackData = false;
+                Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (stays null)");
             }
         });
         
         viewModel.getIsLoading().observe(this, isLoading -> {
+            Log.d(TAG, "[OBSERVER] isLoading observer triggered, isLoading=" + isLoading);
             if (loadingProgress != null) {
                 loadingProgress.setVisibility(isLoading ? View.VISIBLE : View.GONE);
             }
         });
         
-        // 观察统计信息
+        viewModel.getNeedsServerSync().observe(this, params -> {
+            Log.d(TAG, "[OBSERVER] needsServerSync observer triggered, params=" + (params != null ? params.deviceNum : "null"));
+            if (params != null && selectedDevice != null) {
+                isLoadingTrackData = false;
+                Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (needsServerSync)");
+                showLoadingDialog();
+                String deviceNum = params.deviceNum;
+                if (selectedDevice.getDeviceNum() != null) {
+                    deviceNum = selectedDevice.getDeviceNum();
+                }
+                Log.d(TAG, "[OBSERVER] Calling syncTrackDataFromServerAndReload for device=" + deviceNum);
+                syncTrackDataFromServerAndReload(deviceNum, params.startTime, params.endTime);
+            }
+        });
+        
         viewModel.getStatistics().observe(this, stats -> {
             if (stats != null && totalDistanceText != null) {
                 double distanceKm = stats.totalDistanceKm;
                 totalDistanceText.setText(String.format("%.2f km", distanceKm));
-            } else if (totalDistanceText == null) {
-                Log.w(TAG, "totalDistanceText is null in statistics observer");
             }
         });
         
         viewModel.getErrorMessage().observe(this, error -> {
             if (error != null && !error.isEmpty()) {
-                // 静默记录错误日志，不显示Toast
-                Log.e(TAG, "Error from ViewModel: " + error);
+                Log.e(TAG, "[OBSERVER] errorMessage: " + error);
             }
         });
         
-        // 监听服务器同步信号，当本地无数据时自动从服务器同步
-        viewModel.getNeedsServerSync().observe(this, params -> {
-            if (params != null && selectedDevice != null) {
-                Log.d(TAG, "Received server sync signal for device: " + params.deviceNum);
-                // 释放加载锁，让同步方法可以执行
-                isLoadingTrackData = false;
-                // 显示加载对话框
-                showLoadingDialog();
-                String deviceNum = params.deviceNum;
-                // 如果deviceNum是deviceId，需要获取deviceNum
-                if (selectedDevice.getDeviceNum() != null) {
-                    deviceNum = selectedDevice.getDeviceNum();
-                }
-                syncTrackDataFromServerAndReload(deviceNum, params.startTime, params.endTime);
-            }
-        });
-        
-        // 监听从服务器同步状态，静默处理
         viewModel.getIsSyncingFromServer().observe(this, isSyncing -> {
-            if (isSyncing != null && isSyncing) {
-                Log.d(TAG, "Syncing from server (silent)...");
-                // 不显示Toast，加载中动画已提示用户
-            }
+            Log.d(TAG, "[OBSERVER] isSyncingFromServer observer triggered, isSyncing=" + isSyncing);
         });
         
         viewModel.getIsPlaying().observe(this, playing -> {
             isPlaying = playing;
             if (playBtn != null) {
                 playBtn.setImageResource(playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play);
-            } else {
-                Log.w(TAG, "playBtn is null in isPlaying observer");
             }
         });
         
@@ -895,8 +870,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             currentPlayIndex = index;
             if (playbackSeekbar != null) {
                 playbackSeekbar.setProgress(index);
-            } else {
-                Log.w(TAG, "playbackSeekbar is null in currentPlayIndex observer");
             }
         });
         
@@ -904,8 +877,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             playSpeed = speed;
             if (speedBtn != null) {
                 speedBtn.setText(speed + "x");
-            } else {
-                Log.w(TAG, "speedBtn is null in playSpeed observer");
             }
         });
     }
@@ -1882,13 +1853,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     }
 
     private void goToPreviousDay() {
+        Log.d(TAG, "=== goToPreviousDay START === isLoadingTrackData=" + isLoadingTrackData);
         try {
-            // 关键修复：切换日期前先停止播放，避免Handler在错误的数据上运行
             stopPlayback();
             
-            // 关键修复：防止快速切换日期导致并发加载
             if (isLoadingTrackData) {
-                Log.d(TAG, "Already loading track data, ignore previous day request");
+                Log.w(TAG, "[LOADING_BLOCK] Already loading track data, ignore previous day request");
                 return;
             }
             
@@ -1897,8 +1867,8 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             minDate.add(Calendar.MONTH, -1);
             
             if (selectedDate.before(minDate)) {
+                Log.d(TAG, "[DATE_LIMIT] Selected date before min date, reverting");
                 selectedDate.add(Calendar.DAY_OF_MONTH, 1);
-                // 静默处理，不显示Toast
                 return;
             }
             
@@ -1914,23 +1884,23 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             endDate.set(Calendar.SECOND, 59);
             endDate.set(Calendar.MILLISECOND, 999);
             
+            Log.d(TAG, "[DATE_CHANGE] Previous day: " + com.RockiotTag.tag.util.TimeFormatter.formatDate(selectedDate.getTimeInMillis()));
             updateDateBtnText();
             loadTrackData();
+            Log.d(TAG, "=== goToPreviousDay END ===");
         } catch (Exception e) {
-            Log.e(TAG, "Error in goToPreviousDay: " + e.getMessage(), e);
-            // 确保在异常情况下也释放加载锁
+            Log.e(TAG, "[EXCEPTION] goToPreviousDay: " + e.getMessage(), e);
             isLoadingTrackData = false;
         }
     }
 
     private void goToNextDay() {
+        Log.d(TAG, "=== goToNextDay START === isLoadingTrackData=" + isLoadingTrackData);
         try {
-            // 关键修复：切换日期前先停止播放，避免Handler在错误的数据上运行
             stopPlayback();
             
-            // 关键修复：防止快速切换日期导致并发加载
             if (isLoadingTrackData) {
-                Log.d(TAG, "Already loading track data, ignore next day request");
+                Log.w(TAG, "[LOADING_BLOCK] Already loading track data, ignore next day request");
                 return;
             }
             
@@ -1941,8 +1911,8 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             today.set(Calendar.SECOND, 59);
             
             if (selectedDate.after(today)) {
+                Log.d(TAG, "[DATE_LIMIT] Selected date after today, reverting");
                 selectedDate.add(Calendar.DAY_OF_MONTH, -1);
-                // 静默处理，不显示Toast
                 return;
             }
             
@@ -1958,241 +1928,198 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             endDate.set(Calendar.SECOND, 59);
             endDate.set(Calendar.MILLISECOND, 999);
             
+            Log.d(TAG, "[DATE_CHANGE] Next day: " + com.RockiotTag.tag.util.TimeFormatter.formatDate(selectedDate.getTimeInMillis()));
             updateDateBtnText();
             loadTrackData();
+            Log.d(TAG, "=== goToNextDay END ===");
         } catch (Exception e) {
-            Log.e(TAG, "Error in goToNextDay: " + e.getMessage(), e);
-            // 确保在异常情况下也释放加载锁
+            Log.e(TAG, "[EXCEPTION] goToNextDay: " + e.getMessage(), e);
             isLoadingTrackData = false;
         }
     }
 
     private void loadTrackData() {
+        Log.d(TAG, "=== loadTrackData() called === isGoogleMapMode=" + isGoogleMapMode);
         try {
-            // 如果是 Google 地图模式，等待地图就绪后再加载
             if (isGoogleMapMode && googleMap == null) {
-                Log.d(TAG, "Google Map not ready yet, skip loadTrackData (will be called in onMapReady)");
+                Log.w(TAG, "[MAP_NOT_READY] Google Map not ready yet, skip loadTrackData");
                 return;
             }
             
-            // 高德地图模式也需要检查地图是否就绪
             if (!isGoogleMapMode && aMap == null) {
-                Log.d(TAG, "AMap not ready yet, skip loadTrackData");
+                Log.w(TAG, "[MAP_NOT_READY] AMap not ready yet, skip loadTrackData");
                 return;
             }
             
-            // 默认使用智能缓存策略，不强制同步
             loadTrackData(false);
         } catch (Exception e) {
-            Log.e(TAG, "Error in loadTrackData: " + e.getMessage(), e);
+            Log.e(TAG, "[EXCEPTION] loadTrackData: " + e.getMessage(), e);
         }
     }
 
     private void loadTrackData(final boolean forceSync) {
+        Log.d(TAG, "=== loadTrackData(forceSync=" + forceSync + ") START === isLoadingTrackData=" + isLoadingTrackData);
         try {
-            // 安全检查
             if (isFinishing() || isDestroyed()) {
-                Log.d(TAG, "Activity is finishing or destroyed, skip loadTrackData");
+                Log.w(TAG, "[ACTIVITY_STATE] Activity is finishing or destroyed, skip loadTrackData");
                 return;
             }
             
-            // 关键修复：防止并发加载
             if (isLoadingTrackData) {
-                Log.d(TAG, "Already loading track data, skip this request");
+                Log.w(TAG, "[LOADING_BLOCK] Already loading track data, skip this request");
                 return;
             }
             isLoadingTrackData = true;
+            Log.d(TAG, "[LOCK_SET] isLoadingTrackData set to TRUE");
             
             if (selectedDevice == null) {
-                Log.w(TAG, "No device selected, skip loadTrackData");
-                isLoadingTrackData = false; // 释放锁
+                Log.e(TAG, "[NO_DEVICE] No device selected, skip loadTrackData");
+                isLoadingTrackData = false;
+                Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (no device)");
                 return;
             }
             
-            // 优化1和2：判断是否是今天
             Calendar today = Calendar.getInstance();
             boolean isToday = (selectedDate.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
                                selectedDate.get(Calendar.MONTH) == today.get(Calendar.MONTH) &&
                                selectedDate.get(Calendar.DAY_OF_MONTH) == today.get(Calendar.DAY_OF_MONTH));
             
-            // 生成日期缓存键
             String dateKey = com.RockiotTag.tag.util.TimeFormatter.formatDate(selectedDate.getTimeInMillis());
+            Log.d(TAG, "[DATE_CHECK] dateKey=" + dateKey + ", isToday=" + isToday);
             
-            // 决定是否需要从服务器同步
-            boolean shouldSyncFromServer = forceSync; // 强制刷新时总是同步
+            boolean shouldSyncFromServer = forceSync;
             
             if (!isToday && !forceSync) {
-                // 非今天：检查是否已同步过
                 Boolean hasSynced = syncedDates.get(dateKey);
+                Log.d(TAG, "[SYNC_CHECK] hasSynced=" + hasSynced + " for dateKey=" + dateKey);
                 if (hasSynced != null && hasSynced) {
-                    // 已同步过，直接使用本地缓存
-                    Log.d(TAG, "Date already synced (" + dateKey + "), using local cache");
+                    Log.d(TAG, "[CACHE_HIT] Date already synced, using local cache");
                     shouldSyncFromServer = false;
                 } else {
-                    // 首次查看，需要同步
-                    Log.d(TAG, "First time viewing date (" + dateKey + "), will sync from server");
+                    Log.d(TAG, "[CACHE_MISS] First time viewing date, will sync from server");
                     shouldSyncFromServer = true;
                 }
             } else if (isToday && !forceSync) {
-                // 今天但非强制刷新：先加载本地缓存，然后检查是否有新数据
-                Log.d(TAG, "Today's date, will check for new data from server");
-                shouldSyncFromServer = false; // 先不同步，先加载本地数据
-                
-                // 异步检查服务器是否有新数据
+                Log.d(TAG, "[TODAY_MODE] Today's date, will check for new data from server");
+                shouldSyncFromServer = false;
                 checkServerForNewDataAsync();
             }
 
-            // 只有需要同步时才清除旧数据并显示对话框
             if (shouldSyncFromServer) {
+                Log.d(TAG, "[SYNC_MODE] Need to sync from server, showing loading dialog");
                 try {
                     clearTrack();
                     showLoadingDialog();
+                    Log.d(TAG, "[DIALOG_SHOWN] Loading dialog shown");
                 } catch (Exception e) {
-                    Log.e(TAG, "Error in clearTrack: " + e.getMessage(), e);
+                    Log.e(TAG, "[EXCEPTION] clearTrack/showLoadingDialog: " + e.getMessage(), e);
                 }
             } else {
-                // 使用缓存时，只显示加载进度条，不清除现有数据
-                Log.d(TAG, "Using cached data, showing loading progress without clearing");
+                Log.d(TAG, "[CACHE_MODE] Using cached data, showing loading progress");
                 showLoading();
             }
 
             final Calendar startTime = (Calendar) startDate.clone();
             final Calendar endTime = (Calendar) endDate.clone();
             
-            Log.d(TAG, "Loading track data via ViewModel. Range: " + startTime.getTime() + 
-                  " - " + endTime.getTime() + ", shouldSync: " + shouldSyncFromServer + ", isToday: " + isToday);
+            Log.d(TAG, "[VIEWMODEL_CALL] Calling viewModel.loadTrackData for device=" + 
+                  (selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId()) +
+                  ", date=" + dateKey + ", shouldSync=" + shouldSyncFromServer);
 
-            // 如果需要同步，先清除数据库中的旧数据
             if (shouldSyncFromServer) {
                 try {
-                    Log.d(TAG, "Syncing: clearing old data for device: " + selectedDevice.getDeviceNum());
+                    Log.d(TAG, "[DB_CLEANUP] Clearing old data for device");
                     int deleted = databaseHelper.deleteLocationRecordsByDevice(
                         selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId()
                     );
-                    Log.d(TAG, "Deleted " + deleted + " old records during sync");
-                    // 静默删除，不显示Toast
+                    Log.d(TAG, "[DB_CLEANUP] Deleted " + deleted + " old records");
                 } catch (Exception e) {
-                    Log.e(TAG, "Error during sync cleanup: " + e.getMessage(), e);
+                    Log.e(TAG, "[EXCEPTION] deleteLocationRecordsByDevice: " + e.getMessage(), e);
                 }
             }
 
-            // MVVM - 使用 ViewModel 加载轨迹数据
             String deviceNum = selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId();
             
-            // 记录同步状态（如果是首次同步）
             if (shouldSyncFromServer) {
                 syncedDates.put(dateKey, true);
                 lastSyncTimestamps.put(dateKey, System.currentTimeMillis());
-                Log.d(TAG, "Recorded sync timestamp for " + dateKey + ": " + lastSyncTimestamps.get(dateKey));
+                Log.d(TAG, "[SYNC_RECORD] Recorded sync timestamp for " + dateKey);
             }
             
             viewModel.loadTrackData(deviceNum, selectedDate);
+            Log.d(TAG, "=== loadTrackData(forceSync=" + forceSync + ") END (waiting for ViewModel callback) ===");
         } catch (Exception e) {
-            Log.e(TAG, "Error in loadTrackData: " + e.getMessage(), e);
-            isLoadingTrackData = false; // 释放锁
-            // 隐藏加载进度条
+            Log.e(TAG, "[EXCEPTION] loadTrackData: " + e.getMessage(), e);
+            isLoadingTrackData = false;
+            Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (exception)");
             hideLoading();
-            try {
-                runOnUiThread(() -> {
-                    try {
-                        // 静默处理错误，不显示Toast
-                        Log.e(TAG, "Load track failed: " + e.getMessage());
-                    } catch (Exception ex) {
-                        Log.w(TAG, "Failed to log error: " + ex.getMessage());
-                    }
-                });
-            } catch (Exception ex) {
-                Log.e(TAG, "Failed to log error: " + ex.getMessage());
-            }
-        } finally {
-            // 确保在异常情况下也释放加载锁
         }
     }
 
-    /**
-     * 渲染轨迹（从 loadTrackData 中提取）
-     */
     private void renderTrack(List<LocationData> locationRecords) {
+        Log.d(TAG, "=== renderTrack() called === records=" + (locationRecords != null ? locationRecords.size() : "null"));
         try {
-            // 关键修复：渲染前再次检查 Activity 状态
             if (isFinishing() || isDestroyed()) {
-                Log.d(TAG, "Activity is finishing/destroyed before renderTrack, aborting");
+                Log.w(TAG, "[RENDER_SKIP] Activity is finishing/destroyed, aborting renderTrack");
                 hideLoading();
-                isLoadingTrackData = false; // 释放锁
+                isLoadingTrackData = false;
+                Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (activity state)");
                 return;
             }
             
-            // 显示加载进度条
+            Log.d(TAG, "[RENDER_START] Starting track rendering");
             showLoading();
             
-            // 保存当前缩放级别（如果用户已交互过）
             float zoomToPreserve = currentZoomLevel;
             boolean shouldPreserveZoom = hasSavedZoomLevel && googleMapUserInteracted;
             
-            if (shouldPreserveZoom) {
-                Log.d(TAG, "Will preserve zoom level: " + zoomToPreserve);
-            }
-            
             if (locationRecords == null || locationRecords.isEmpty()) {
-                Log.d(TAG, "NO RECORDS TO RENDER!");
-                // 清除旧UI元素
+                Log.d(TAG, "[RENDER_EMPTY] No records to render, clearing UI");
                 clearTrackUI();
-                // 无数据时静默处理，不显示Toast
                 hideLoading();
                 updatePlaybackInfo(0);
-                isLoadingTrackData = false; // 释放锁
+                isLoadingTrackData = false;
+                Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (no records)");
                 return;
             }
 
-            Log.d(TAG, "Rendering track with " + locationRecords.size() + " records");
-            
-            // 关键修复：先清除旧的UI元素，再渲染新数据
+            Log.d(TAG, "[RENDER_DATA] Rendering " + locationRecords.size() + " records");
             clearTrackUI();
             
-            // 【核心优化】无论数据来源如何，始终根据当前选定的精度阈值重新计算停留点
-            if (currentAccuracyThreshold != 200 && viewModel != null) {
-                Log.d(TAG, "Applying user-selected accuracy threshold: " + currentAccuracyThreshold + "m before rendering");
+            if (currentAccuracyThreshold != 140 && viewModel != null) {
+                Log.d(TAG, "[RENDER_ACCURACY] Applying accuracy threshold: " + currentAccuracyThreshold + "m");
                 List<StayPoint> recalculatedPoints = viewModel.generateStayPointsFromRecordsWithAccuracy(
                     new ArrayList<>(locationRecords), currentAccuracyThreshold);
                 synchronized (stayPoints) {
                     stayPoints.clear();
                     stayPoints.addAll(recalculatedPoints);
                 }
-                Log.d(TAG, "Recalculated stay points count: " + stayPoints.size());
+                Log.d(TAG, "[RENDER_STAYPOINTS] Recalculated stay points: " + stayPoints.size());
             } else {
-                // 如果是默认精度，直接使用 ViewModel 已经生成的 stayPoints
-                Log.d(TAG, "Using default accuracy (200m), stay points count: " + stayPoints.size());
+                Log.d(TAG, "[RENDER_ACCURACY] Using default accuracy, stay points: " + stayPoints.size());
             }
             
-            Log.d(TAG, "Processed " + stayPoints.size() + " stay points from " + locationRecords.size() + " filtered records");
-            
-            Log.d(TAG, "After sorting by time, first point: " + 
-                new SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(new Date(locationRecords.get(0).getTimestamp())) +
-                ", last point: " + 
-                new SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(new Date(locationRecords.get(locationRecords.size()-1).getTimestamp())));
-
-            // 根据地图模式选择绘制方法
+            Log.d(TAG, "[RENDER_MAP] Map mode: " + (isGoogleMapMode ? "Google" : "AMap"));
             if (isGoogleMapMode) {
                 renderTrackOnGoogleMap(locationRecords, locationRecords, shouldPreserveZoom, zoomToPreserve);
             } else {
-                // 高德地图模式 - 检查aMap是否为null
                 if (aMap == null) {
-                    Log.e(TAG, "AMap is null in renderTrack, aborting render");
+                    Log.e(TAG, "[RENDER_ERROR] AMap is null, aborting render");
                     hideLoading();
-                    isLoadingTrackData = false; // 释放锁
+                    isLoadingTrackData = false;
+                    Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (AMap null)");
                     return;
                 }
                 
-                // 关键修复：渲染过程中再次检查Activity是否正在销毁
                 if (isFinishing() || isDestroyed()) {
-                    Log.d(TAG, "Activity is finishing/destroyed during renderTrack, aborting");
+                    Log.w(TAG, "[RENDER_SKIP] Activity is finishing/destroyed during render");
                     hideLoading();
-                    isLoadingTrackData = false; // 释放锁
+                    isLoadingTrackData = false;
+                    Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (activity state)");
                     return;
                 }
                 
                 try {
-                    // 使用 Helper 渲染高德地图轨迹
                     List<LocationRecord> recordList = new ArrayList<>();
                     for (LocationData data : allLocationRecords) {
                         recordList.add(new LocationRecord(
@@ -2203,82 +2130,64 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         ));
                     }
                     
-                    // 直接接收返回的Polyline对象，避免数组引用传递问题
                     trackPolyline = com.RockiotTag.tag.helper.TrackMapRenderer.renderTrackOnAMap(
                         aMap,
                         stayPoints,
                         recordList,
                         showPolyline,
                         showMarkers,
-                        false, // isSimpleMode已移除
+                        false,
                         positionMarkers,
                         arrowMarkers
                     );
                     
-                    Log.d(TAG, "=== RENDER TRACK === TrackPolyline assigned: " + (trackPolyline != null ? "success" : "null") + ", StayPoints count: " + stayPoints.size());
+                    Log.d(TAG, "[RENDER_COMPLETE] Track rendered on AMap, polyline=" + (trackPolyline != null ? "success" : "null"));
                     
-                    // 如果用户已交互过，恢复缩放级别
                     if (shouldPreserveZoom && aMap != null) {
                         com.amap.api.maps.model.CameraPosition currentPos = aMap.getCameraPosition();
                         if (currentPos != null) {
-                            // 只更新缩放级别，保持当前位置
                             aMap.moveCamera(com.amap.api.maps.CameraUpdateFactory.zoomTo(zoomToPreserve));
-                            Log.d(TAG, "AMap - Restored zoom level: " + zoomToPreserve);
                         }
                     }
                     
-                    // 更新播放信息
                     updatePlaybackInfo(allLocationRecords.size());
                     
-                    // 关键修复：UI 更新前再次检查 Activity 状态
                     if (!isFinishing() && !isDestroyed()) {
-                        runOnUiThread(() -> {
-                            try {
-                                if (!isFinishing() && !isDestroyed()) {
-                                    // 优化：移除频繁的 Toast 提示，保持界面清爽
-                                    // Toast.makeText(this, getString(R.string.loaded_stay_points, stayPoints.size()), Toast.LENGTH_SHORT).show();
-                                }
-                            } catch (Exception e) {
-                                Log.w(TAG, "Failed to show toast: " + e.getMessage());
-                            }
-                        });
-                        
-                        // 计算总距离
                         double totalDistanceKm = calculateTotalDistance();
                         totalDistanceText.setText(String.format("%.2f km", totalDistanceKm));
-                        Log.d(TAG, "Total distance displayed at bottom: " + String.format("%.2f km", totalDistanceKm));
+                        Log.d(TAG, "[RENDER_DISTANCE] Total distance: " + String.format("%.2f km", totalDistanceKm));
                         
-                        // 显示第一个点的信息
                         if (!stayPoints.isEmpty()) {
                             StayPoint firstPoint = stayPoints.get(0);
                             LatLng firstLatLng = CoordinateUtils.wgs84ToGcj02(firstPoint.getLatitude(), firstPoint.getLongitude());
                             java.text.SimpleDateFormat fullTimeSdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault());
                             trackPointTime.setText(fullTimeSdf.format(new Date(firstPoint.getArriveTime())));
-                            
                             getAddressForLocation(firstLatLng);
                         }
                         
-                        // 优化3：如果是今天，修正轨迹终点为设备最新位置
                         if (isToday(selectedDate) && !stayPoints.isEmpty()) {
                             correctTrackEndpointForToday();
                         }
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "Error rendering track on AMap: " + e.getMessage(), e);
-                    // 渲染失败时也要隐藏加载条
+                    Log.e(TAG, "[RENDER_EXCEPTION] Error rendering on AMap: " + e.getMessage(), e);
                     hideLoading();
                 } finally {
-                    // 关键修复：渲染完成后释放加载锁
                     isLoadingTrackData = false;
+                    Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (render complete)");
+                    hideLoading();
+                    Log.d(TAG, "[DIALOG_HIDE] hideLoading called in renderTrack finally");
+                    Log.d(TAG, "=== renderTrack() END ===");
                 }
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error in renderTrack: " + e.getMessage(), e);
+            Log.e(TAG, "[RENDER_EXCEPTION] Error in renderTrack: " + e.getMessage(), e);
             hideLoading();
-            isLoadingTrackData = false; // 释放锁
-        } finally {
-            // 确保在所有情况下都释放加载锁
             isLoadingTrackData = false;
+            Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (exception)");
+        } finally {
+            isLoadingTrackData = false;
+            hideLoading();
         }
     }
     
@@ -2812,14 +2721,18 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
      * 显示加载提示对话框
      */
     private void showLoadingDialog() {
+        Log.d(TAG, "=== showLoadingDialog() called ===");
         if (isFinishing() || isDestroyed()) {
+            Log.w(TAG, "[DIALOG_SKIP] Activity is finishing/destroyed, skip showing dialog");
             return;
         }
         
         if (loadingDialog != null && loadingDialog.isShowing()) {
+            Log.d(TAG, "[DIALOG_EXISTS] Loading dialog already showing, skip");
             return;
         }
         
+        Log.d(TAG, "[DIALOG_CREATE] Creating and showing loading dialog");
         android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
         builder.setTitle(getString(R.string.loading_track_title));
         builder.setMessage(getString(R.string.loading_track_message));
@@ -2846,24 +2759,23 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         builder.setView(layout);
         loadingDialog = builder.create();
         loadingDialog.show();
+        Log.d(TAG, "[DIALOG_SHOWN] Loading dialog is now visible");
     }
     
-    /**
-     * 隐藏加载提示对话框
-     */
     private void hideLoadingDialog() {
+        Log.d(TAG, "=== hideLoadingDialog() called === loadingDialog=" + (loadingDialog != null) + ", isShowing=" + (loadingDialog != null && loadingDialog.isShowing()));
         if (loadingDialog != null && loadingDialog.isShowing()) {
             loadingDialog.dismiss();
+            Log.d(TAG, "[DIALOG_DISMISSED] Loading dialog dismissed");
         }
         loadingDialog = null;
     }
     
-    /**
-     * 隐藏加载进度条
-     */
     private void hideLoading() {
+        Log.d(TAG, "=== hideLoading() called ===");
         if (loadingProgress != null) {
             loadingProgress.setVisibility(View.GONE);
+            Log.d(TAG, "[PROGRESS_HIDDEN] Loading progress bar hidden");
         }
         hideLoadingDialog();
     }
