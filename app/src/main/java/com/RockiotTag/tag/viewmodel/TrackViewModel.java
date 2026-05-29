@@ -139,15 +139,19 @@ public class TrackViewModel extends ViewModel {
         
         isLoading.setValue(true);
         Log.d(TAG, "[VM_STATE] isLoading set to TRUE");
-        this.selectedDate = date;
+        this.selectedDate = (Calendar) date.clone();
         
+        final Calendar dateCopy = (Calendar) date.clone();
         final AtomicBoolean currentTaskCancelled = isLoadCancelled;
+        
+        Log.d(TAG, "[VM_DATE] Date captured: year=" + dateCopy.get(Calendar.YEAR) + ", month=" + dateCopy.get(Calendar.MONTH) + ", day=" + dateCopy.get(Calendar.DAY_OF_MONTH));
+        
         executor.submit(() -> {
             Log.d(TAG, "[VM_THREAD] Background thread started");
             try {
-                long startTime = getDayStartTime(date);
-                long endTime = getDayEndTime(date);
-                Log.d(TAG, "[VM_QUERY] Querying database: startTime=" + startTime + ", endTime=" + endTime);
+                long startTime = getDayStartTime(dateCopy);
+                long endTime = getDayEndTime(dateCopy);
+                Log.d(TAG, "[VM_QUERY] Querying database: startTime=" + startTime + ", endTime=" + endTime + " (date: " + dateCopy.get(Calendar.YEAR) + "-" + (dateCopy.get(Calendar.MONTH)+1) + "-" + dateCopy.get(Calendar.DAY_OF_MONTH) + ")");
                 
                 if (currentTaskCancelled.get()) {
                     Log.w(TAG, "[VM_CANCELLED] Task cancelled before database query");
@@ -362,7 +366,11 @@ public class TrackViewModel extends ViewModel {
         start.set(Calendar.MINUTE, 0);
         start.set(Calendar.SECOND, 0);
         start.set(Calendar.MILLISECOND, 0);
-        return start.getTimeInMillis();
+        long timestamp = start.getTimeInMillis();
+        Log.d(TAG, "[TIME_CALC] getDayStartTime: input date=" + date.get(Calendar.YEAR) + "-" + (date.get(Calendar.MONTH)+1) + "-" + date.get(Calendar.DAY_OF_MONTH) + 
+              ", result timestamp=" + timestamp + 
+              ", start calendar=" + start.get(Calendar.YEAR) + "-" + (start.get(Calendar.MONTH)+1) + "-" + start.get(Calendar.DAY_OF_MONTH) + " " + start.get(Calendar.HOUR_OF_DAY) + ":" + start.get(Calendar.MINUTE));
+        return timestamp;
     }
     
     private long getDayEndTime(Calendar date) {
@@ -371,7 +379,11 @@ public class TrackViewModel extends ViewModel {
         end.set(Calendar.MINUTE, 59);
         end.set(Calendar.SECOND, 59);
         end.set(Calendar.MILLISECOND, 999);
-        return end.getTimeInMillis();
+        long timestamp = end.getTimeInMillis();
+        Log.d(TAG, "[TIME_CALC] getDayEndTime: input date=" + date.get(Calendar.YEAR) + "-" + (date.get(Calendar.MONTH)+1) + "-" + date.get(Calendar.DAY_OF_MONTH) + 
+              ", result timestamp=" + timestamp + 
+              ", end calendar=" + end.get(Calendar.YEAR) + "-" + (end.get(Calendar.MONTH)+1) + "-" + end.get(Calendar.DAY_OF_MONTH) + " " + end.get(Calendar.HOUR_OF_DAY) + ":" + end.get(Calendar.MINUTE));
+        return timestamp;
     }
     
     private List<StayPoint> generateStayPoints(List<LocationRecord> records) {
@@ -402,6 +414,7 @@ public class TrackViewModel extends ViewModel {
         List<LocationData> filteredRecords = new ArrayList<>();
         LocationData basePoint = validRecords.get(0);
         filteredRecords.add(basePoint);
+        Log.d(TAG, "[ACCURACY_FILTER] Base point: lat=" + basePoint.getLatitude() + ", lng=" + basePoint.getLongitude());
         
         for (int i = 1; i < validRecords.size(); i++) {
             LocationData currentPoint = validRecords.get(i);
@@ -413,7 +426,7 @@ public class TrackViewModel extends ViewModel {
             if (distance >= accuracyThreshold) {
                 filteredRecords.add(currentPoint);
                 basePoint = currentPoint;
-                Log.d(TAG, "[ACCURACY_FILTER] Point " + i + " kept, distance=" + String.format("%.1f", distance) + "m >= " + accuracyThreshold + "m");
+                Log.d(TAG, "[ACCURACY_FILTER] Point " + i + " kept, distance=" + String.format("%.1f", distance) + "m >= " + accuracyThreshold + "m, new base: lat=" + basePoint.getLatitude() + ", lng=" + basePoint.getLongitude());
             } else {
                 Log.d(TAG, "[ACCURACY_FILTER] Point " + i + " skipped, distance=" + String.format("%.1f", distance) + "m < " + accuracyThreshold + "m");
             }

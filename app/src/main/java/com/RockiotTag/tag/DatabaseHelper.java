@@ -539,11 +539,15 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             " AND " + COLUMN_HISTORY_TIMESTAMP + "<=?" +
             " ORDER BY " + COLUMN_HISTORY_TIMESTAMP + " ASC";
 
+        Log.d("DatabaseHelper", "[DB_QUERY] Query: deviceId=" + deviceId + ", startTime=" + startTime + ", endTime=" + endTime);
+
         Cursor cursor = db.rawQuery(selectQuery, new String[]{
             deviceId,
             String.valueOf(startTime),
             String.valueOf(endTime)
         });
+
+        Log.d("DatabaseHelper", "[DB_QUERY] Cursor count: " + cursor.getCount());
 
         if (cursor.moveToFirst()) {
             do {
@@ -560,7 +564,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         }
 
         cursor.close();
-        // 注意：SQLiteOpenHelper 内部管理连接池，不应手动关闭
+        
+        Log.d("DatabaseHelper", "[DB_QUERY] Returned records: " + recordList.size());
+        if (!recordList.isEmpty()) {
+            Log.d("DatabaseHelper", "[DB_QUERY] First record: devId=" + recordList.get(0).getDeviceId() + ", ts=" + recordList.get(0).getTimestamp());
+            Log.d("DatabaseHelper", "[DB_QUERY] Last record: devId=" + recordList.get(recordList.size()-1).getDeviceId() + ", ts=" + recordList.get(recordList.size()-1).getTimestamp());
+        }
+        
         return recordList;
     }
 

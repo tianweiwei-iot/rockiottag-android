@@ -2499,39 +2499,16 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                                     Log.d(TAG, "addedCount=" + finalAddedCount + ", skippedCount=" + finalSkippedCount + ", invalidCount=" + finalInvalidCount);
                                     Log.d(TAG, "totalFromServer=" + totalFromServer);
                                     
-                                    if (finalSyncedCount > 0) {
-                                        Log.d(TAG, "Data validation check:");
-                                        for (int i = 0; i < Math.min(3, syncedLocationData.size()); i++) {
-                                            LocationData data = syncedLocationData.get(i);
-                                            Log.d(TAG, "  Data[" + i + "]: lat=" + data.getLatitude() + ", lng=" + data.getLongitude() + ", ts=" + data.getTimestamp());
-                                        }
+                                    if (finalAddedCount > 0 || finalSyncedCount > 0) {
+                                        Log.d(TAG, "Server sync successful, added " + finalAddedCount + " new records");
                                         
-                                        // 优化：同步成功后，直接渲染服务器返回的数据，避免数据库事务延迟
-                                        Log.d(TAG, "Server sync successful, rendering " + finalSyncedCount + " records directly");
-                                        
-                                        // 关键修复：先更新 Activity 的成员变量，确保渲染时使用正确的数据
-                                        allLocationRecords.clear();
-                                        allLocationRecords.addAll(syncedLocationData);
-                                        
-                                        stayPoints.clear();
-                                        stayPoints.addAll(generatedStayPoints);
-                                        
-                                        Log.d(TAG, "Updated allLocationRecords=" + allLocationRecords.size() + ", stayPoints=" + stayPoints.size());
-                                        
-                                        // 重置同步状态
                                         viewModel.setSyncingCompleted(true);
                                         
-                                        // 直接渲染数据，绕过数据库查询
-                                        Log.d(TAG, "Calling renderTrack with " + syncedLocationData.size() + " records");
-                                        renderTrack(syncedLocationData);
+                                        Log.d(TAG, "[RELOAD_FROM_DB] Reloading all data from database for accurate filtering");
+                                        viewModel.loadTrackData(finalDeviceNum, selectedDate);
                                     } else {
                                         Log.e(TAG, "NO DATA TO RENDER! finalSyncedCount=0");
-                                        Log.e(TAG, "This means either:");
-                                        Log.e(TAG, "1. Server returned empty array");
-                                        Log.e(TAG, "2. All data was filtered out (lat/lng=0 or timestamp=0)");
-                                        Log.e(TAG, "3. API request failed silently");
                                         
-                                        // 同步完成，无数据 - 隐藏加载对话框并释放锁
                                         viewModel.setSyncingCompleted(false);
                                         hideLoading();
                                         isLoadingTrackData = false;
@@ -2540,7 +2517,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                                     }
                                 } catch (Exception e) {
                                     Log.e(TAG, "Error in sync result processing: " + e.getMessage(), e);
-                                    // 确保在异常情况下也隐藏加载对话框并释放锁
                                     hideLoading();
                                     isLoadingTrackData = false;
                                 }
