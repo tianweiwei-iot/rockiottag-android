@@ -245,6 +245,13 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 }
             }
 
+            // 设置状态栏文本为深色（适配白色背景）
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                getWindow().getDecorView().setSystemUiVisibility(
+                    getWindow().getDecorView().getSystemUiVisibility() 
+                    | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
+
             // 隐藏系统 ActionBar（使用自定义标题栏）
             if (getSupportActionBar() != null) {
                 getSupportActionBar().hide();
@@ -272,6 +279,10 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             // 先初始化MapView和GoogleMapFragment（无论哪种模式都需要）
             mapView = findViewById(R.id.mapView);
             mapView.onCreate(savedInstanceState);
+            
+            // 设置地图内边距，让标尺、logo、缩放按钮上移20dp
+            int mapPaddingTop = dpToPx(20);
+            mapView.setPadding(0, mapPaddingTop, 0, 0);
             
             googleMapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.googleMapFragment);
             
@@ -676,6 +687,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         }
         
         // 初始化精度调节SeekBar
+        // 范围: 50m(高精度,左) ~ 230m(低精度,右), 默认140m
         if (accuracySeekBar != null) {
             accuracySeekBar.setMax(180);
             accuracySeekBar.setProgress(90);
@@ -685,8 +697,9 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 @Override
                 public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                     if (fromUser) {
-                        currentAccuracyThreshold = 230 - progress;
+                        currentAccuracyThreshold = 50 + progress;
                         Log.d(TAG, "=== ACCURACY SWITCH === 阈值: " + currentAccuracyThreshold + "m, progress=" + progress);
+                        updateAccuracyValueText();
                         if (!allLocationRecords.isEmpty()) {
                             reloadTrackWithNewAccuracy();
                         }
@@ -703,10 +716,28 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             });
             
             if (accuracyValueText != null) {
-                accuracyValueText.setVisibility(View.GONE);
+                accuracyValueText.setVisibility(View.VISIBLE);
+                updateAccuracyValueText();
             }
         } else {
             Log.e(TAG, "accuracySeekBar is null after findViewById!");
+        }
+    }
+    
+    /**
+     * 更新精度值文本显示（低/中/高）
+     */
+    private void updateAccuracyValueText() {
+        if (accuracyValueText != null) {
+            String level;
+            if (currentAccuracyThreshold <= 90) {
+                level = getString(R.string.accuracy_level_high);
+            } else if (currentAccuracyThreshold <= 170) {
+                level = getString(R.string.accuracy_level_medium);
+            } else {
+                level = getString(R.string.accuracy_level_low);
+            }
+            accuracyValueText.setText(getString(R.string.accuracy_current_level, level));
         }
     }
     
@@ -778,13 +809,9 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             Log.d(TAG, "[OBSERVER] stayPoints observer triggered, stays=" + (stays != null ? stays.size() : "null") + ", allLocationRecords=" + allLocationRecords.size());
             if (stays != null) {
                 List<StayPoint> finalStayPoints;
-                if (currentAccuracyThreshold != 140) {
-                    finalStayPoints = viewModel.generateStayPointsFromRecordsWithAccuracy(
-                        new ArrayList<>(allLocationRecords), currentAccuracyThreshold);
-                    Log.d(TAG, "[OBSERVER] Re-generated stay points with threshold " + currentAccuracyThreshold + "m, count=" + finalStayPoints.size());
-                } else {
-                    finalStayPoints = new ArrayList<>(stays);
-                }
+                finalStayPoints = viewModel.generateStayPointsFromRecordsWithAccuracy(
+                    new ArrayList<>(allLocationRecords), currentAccuracyThreshold);
+                Log.d(TAG, "[OBSERVER] Generated stay points with threshold " + currentAccuracyThreshold + "m, count=" + finalStayPoints.size());
                 
                 synchronized (stayPoints) {
                     stayPoints.clear();
@@ -1504,9 +1531,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             
             if (googleMap != null) {
                 googleMap.getUiSettings().setMyLocationButtonEnabled(false);
-                googleMap.getUiSettings().setCompassEnabled(true); // 启用指南针
-                googleMap.getUiSettings().setRotateGesturesEnabled(true); // 启用旋转手势
-                googleMap.getUiSettings().setTiltGesturesEnabled(true); // 启用倾斜手势
+                googleMap.getUiSettings().setCompassEnabled(true);
+                googleMap.getUiSettings().setRotateGesturesEnabled(true);
+                googleMap.getUiSettings().setTiltGesturesEnabled(true);
+                // 设置地图内边距，让标尺、logo、缩放按钮上移20dp
+                int mapPaddingTop = dpToPx(20);
+                googleMap.setPadding(0, mapPaddingTop, 0, 0);
                 // 完全禁用初始相机移动，让用户完全控制地图位置
                 Log.d(TAG, "Google Map - Initial camera move COMPLETELY DISABLED");
                 // googleMap.moveCamera(com.google.android.gms.maps.CameraUpdateFactory.zoomTo(17));
@@ -2086,7 +2116,8 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             Log.d(TAG, "[RENDER_DATA] Rendering " + locationRecords.size() + " records");
             clearTrackUI();
             
-            if (currentAccuracyThreshold != 140 && viewModel != null) {
+            // 始终使用精度阈值重新计算停留点
+            if (viewModel != null) {
                 Log.d(TAG, "[RENDER_ACCURACY] Applying accuracy threshold: " + currentAccuracyThreshold + "m");
                 List<StayPoint> recalculatedPoints = viewModel.generateStayPointsFromRecordsWithAccuracy(
                     new ArrayList<>(locationRecords), currentAccuracyThreshold);
@@ -2094,9 +2125,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     stayPoints.clear();
                     stayPoints.addAll(recalculatedPoints);
                 }
-                Log.d(TAG, "[RENDER_STAYPOINTS] Recalculated stay points: " + stayPoints.size());
-            } else {
-                Log.d(TAG, "[RENDER_ACCURACY] Using default accuracy, stay points: " + stayPoints.size());
+                Log.d(TAG, "[RENDER_STAYPOINTS] Calculated stay points: " + stayPoints.size());
             }
             
             Log.d(TAG, "[RENDER_MAP] Map mode: " + (isGoogleMapMode ? "Google" : "AMap"));
@@ -2138,7 +2167,8 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         showMarkers,
                         false,
                         positionMarkers,
-                        arrowMarkers
+                        arrowMarkers,
+                        currentAccuracyThreshold
                     );
                     
                     Log.d(TAG, "[RENDER_COMPLETE] Track rendered on AMap, polyline=" + (trackPolyline != null ? "success" : "null"));
@@ -2196,6 +2226,27 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
      */
     private double calculateTotalDistance() {
         return com.RockiotTag.tag.util.TrackCalculator.calculateTotalDistance(allLocationRecords);
+    }
+    
+    /**
+     * 根据精度阈值计算 Google Map 合适的缩放级别
+     * 确保地图视野能容纳精度半径范围
+     */
+    private float calculateGoogleMapZoomForAccuracy(int accuracyThreshold) {
+        if (accuracyThreshold <= 0) {
+            return 17.0f;
+        }
+        // 精度阈值对应的地表距离（直径 = 2 * accuracyThreshold）
+        double diameterMeters = accuracyThreshold * 2.0;
+        // Google Maps 缩放级别与可见距离的关系：
+        // zoom 17 ≈ 300m可见范围, zoom 16 ≈ 600m, zoom 15 ≈ 1200m
+        // 使用经验公式：visibleDistance ≈ 300 * 2^(17-zoom)
+        // 求解 zoom = 17 - log2(visibleDistance / 300)
+        double zoom = 17.0 - Math.log(diameterMeters / 300.0) / Math.log(2.0);
+        // 限制在合理范围内
+        zoom = Math.max(3.0f, Math.min(20.0f, zoom));
+        Log.d(TAG, "Calculated Google Map zoom for accuracy " + accuracyThreshold + "m: " + String.format("%.1f", zoom));
+        return (float) zoom;
     }
     
     /**
@@ -2317,16 +2368,19 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 }
             }
 
-            // 调整相机视角 - 首次加载时定位到设备位置
+            // 调整相机视角 - 首次加载时定位到设备位置，考虑精度阈值
             if (!googleLatLngList.isEmpty() && googleMap != null) {
+                // 根据精度阈值计算合适的缩放级别
+                float accuracyZoom = calculateGoogleMapZoomForAccuracy(currentAccuracyThreshold);
+                
                 // 检查是否是用户首次交互（通过 googleMapUserInteracted 标志）
                 if (!googleMapUserInteracted) {
                     // 首次加载，自动定位到轨迹的第一个点
                     com.google.android.gms.maps.model.LatLng firstPoint = googleLatLngList.get(0);
                     try {
                         googleMap.animateCamera(
-                            com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(firstPoint, 17));
-                        Log.d(TAG, "Google Map - Auto-located to first track point: " + firstPoint.latitude + ", " + firstPoint.longitude);
+                            com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(firstPoint, accuracyZoom));
+                        Log.d(TAG, "Google Map - Auto-located to first track point with accuracy zoom: " + accuracyZoom);
                     } catch (Exception e) {
                         Log.e(TAG, "Error animating camera: " + e.getMessage(), e);
                     }
@@ -2334,7 +2388,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     // 用户已交互过，只移动中心点，保持当前缩放级别
                     com.google.android.gms.maps.model.LatLng firstPoint = googleLatLngList.get(0);
                     try {
-                        float zoomToUse = shouldPreserveZoom ? zoomToPreserve : 17.0f;
+                        float zoomToUse = shouldPreserveZoom ? zoomToPreserve : accuracyZoom;
                         googleMap.animateCamera(
                             com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(firstPoint, zoomToUse));
                         Log.d(TAG, "Google Map - User interacted, keeping zoom level: " + zoomToUse);
@@ -2903,9 +2957,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
      * 显示轨迹统计信息
      */
     private void showTrackStatistics() {
-        // 使用 Helper 显示统计信息
+        String deviceNum = selectedDevice != null ? 
+            (selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId()) : "";
+        long dateMillis = selectedDate != null ? selectedDate.getTimeInMillis() : System.currentTimeMillis();
+        
         com.RockiotTag.tag.helper.TrackStatisticsHelper.showStatisticsDialog(
-            this, stayPoints, totalDistanceText);
+            this, stayPoints, totalDistanceText, deviceNum, dateMillis, allLocationRecords);
     }
     
     private com.amap.api.maps.model.BitmapDescriptor createArrowMarker(double angle) {
@@ -3388,22 +3445,39 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             
             // 如果设备最新位置的时间戳晚于最后一个停留点
             if (latestLocation.getTimestamp() > lastStayPointTime) {
-                Log.d(TAG, "Device location is newer than last stay point, correcting endpoint");
-                Log.d(TAG, "Last stay point time: " + lastStayPointTime + ", Device location time: " + latestLocation.getTimestamp());
-                
-                // 创建新的终点停留点（使用4参数构造函数）
-                StayPoint newEndPoint = new StayPoint(
-                    latestLocation.getLatitude(),
-                    latestLocation.getLongitude(),
-                    latestLocation.getTimestamp(),
-                    latestLocation.getTimestamp()
+                // 关键修复：检查最新位置与最后一个停留点的距离是否超过精度阈值
+                double distanceToLastPoint = CoordinateUtils.calculateDistanceMeters(
+                    lastStayPoint.getLatitude(), lastStayPoint.getLongitude(),
+                    latestLocation.getLatitude(), latestLocation.getLongitude()
                 );
                 
-                // 添加到停留点列表
-                stayPoints.add(newEndPoint);
+                Log.d(TAG, "Device location is newer than last stay point, distance=" + 
+                    String.format("%.1f", distanceToLastPoint) + "m, accuracyThreshold=" + currentAccuracyThreshold + "m");
                 
-                // 添加到位置记录列表
-                allLocationRecords.add(latestLocation);
+                if (distanceToLastPoint >= currentAccuracyThreshold) {
+                    // 距离超过精度阈值，添加为新的终点
+                    Log.d(TAG, "Distance >= threshold, adding as new endpoint");
+                    
+                    StayPoint newEndPoint = new StayPoint(
+                        latestLocation.getLatitude(),
+                        latestLocation.getLongitude(),
+                        latestLocation.getTimestamp(),
+                        latestLocation.getTimestamp()
+                    );
+                    
+                    // 添加到停留点列表
+                    stayPoints.add(newEndPoint);
+                    
+                    // 添加到位置记录列表
+                    allLocationRecords.add(latestLocation);
+                } else {
+                    // 距离在精度阈值内，不添加新点，仅更新最后一个停留点的离开时间
+                    Log.d(TAG, "Distance < threshold, updating last stay point leave time instead of adding new point");
+                    lastStayPoint.setLeaveTime(latestLocation.getTimestamp());
+                    
+                    // 添加到位置记录列表（保留原始数据用于回放）
+                    allLocationRecords.add(latestLocation);
+                }
                 
                 // 重新渲染轨迹（增量更新）
                 runOnUiThread(() -> {
@@ -3433,7 +3507,8 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                                 showMarkers,
                                 false, // isSimpleMode已移除
                                 positionMarkers,
-                                arrowMarkers
+                                arrowMarkers,
+                                currentAccuracyThreshold
                             );
                             
                             updatePlaybackInfo(allLocationRecords.size());
@@ -3471,5 +3546,9 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             result = getResources().getDimensionPixelSize(resourceId);
         }
         return result;
+    }
+
+    private int dpToPx(int dp) {
+        return (int) (dp * getResources().getDisplayMetrics().density);
     }
 }

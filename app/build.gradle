@@ -6,12 +6,21 @@ android {
     namespace 'com.RockiotTag.tag'
     compileSdk 35
 
+    signingConfigs {
+        release {
+            storeFile file('../myapk/release-key.jks')
+            storePassword '123456'
+            keyAlias 'release'
+            keyPassword '123456'
+        }
+    }
+
     defaultConfig {
         applicationId "com.RockiotTag.tag"
         minSdk 21
         targetSdk 35
-        versionCode 7
-        versionName "1.1.4"
+        versionCode 9
+        versionName "1.1.6"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         
@@ -26,6 +35,7 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
     

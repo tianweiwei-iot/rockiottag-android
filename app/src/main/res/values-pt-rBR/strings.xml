@@ -338,4 +338,49 @@
     
     <!-- Auto refresh -->
     <string name="auto_refreshing">Atualizando automaticamente...</string>
+
+    <!-- Accuracy adjustment -->
+    <string name="accuracy_adjustment">Ajuste de Precisão</string>
+    <string name="high_accuracy">Alta</string>
+    <string name="low_accuracy">Baixa</string>
+    <string name="accuracy_level_high">Alta</string>
+    <string name="accuracy_level_medium">Média</string>
+    <string name="accuracy_level_low">Baixa</string>
+    <string name="accuracy_default_value">Precisão atual: Média</string>
+    <string name="accuracy_current_level">Precisão atual: %s</string>
+    <string name="accuracy_current_value">Precisão atual: %dm</string>
+
+    <!-- Missing translations -->
+    <string name="version_info">Informações da Versão</string>
+    <string name="version_format">Versão: %1$s (%2$d)</string>
+    <string name="please_login_first">Por favor, faça login primeiro</string>
+    <string name="error_unknown">Ocorreu um erro desconhecido, tente novamente mais tarde</string>
+    <string name="error_network_timeout">Tempo limite de conexão de rede, verifique suas configurações de rede e tente novamente</string>
+    <string name="error_network_unreachable">Não é possível conectar ao servidor, certifique-se de que a rede está funcionando</string>
+    <string name="error_auth_expired">Login expirado, faça login novamente</string>
+    <string name="error_permission_denied">Sem permissão para realizar esta operação</string>
+    <string name="error_resource_not_found">O recurso solicitado não existe</string>
+    <string name="error_server_internal">Erro interno do servidor, tente novamente mais tarde</string>
+    <string name="error_request_failed">Falha na solicitação, tente novamente mais tarde</string>
+    <string name="error_network_io">Erro de rede, verifique a conexão de rede</string>
+    <string name="error_no_network">Rede indisponível, verifique a conexão de rede</string>
+    <string name="device_location_updated">Dispositivo %s encontrado, localização atualizada</string>
+    <string name="track_endpoint_updated">Ponto final do rastro atualizado para a localização mais recente do dispositivo</string>
+    <string name="select_customer_hint">Selecionar Cliente%s</string>
+    <string name="detail">Detalhe</string>
+    <string name="detail_data">Dados Detalhados</string>
+    <string name="detail_data_title">Dispositivo: %1$s\nData: %2$s</string>
+    <string name="detail_data_summary">Total de %d registros de rastro</string>
+    <string name="detail_data_row_format">%d. %s | Lat: %s | Lng: %s</string>
+    <string name="export_txt">Exportar TXT</string>
+    <string name="export_txt_header">Dados de Rastro do Dispositivo\nDispositivo: %s\nData: %s\n</string>
+    <string name="export_txt_summary">Total de registros: %d\n</string>
+    <string name="export_txt_data_header">Nº | Hora | Latitude | Longitude\n</string>
+    <string name="export_txt_row_format">%d | %s | %s | %s\n</string>
+    <string name="export_txt_footer">Hora de exportação: %s\n</string>
+    <string name="export_txt_success">Exportação bem-sucedida! Arquivo salvo em: %s</string>
+    <string name="export_txt_failed">Falha na exportação: %s</string>
+    <string name="export">Exportar</string>
+    <string name="export_success">Exportação bem-sucedida, salva no álbum</string>
+    <string name="export_failed">Falha na exportação: %s</string>
 </resources>

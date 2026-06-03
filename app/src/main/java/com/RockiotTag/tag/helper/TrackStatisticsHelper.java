@@ -12,6 +12,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.RockiotTag.tag.R;
+import com.RockiotTag.tag.model.LocationData;
 import com.RockiotTag.tag.StayPoint;
 import com.RockiotTag.tag.util.TimeFormatter;
 import com.RockiotTag.tag.util.TrackCalculator;
@@ -35,7 +36,10 @@ public class TrackStatisticsHelper {
     public static void showStatisticsDialog(
         Context context,
         List<StayPoint> stayPoints,
-        TextView totalDistanceText) {
+        TextView totalDistanceText,
+        String deviceNum,
+        long selectedDateMillis,
+        List<LocationData> allLocationRecords) {
             
         if (stayPoints == null || stayPoints.isEmpty()) {
             return;
@@ -118,12 +122,13 @@ public class TrackStatisticsHelper {
             android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(context, 16)));
         layout.addView(bottomSpace);
             
-        // 显示对话框，添加导出按钮
+        // 显示对话框，添加导出按钮和详细按钮
         androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(context)
             .setTitle(R.string.track_statistics_title_short)
             .setView(layout)
             .setPositiveButton(R.string.confirm, null)
             .setNeutralButton(R.string.export, null)
+            .setNegativeButton(R.string.detail, null)
             .show();
             
         // 设置导出按钮点击事件
@@ -131,6 +136,156 @@ public class TrackStatisticsHelper {
             exportStatisticsAsImage(context, layout, startTime);
             dialog.dismiss();
         });
+        
+        // 设置详细按钮点击事件
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE).setOnClickListener(v -> {
+            showDetailDataDialog(context, allLocationRecords, deviceNum, selectedDateMillis);
+            dialog.dismiss();
+        });
+    }
+    
+    /**
+     * 显示详细数据对话框（使用原始未优化的数据）
+     */
+    private static void showDetailDataDialog(Context context, List<LocationData> allLocationRecords, 
+                                              String deviceNum, long selectedDateMillis) {
+        // 创建详细数据布局
+        android.widget.LinearLayout layout = new android.widget.LinearLayout(context);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.setPadding(dpToPx(context, 16), dpToPx(context, 16), dpToPx(context, 16), dpToPx(context, 16));
+        
+        // 添加标题
+        TextView titleView = new TextView(context);
+        String dateStr = TimeFormatter.formatDate(selectedDateMillis);
+        titleView.setText(context.getString(R.string.detail_data_title, deviceNum, dateStr));
+        titleView.setTextSize(16);
+        titleView.setTypeface(titleView.getTypeface(), android.graphics.Typeface.BOLD);
+        titleView.setTextColor(Color.parseColor("#333333"));
+        titleView.setPadding(0, 0, 0, dpToPx(context, 12));
+        layout.addView(titleView);
+        
+        // 添加数据统计
+        TextView summaryView = new TextView(context);
+        summaryView.setText(context.getString(R.string.detail_data_summary, allLocationRecords.size()));
+        summaryView.setTextSize(14);
+        summaryView.setTextColor(Color.parseColor("#666666"));
+        summaryView.setPadding(0, 0, 0, dpToPx(context, 12));
+        layout.addView(summaryView);
+        
+        // 创建滚动视图
+        android.widget.ScrollView scrollView = new android.widget.ScrollView(context);
+        scrollView.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            dpToPx(context, 300)));
+        
+        // 创建数据内容布局
+        android.widget.LinearLayout dataLayout = new android.widget.LinearLayout(context);
+        dataLayout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        dataLayout.setPadding(dpToPx(context, 8), dpToPx(context, 8), dpToPx(context, 8), dpToPx(context, 8));
+        
+        // 添加每条原始数据记录
+        for (int i = 0; i < allLocationRecords.size(); i++) {
+            LocationData point = allLocationRecords.get(i);
+            TextView dataRow = new TextView(context);
+            String timeStr = TimeFormatter.formatTimeHM(point.getTimestamp());
+            String latStr = String.format("%.6f", point.getLatitude());
+            String lngStr = String.format("%.6f", point.getLongitude());
+            
+            dataRow.setText(String.format(context.getString(R.string.detail_data_row_format), 
+                i + 1, timeStr, latStr, lngStr));
+            dataRow.setTextSize(12);
+            dataRow.setTextColor(Color.parseColor("#444444"));
+            dataRow.setPadding(0, dpToPx(context, 4), 0, dpToPx(context, 4));
+            dataLayout.addView(dataRow);
+        }
+        
+        scrollView.addView(dataLayout);
+        layout.addView(scrollView);
+        
+        // 显示对话框
+        androidx.appcompat.app.AlertDialog detailDialog = new androidx.appcompat.app.AlertDialog.Builder(context)
+            .setTitle(R.string.detail_data)
+            .setView(layout)
+            .setPositiveButton(R.string.confirm, null)
+            .setNegativeButton(R.string.export_txt, null)
+            .show();
+        
+        // 设置导出txt按钮点击事件
+        detailDialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE).setOnClickListener(v -> {
+            exportDataAsTxt(context, allLocationRecords, deviceNum, selectedDateMillis);
+            detailDialog.dismiss();
+        });
+    }
+    
+    /**
+     * 导出数据为txt文件（使用原始未优化的数据）
+     */
+    private static void exportDataAsTxt(Context context, List<LocationData> allLocationRecords, 
+                                         String deviceNum, long selectedDateMillis) {
+        try {
+            // 格式化日期
+            String dateStr = new SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+                .format(new Date(selectedDateMillis));
+            String dateDisplayStr = TimeFormatter.formatDate(selectedDateMillis);
+            
+            // 创建文件名
+            String fileName = "track_data_" + deviceNum + "_" + dateStr + ".txt";
+            
+            // 创建保存目录
+            File documentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS);
+            File rockiotDir = new File(documentsDir, "RockiotTag");
+            if (!rockiotDir.exists()) {
+                rockiotDir.mkdirs();
+            }
+            
+            File txtFile = new File(rockiotDir, fileName);
+            
+            // 构建文件内容
+            StringBuilder content = new StringBuilder();
+            content.append("========================================\n");
+            content.append(context.getString(R.string.export_txt_header, deviceNum, dateDisplayStr));
+            content.append("========================================\n\n");
+            content.append(context.getString(R.string.export_txt_summary, allLocationRecords.size()));
+            content.append("\n\n");
+            content.append("----------------------------------------\n");
+            content.append(context.getString(R.string.export_txt_data_header));
+            content.append("----------------------------------------\n");
+            
+            for (int i = 0; i < allLocationRecords.size(); i++) {
+                LocationData point = allLocationRecords.get(i);
+                String timeStr = TimeFormatter.formatTimeHM(point.getTimestamp());
+                String latStr = String.format("%.8f", point.getLatitude());
+                String lngStr = String.format("%.8f", point.getLongitude());
+                
+                content.append(String.format(context.getString(R.string.export_txt_row_format),
+                    i + 1, timeStr, latStr, lngStr));
+            }
+            
+            content.append("\n========================================\n");
+            String exportTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                .format(new Date(System.currentTimeMillis()));
+            content.append(String.format(context.getString(R.string.export_txt_footer), exportTime));
+            content.append("========================================\n");
+            
+            // 写入文件
+            java.io.FileWriter writer = new java.io.FileWriter(txtFile);
+            writer.write(content.toString());
+            writer.flush();
+            writer.close();
+            
+            // 通知媒体库扫描
+            Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+            mediaScanIntent.setData(Uri.fromFile(txtFile));
+            context.sendBroadcast(mediaScanIntent);
+            
+            Toast.makeText(context, 
+                context.getString(R.string.export_txt_success, txtFile.getAbsolutePath()), 
+                Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(context, 
+                context.getString(R.string.export_txt_failed, e.getMessage()), 
+                Toast.LENGTH_LONG).show();
+        }
     }
     
     /**

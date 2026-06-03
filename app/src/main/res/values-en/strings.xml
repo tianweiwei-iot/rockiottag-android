@@ -104,6 +104,19 @@
     <string name="export">Export</string>
     <string name="export_success">Exported successfully, saved to album</string>
     <string name="export_failed">Export failed: %s</string>
+    <string name="detail">Detail</string>
+    <string name="detail_data">Detail Data</string>
+    <string name="detail_data_title">Device: %1$s\nDate: %2$s</string>
+    <string name="detail_data_summary">Total %d track records</string>
+    <string name="detail_data_row_format">%d. %s | Lat: %s | Lng: %s</string>
+    <string name="export_txt">Export TXT</string>
+    <string name="export_txt_header">Device Track Data\nDevice: %s\nDate: %s\n</string>
+    <string name="export_txt_summary">Total records: %d\n</string>
+    <string name="export_txt_data_header">No. | Time | Latitude | Longitude\n</string>
+    <string name="export_txt_row_format">%d | %s | %s | %s\n</string>
+    <string name="export_txt_footer">Export time: %s\n</string>
+    <string name="export_txt_success">Export successful! File saved to: %s</string>
+    <string name="export_txt_failed">Export failed: %s</string>
     <string name="only_last_month_track">Can only view tracks from the last month</string>
     <string name="cannot_view_future_track">Cannot view future tracks</string>
     <string name="please_select_device">Please select a device first</string>
@@ -350,4 +363,28 @@
     
     <!-- Track endpoint updated -->
     <string name="track_endpoint_updated">Track endpoint updated to latest device location</string>
+    
+    <!-- Accuracy adjustment -->
+    <string name="accuracy_adjustment">Accuracy Adjustment</string>
+    <string name="high_accuracy">High</string>
+    <string name="low_accuracy">Low</string>
+    <string name="accuracy_level_high">High</string>
+    <string name="accuracy_level_medium">Medium</string>
+    <string name="accuracy_level_low">Low</string>
+    <string name="accuracy_default_value">Current accuracy: Medium</string>
+    <string name="accuracy_current_level">Current accuracy: %s</string>
+    <string name="accuracy_current_value">Current accuracy: %dm</string>
+    
+    <!-- Missing translations -->
+    <string name="please_login_first">Please login first</string>
+    <string name="error_unknown">An unknown error occurred, please try again later</string>
+    <string name="error_network_timeout">Network connection timeout, please check your network settings and try again</string>
+    <string name="error_network_unreachable">Cannot connect to server, please ensure network is working</string>
+    <string name="error_auth_expired">Login expired, please login again</string>
+    <string name="error_permission_denied">No permission to perform this operation</string>
+    <string name="error_resource_not_found">Requested resource does not exist</string>
+    <string name="error_server_internal">Server internal error, please try again later</string>
+    <string name="error_request_failed">Request failed, please try again later</string>
+    <string name="error_network_io">Network error, please check network connection</string>
+    <string name="error_no_network">Network unavailable, please check network connection</string>
 </resources>

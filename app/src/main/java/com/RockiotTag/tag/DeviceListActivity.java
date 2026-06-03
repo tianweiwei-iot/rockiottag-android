@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -58,6 +59,14 @@ public class DeviceListActivity extends AppCompatActivity {
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         
         setContentView(R.layout.activity_device_list);
+
+        // 设置状态栏白色背景和深色图标
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            getWindow().setStatusBarColor(Color.parseColor("#FFFFFF"));
+            getWindow().getDecorView().setSystemUiVisibility(
+                getWindow().getDecorView().getSystemUiVisibility() 
+                | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        }
 
         LinearLayout titleBar = findViewById(R.id.title_bar);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -696,8 +705,6 @@ public class DeviceListActivity extends AppCompatActivity {
         
         prefs.edit().putString("selected_device_id", deviceId).apply();
         Log.d(TAG, "Saved selected_device_id: " + deviceId);
-        
-        Toast.makeText(this, getString(R.string.selected_device, device.getName()), Toast.LENGTH_SHORT).show();
         
         setResult(RESULT_OK);
         finish();

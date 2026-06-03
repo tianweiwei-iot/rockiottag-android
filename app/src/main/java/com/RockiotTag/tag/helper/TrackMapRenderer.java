@@ -41,6 +41,24 @@ public class TrackMapRenderer {
         boolean isSimpleMode,
         List<Marker> positionMarkers,
         List<Marker> arrowMarkers) {
+        return renderTrackOnAMap(aMap, stayPoints, allLocationRecords, showPolyline, showMarkers, isSimpleMode, positionMarkers, arrowMarkers, 0);
+    }
+    
+    /**
+     * 在高德地图上渲染完整轨迹（带精度阈值）
+     * @param accuracyThreshold 精度阈值（米），用于调整相机缩放
+     * @return 轨迹线对象
+     */
+    public static Polyline renderTrackOnAMap(
+        AMap aMap,
+        List<StayPoint> stayPoints,
+        List<LocationRecord> allLocationRecords,
+        boolean showPolyline,
+        boolean showMarkers,
+        boolean isSimpleMode,
+        List<Marker> positionMarkers,
+        List<Marker> arrowMarkers,
+        int accuracyThreshold) {
         
         Polyline trackPolyline = null;
         
@@ -85,8 +103,8 @@ public class TrackMapRenderer {
         // 添加标记点 - 使用合并后的stayPoints
         addMarkersOnAMap(aMap, stayPoints, isSimpleMode, positionMarkers);
         
-        // 调整相机视角（默认不保持缩放级别，由调用方决定）
-        adjustCameraOnAMap(aMap, latLngList, false, 17.0f);
+        // 调整相机视角（考虑精度阈值，确保精度范围内可见）
+        adjustCameraOnAMap(aMap, latLngList, false, 17.0f, accuracyThreshold);
         
         Log.d(TAG, "Track rendered on AMap with " + stayPoints.size() + " stay points");
         
@@ -227,9 +245,27 @@ public class TrackMapRenderer {
      * @param currentZoom 当前缩放级别（如果preserveZoom为true）
      */
     public static void adjustCameraOnAMap(AMap aMap, List<LatLng> latLngList, boolean preserveZoom, float currentZoom) {
+        adjustCameraOnAMap(aMap, latLngList, preserveZoom, currentZoom, 0);
+    }
+    
+    /**
+     * 调整相机视角（带精度阈值）
+     * @param aMap 高德地图实例
+     * @param latLngList 轨迹点列表
+     * @param preserveZoom 是否保持当前缩放级别
+     * @param currentZoom 当前缩放级别（如果preserveZoom为true）
+     * @param accuracyThreshold 精度阈值（米），0表示不使用精度调整
+     */
+    public static void adjustCameraOnAMap(AMap aMap, List<LatLng> latLngList, boolean preserveZoom, float currentZoom, int accuracyThreshold) {
         if (!latLngList.isEmpty()) {
             if (latLngList.size() == 1) {
-                float zoomToUse = preserveZoom ? currentZoom : 17.0f;
+                // 单个点：根据精度阈值计算合适的缩放级别
+                float zoomToUse;
+                if (accuracyThreshold > 0) {
+                    zoomToUse = calculateZoomForAccuracy(latLngList.get(0), accuracyThreshold);
+                } else {
+                    zoomToUse = preserveZoom ? currentZoom : 17.0f;
+                }
                 aMap.moveCamera(com.amap.api.maps.CameraUpdateFactory.newLatLngZoom(
                     latLngList.get(0), zoomToUse));
             } else {
@@ -258,10 +294,76 @@ public class TrackMapRenderer {
                     for (LatLng latLng : latLngList) {
                         builder.include(latLng);
                     }
+                    
+                    // 如果有精度阈值，扩展边界以包含精度范围
+                    if (accuracyThreshold > 0) {
+                        expandBoundsForAccuracy(builder, latLngList, accuracyThreshold);
+                    }
+                    
                     com.amap.api.maps.model.LatLngBounds bounds = builder.build();
                     aMap.moveCamera(com.amap.api.maps.CameraUpdateFactory.newLatLngBounds(bounds, 100));
                 }
             }
+        }
+    }
+    
+    /**
+     * 根据精度阈值计算合适的缩放级别
+     * 确保地图视野能容纳精度半径范围
+     */
+    private static float calculateZoomForAccuracy(LatLng center, int accuracyThreshold) {
+        // 精度阈值对应的地表距离（直径 = 2 * accuracyThreshold）
+        // 根据高德地图缩放级别与可见距离的关系计算
+        // zoom 17 ≈ 300m可见范围, zoom 16 ≈ 600m, zoom 15 ≈ 1200m
+        double diameterMeters = accuracyThreshold * 2.0;
+        // 使用经验公式：visibleDistance ≈ 300 * 2^(17-zoom)
+        // 求解 zoom = 17 - log2(visibleDistance / 300)
+        double zoom = 17.0 - Math.log(diameterMeters / 300.0) / Math.log(2.0);
+        // 限制在合理范围内
+        zoom = Math.max(3.0f, Math.min(20.0f, zoom));
+        Log.d(TAG, "Calculated zoom for accuracy " + accuracyThreshold + "m: " + String.format("%.1f", zoom));
+        return (float) zoom;
+    }
+    
+    /**
+     * 扩展边界以包含精度范围
+     * 确保即使轨迹点很近，地图也能显示精度上下文
+     */
+    private static void expandBoundsForAccuracy(com.amap.api.maps.model.LatLngBounds.Builder builder, 
+                                                 List<LatLng> latLngList, int accuracyThreshold) {
+        // 计算当前边界跨度
+        if (latLngList.size() < 2) return;
+        
+        com.amap.api.maps.model.LatLngBounds.Builder tempBuilder = 
+            new com.amap.api.maps.model.LatLngBounds.Builder();
+        for (LatLng latLng : latLngList) {
+            tempBuilder.include(latLng);
+        }
+        com.amap.api.maps.model.LatLngBounds currentBounds = tempBuilder.build();
+        
+        // 计算当前边界的对角线距离（米）
+        double diagonalDistance = CoordinateUtils.calculateDistanceMeters(
+            currentBounds.southwest.latitude, currentBounds.southwest.longitude,
+            currentBounds.northeast.latitude, currentBounds.northeast.longitude
+        );
+        
+        // 如果当前跨度小于精度阈值的2倍，扩展边界
+        double minSpanMeters = accuracyThreshold * 2.0;
+        if (diagonalDistance < minSpanMeters) {
+            // 计算中心点
+            double centerLat = (currentBounds.northeast.latitude + currentBounds.southwest.latitude) / 2;
+            double centerLng = (currentBounds.northeast.longitude + currentBounds.southwest.longitude) / 2;
+            
+            // 计算精度半径对应的经纬度偏移
+            double latOffset = accuracyThreshold / 111320.0; // 1度纬度 ≈ 111.32km
+            double lngOffset = accuracyThreshold / (111320.0 * Math.cos(Math.toRadians(centerLat)));
+            
+            // 添加扩展的边界点
+            builder.include(new LatLng(centerLat + latOffset, centerLng + lngOffset));
+            builder.include(new LatLng(centerLat - latOffset, centerLng - lngOffset));
+            
+            Log.d(TAG, "Expanded bounds for accuracy " + accuracyThreshold + "m, diagonal was " + 
+                String.format("%.1f", diagonalDistance) + "m");
         }
     }
     

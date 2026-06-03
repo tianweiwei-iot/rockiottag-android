@@ -370,6 +370,10 @@
     <string name="accuracy_adjustment">Hassasiyet Ayarı</string>
     <string name="high_accuracy">Yüksek</string>
     <string name="low_accuracy">Düşük</string>
-    <string name="accuracy_default_value">Mevcut hassasiyet: 150 metre</string>
+    <string name="accuracy_level_high">Yüksek</string>
+    <string name="accuracy_level_medium">Orta</string>
+    <string name="accuracy_level_low">Düşük</string>
+    <string name="accuracy_default_value">Mevcut hassasiyet: Orta</string>
+    <string name="accuracy_current_level">Mevcut hassasiyet: %s</string>
     <string name="accuracy_current_value">Mevcut hassasiyet: %d metre</string>
 </resources>

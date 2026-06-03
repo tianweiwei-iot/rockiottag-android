@@ -104,6 +104,19 @@
     <string name="export">导出</string>
     <string name="export_success">导出成功，已保存到相册</string>
     <string name="export_failed">导出失败: %s</string>
+    <string name="detail">详细</string>
+    <string name="detail_data">详细数据</string>
+    <string name="detail_data_title">设备: %1$s\n日期: %2$s</string>
+    <string name="detail_data_summary">共 %d 条轨迹记录</string>
+    <string name="detail_data_row_format">%d. %s | 纬度: %s | 经度: %s</string>
+    <string name="export_txt">导出TXT</string>
+    <string name="export_txt_header">设备轨迹数据\n设备号: %s\n日期: %s\n</string>
+    <string name="export_txt_summary">数据总数: %d 条\n</string>
+    <string name="export_txt_data_header">序号 | 时间 | 纬度 | 经度\n</string>
+    <string name="export_txt_row_format">%d | %s | %s | %s\n</string>
+    <string name="export_txt_footer">导出时间: %s\n</string>
+    <string name="export_txt_success">导出成功！文件已保存到: %s</string>
+    <string name="export_txt_failed">导出失败: %s</string>
     <string name="only_last_month_track">只能查看最近一个月的轨迹</string>
     <string name="cannot_view_future_track">不能查看未来的轨迹</string>
     <string name="please_select_device">请先选择设备</string>
@@ -368,6 +381,10 @@
     <string name="accuracy_adjustment">精度调节</string>
     <string name="high_accuracy">高</string>
     <string name="low_accuracy">低</string>
-    <string name="accuracy_default_value">当前精度: 150米</string>
+    <string name="accuracy_level_high">高</string>
+    <string name="accuracy_level_medium">中</string>
+    <string name="accuracy_level_low">低</string>
+    <string name="accuracy_default_value">当前精度: 中</string>
+    <string name="accuracy_current_level">当前精度: %s</string>
     <string name="accuracy_current_value">当前精度: %d米</string>
 </resources>

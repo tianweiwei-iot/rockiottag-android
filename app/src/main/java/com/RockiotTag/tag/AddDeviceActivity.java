@@ -156,6 +156,14 @@ public class AddDeviceActivity extends AppCompatActivity {
         
         setContentView(R.layout.activity_add_device);
 
+        // 设置状态栏白色背景和深色图标
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            getWindow().setStatusBarColor(Color.parseColor("#FFFFFF"));
+            getWindow().getDecorView().setSystemUiVisibility(
+                getWindow().getDecorView().getSystemUiVisibility() 
+                | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        }
+
         LinearLayout titleBar = findViewById(R.id.title_bar);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             titleBar.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {

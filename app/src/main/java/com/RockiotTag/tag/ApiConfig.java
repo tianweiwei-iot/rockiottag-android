@@ -16,6 +16,8 @@ public class ApiConfig {
     public static final String CUSTOMER_HSWL = "hswl";
     public static final String CUSTOMER_DR = "dr";
     public static final String CUSTOMER_DEMO = "hswl_demo";
+    public static final String CUSTOMER_HSWL_5GP02 = "hswl_5gp02";
+    public static final String CUSTOMER_MEXBT = "mexbt";
     
     private static final Map<String, CustomerConfig> CUSTOMER_CONFIGS = new HashMap<>();
     
@@ -34,6 +36,16 @@ public class ApiConfig {
             "DEMO_API",
             CUSTOMER_DEMO,
             "rtk_demo_2f28d39754ef11f1889100163e06688b"
+        ));
+        CUSTOMER_CONFIGS.put(CUSTOMER_HSWL_5GP02, new CustomerConfig(
+            "HSWL_5GP02_API",
+            CUSTOMER_HSWL_5GP02,
+            "rtk_hswl_5gp02_7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b"
+        ));
+        CUSTOMER_CONFIGS.put(CUSTOMER_MEXBT, new CustomerConfig(
+            "MEXBT_API",
+            CUSTOMER_MEXBT,
+            "rtk_mexbt_2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e"
         ));
     }
     

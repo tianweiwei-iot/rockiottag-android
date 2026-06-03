@@ -331,11 +331,12 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:background="#FFFFFF"
-        android:elevation="3dp"
+        android:elevation="0dp"
         android:paddingStart="4dp"
         android:paddingEnd="4dp"
         android:paddingTop="3dp"
         android:paddingBottom="4dp"
+        android:layout_marginBottom="20dp"
         app:layout_constraintBottom_toBottomOf="parent">
 
         <!-- 精度调节控件 -->

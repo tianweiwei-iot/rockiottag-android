@@ -79,6 +79,10 @@ public class GoogleMapManager implements OnMapReadyCallback {
         googleMap.getUiSettings().setRotateGesturesEnabled(true);
         googleMap.getUiSettings().setTiltGesturesEnabled(true);
         
+        // 设置地图内边距，让标尺、logo、缩放按钮上移22dp，指南针额外下移10dp
+        int mapPaddingTop = (int) (42 * context.getResources().getDisplayMetrics().density);
+        googleMap.setPadding(0, mapPaddingTop, 0, 0);
+        
         // 完全禁用初始相机移动，让用户完全控制地图位置
         Log.d(TAG, "Google Map - Initial camera move COMPLETELY DISABLED in GoogleMapManager");
         // LatLng defaultLocation = new LatLng(22.543611, 113.881944);

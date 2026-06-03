@@ -5,6 +5,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
@@ -187,11 +188,11 @@ public class MainActivity extends AppCompatActivity {
                         controller.setAppearanceLightStatusBars(false);
                         Log.d(TAG, "Night mode: black background with white icons");
                     } else {
-                        // 日间模式：紫色背景
-                        window.setStatusBarColor(getResources().getColor(R.color.purple_700));
-                        // 设置浅色图标（白色）
-                        controller.setAppearanceLightStatusBars(false);
-                        Log.d(TAG, "Day mode: purple background with white icons");
+                        // 日间模式：白色背景
+                        window.setStatusBarColor(Color.parseColor("#FFFFFF"));
+                        // 设置深色图标（黑色）
+                        controller.setAppearanceLightStatusBars(true);
+                        Log.d(TAG, "Day mode: white background with dark icons");
                     }
                 } else {
                     Log.w(TAG, "WindowInsetsControllerCompat is null, using fallback method");
@@ -199,7 +200,13 @@ public class MainActivity extends AppCompatActivity {
                     if (isDarkMode) {
                         window.setStatusBarColor(Color.parseColor("#000000"));
                     } else {
-                        window.setStatusBarColor(getResources().getColor(R.color.purple_700));
+                        window.setStatusBarColor(Color.parseColor("#FFFFFF"));
+                    }
+                    // Fallback: 使用 SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                    if (!isDarkMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        getWindow().getDecorView().setSystemUiVisibility(
+                            getWindow().getDecorView().getSystemUiVisibility() 
+                            | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
                     }
                 }
             }
@@ -284,6 +291,9 @@ public class MainActivity extends AppCompatActivity {
             }
             mapView = findViewById(R.id.mapView);
             mapView.onCreate(savedInstanceState);
+            // 设置地图内边距，让标尺、logo、缩放按钮上移22dp，指南针额外下移10dp
+            int mapPaddingTop = (int) (42 * getResources().getDisplayMetrics().density);
+            mapView.setPadding(0, mapPaddingTop, 0, 0);
             googleMapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.google_map_fragment);
 
             menuBtn = findViewById(R.id.menu_btn);
@@ -1353,8 +1363,6 @@ public class MainActivity extends AppCompatActivity {
             // 即使没有本地坐标，也要刷新地图显示（会显示"位置未上报"等状态）
             refreshMapWithCurrentDevice(false);
         }
-        
-        Toast.makeText(this, getString(R.string.selected_device_info, device.getName()), Toast.LENGTH_SHORT).show();
         
         android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
         android.content.SharedPreferences.Editor editor = prefs.edit();

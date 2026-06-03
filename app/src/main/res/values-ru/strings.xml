@@ -338,4 +338,49 @@
     
     <!-- Auto refresh -->
     <string name="auto_refreshing">Автоматическое обновление...</string>
+
+    <!-- Accuracy adjustment -->
+    <string name="accuracy_adjustment">Настройка точности</string>
+    <string name="high_accuracy">Высокая</string>
+    <string name="low_accuracy">Низкая</string>
+    <string name="accuracy_level_high">Высокая</string>
+    <string name="accuracy_level_medium">Средняя</string>
+    <string name="accuracy_level_low">Низкая</string>
+    <string name="accuracy_default_value">Текущая точность: Средняя</string>
+    <string name="accuracy_current_level">Текущая точность: %s</string>
+    <string name="accuracy_current_value">Текущая точность: %d м</string>
+
+    <!-- Missing translations -->
+    <string name="version_info">Информация о версии</string>
+    <string name="version_format">Версия: %1$s (%2$d)</string>
+    <string name="please_login_first">Пожалуйста, сначала войдите</string>
+    <string name="error_unknown">Произошла неизвестная ошибка, попробуйте позже</string>
+    <string name="error_network_timeout">Тайм-аут сетевого подключения, проверьте настройки сети и повторите</string>
+    <string name="error_network_unreachable">Не удаётся подключиться к серверу, убедитесь, что сеть работает</string>
+    <string name="error_auth_expired">Срок действия входа истёк, пожалуйста, войдите снова</string>
+    <string name="error_permission_denied">Нет разрешения на выполнение этой операции</string>
+    <string name="error_resource_not_found">Запрашиваемый ресурс не существует</string>
+    <string name="error_server_internal">Внутренняя ошибка сервера, попробуйте позже</string>
+    <string name="error_request_failed">Запрос не удался, попробуйте позже</string>
+    <string name="error_network_io">Сетевая ошибка, проверьте подключение к сети</string>
+    <string name="error_no_network">Сеть недоступна, проверьте подключение к сети</string>
+    <string name="device_location_updated">Устройство %s найдено, местоположение обновлено</string>
+    <string name="track_endpoint_updated">Конечная точка трека обновлена до последнего местоположения устройства</string>
+    <string name="select_customer_hint">Выберите клиента%s</string>
+    <string name="detail">Подробности</string>
+    <string name="detail_data">Подробные данные</string>
+    <string name="detail_data_title">Устройство: %1$s\nДата: %2$s</string>
+    <string name="detail_data_summary">Всего %d записей трека</string>
+    <string name="detail_data_row_format">%d. %s | Широта: %s | Долгота: %s</string>
+    <string name="export_txt">Экспорт TXT</string>
+    <string name="export_txt_header">Данные трека устройства\nУстройство: %s\nДата: %s\n</string>
+    <string name="export_txt_summary">Всего записей: %d\n</string>
+    <string name="export_txt_data_header">№ | Время | Широта | Долгота\n</string>
+    <string name="export_txt_row_format">%d | %s | %s | %s\n</string>
+    <string name="export_txt_footer">Время экспорта: %s\n</string>
+    <string name="export_txt_success">Экспорт успешен! Файл сохранён: %s</string>
+    <string name="export_txt_failed">Ошибка экспорта: %s</string>
+    <string name="export">Экспорт</string>
+    <string name="export_success">Экспорт успешен, сохранено в альбом</string>
+    <string name="export_failed">Ошибка экспорта: %s</string>
 </resources>
