@@ -20,7 +20,7 @@ android {
         minSdk 21
         targetSdk 35
         versionCode 9
-        versionName "1.1.6"
+        versionName "1.2.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         
@@ -45,10 +45,12 @@ android {
     }
     
     // 支持16KB内存页大小（Google Play Android 15要求）
-    // 确保 Native 库正确对齐以支持 16KB 页面
+    // 临时方案：使用 legacy packaging 压缩 .so 文件
+    // 高德地图 SDK V11.1.260 的 .so 文件未对齐到 16KB 边界
+    // 更新到 V11.2.000+ 后可改回 useLegacyPackaging = false
     packagingOptions {
         jniLibs {
-            useLegacyPackaging = false
+            useLegacyPackaging = true
         }
     }
 }
