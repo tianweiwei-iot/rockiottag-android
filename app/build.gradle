@@ -45,9 +45,8 @@ android {
     }
     
     // 支持16KB内存页大小（Google Play Android 15要求）
-    // 临时方案：使用 legacy packaging 压缩 .so 文件
-    // 高德地图 SDK V11.1.260 的 .so 文件未对齐到 16KB 边界
-    // 更新到 V11.2.000+ 后可改回 useLegacyPackaging = false
+    // 高德地图 SDK V11.2.000 的 .so 文件已更新
+    // 使用 legacy packaging 确保 .so 文件正确打包
     packagingOptions {
         jniLibs {
             useLegacyPackaging = true
@@ -80,8 +79,8 @@ dependencies {
     testImplementation 'androidx.arch.core:core-testing:2.2.0'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
-    // 高德地图SDK (本地AAR文件)
-    implementation files('libs/amap_all_in_one.aar')
+    // 高德地图SDK V11.2.000 (本地JAR文件 + jniLibs)
+    implementation files('libs/AMap3DMap_11.2.000_AMapSearch_9.8.0_AMapLocation_11.2.000_20260529.jar')
     // 高德地图依赖的网络库
     implementation 'com.android.volley:volley:1.2.1'
     // 蓝牙低功耗
