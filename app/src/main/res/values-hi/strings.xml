@@ -383,4 +383,10 @@
     <string name="export">निर्यात</string>
     <string name="export_success">निर्यात सफल, एल्बम में सहेजा गया</string>
     <string name="export_failed">निर्यात विफल: %s</string>
+
+    <!-- ब्लूटूथ एन्हांसमेंट -->
+    <string name="bluetooth_enhance">ब्लूटूथ एन्हांसमेंट</string>
+    <string name="scan_intensity_off">बंद</string>
+    <string name="scan_intensity_low">निम्न (एकल स्कैन)</string>
+    <string name="scan_intensity_high">उच्च (संतत चक्र)</string>
 </resources>

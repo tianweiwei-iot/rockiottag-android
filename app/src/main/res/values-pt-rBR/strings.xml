@@ -383,4 +383,10 @@
     <string name="export">Exportar</string>
     <string name="export_success">Exportação bem-sucedida, salva no álbum</string>
     <string name="export_failed">Falha na exportação: %s</string>
+
+    <!-- Aprimoramento Bluetooth -->
+    <string name="bluetooth_enhance">Aprimoramento Bluetooth</string>
+    <string name="scan_intensity_off">Desativado</string>
+    <string name="scan_intensity_low">Baixo (Escaneamento único)</string>
+    <string name="scan_intensity_high">Alto (Ciclo contínuo)</string>
 </resources>

@@ -387,4 +387,10 @@
     <string name="error_request_failed">Request failed, please try again later</string>
     <string name="error_network_io">Network error, please check network connection</string>
     <string name="error_no_network">Network unavailable, please check network connection</string>
+
+    <!-- Bluetooth Enhancement -->
+    <string name="bluetooth_enhance">Bluetooth Enhancement</string>
+    <string name="scan_intensity_off">Off</string>
+    <string name="scan_intensity_low">Low (Single scan)</string>
+    <string name="scan_intensity_high">High (Continuous cycle)</string>
 </resources>

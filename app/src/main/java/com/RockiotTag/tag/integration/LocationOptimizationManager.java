@@ -468,6 +468,87 @@ public class LocationOptimizationManager {
             Log.d(TAG, "Bluetooth scanning stopped");
         }
     }
+
+    /**
+     * 启动单次蓝牙扫描（低强度）
+     * 扫描10秒后自动停止，不循环。扫描到设备后更新UI。
+     */
+    public void startSingleBluetoothScan() {
+        Log.d(TAG, "=== startSingleBluetoothScan called ===");
+
+        if (!optimizationEnabled) {
+            Log.w(TAG, "Optimization disabled");
+            runToast("❌ 优化器已禁用");
+            return;
+        }
+
+        if (bluetoothScanner == null) {
+            Log.w(TAG, "Bluetooth scanner not initialized");
+            runToast("❌ 扫描器未初始化");
+            return;
+        }
+
+        boolean hasPermission = checkBluetoothPermissions();
+        if (!hasPermission) {
+            Log.e(TAG, "Missing Bluetooth permissions");
+            runToast("❌ 缺少蓝牙权限");
+            return;
+        }
+
+        boolean isBluetoothOn = isBluetoothEnabled();
+        if (!isBluetoothOn) {
+            Log.e(TAG, "Bluetooth is OFF");
+            runToast("❌ 蓝牙未开启");
+            return;
+        }
+
+        if (boundDeviceIds.isEmpty() && boundDeviceNames.isEmpty()) {
+            Log.w(TAG, "No bound devices");
+            runToast("⚠️ 无绑定设备");
+            return;
+        }
+
+        Log.d(TAG, "Starting single BLE scan (will stop after one cycle)...");
+
+        bluetoothScanner.startSingleScanWithState(new OptimizedBLEScanner.ScanStateCallback() {
+            @Override
+            public void onScanStarted() {
+                Log.d(TAG, "📡 Single scan started");
+                if (scanStateCallback != null) {
+                    scanStateCallback.onScanStarted();
+                }
+            }
+
+            @Override
+            public void onScanStopped() {
+                Log.d(TAG, "⏹️ Single scan stopped (completed)");
+                if (scanStateCallback != null) {
+                    scanStateCallback.onScanStopped();
+                }
+            }
+
+            @Override
+            public void onDeviceFound(com.RockiotTag.tag.Device device) {
+                Log.d(TAG, "📡 Single scan found device: " + device.getName() + " (MAC: " + device.getDeviceId() + ")");
+
+                updateDeviceTimestampImmediately(device.getDeviceId(), device.getName());
+
+                String deviceNum = getDeviceNumById(device.getDeviceId());
+                if (deviceNum == null || deviceNum.isEmpty()) {
+                    Log.e(TAG, "Cannot find deviceNum for MAC: " + device.getDeviceId());
+                    return;
+                }
+
+                updateDeviceWithPhoneLocation(device.getDeviceId(), deviceNum);
+
+                if (scanStateCallback != null) {
+                    scanStateCallback.onScanSuccess();
+                }
+            }
+        });
+
+        Log.d(TAG, "Single Bluetooth scan started");
+    }
     
     /**
      * 检查蓝牙扫描是否正在运行（内部状态）

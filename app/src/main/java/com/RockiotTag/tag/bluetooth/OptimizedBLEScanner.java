@@ -112,13 +112,29 @@ public class OptimizedBLEScanner {
     public void startContinuousScanningWithState(ScanStateCallback callback) {
         this.scanStateCallback = callback;
         this.isContinuousScanning = true;
-        
+
         if (!isBluetoothAvailable()) {
             Log.e(TAG, "Bluetooth not available");
             return;
         }
-        
+
         Log.d(TAG, "Starting continuous BLE scanning with state callback...");
+        performScan();
+    }
+
+    /**
+     * 开始单次扫描（低强度）：扫描10秒后自动停止，不循环
+     */
+    public void startSingleScanWithState(ScanStateCallback callback) {
+        this.scanStateCallback = callback;
+        this.isContinuousScanning = false; // 不循环
+
+        if (!isBluetoothAvailable()) {
+            Log.e(TAG, "Bluetooth not available");
+            return;
+        }
+
+        Log.d(TAG, "Starting single BLE scan (will stop after one cycle)...");
         performScan();
     }
     

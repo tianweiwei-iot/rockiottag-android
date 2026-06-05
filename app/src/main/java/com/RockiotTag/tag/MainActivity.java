@@ -96,6 +96,9 @@ public class MainActivity extends AppCompatActivity {
     private View bottomInfo;
     private boolean isSatelliteMap = false;
 
+    // 蓝牙增强扫描强度：0=关闭，1=低（单次），2=高（持续循环）
+    private int scanIntensityLevel = 0;
+
     private double currentLatitude = 22.543611;
     private double currentLongitude = 113.881944;
     private String currentDeviceName = "tag";
@@ -315,7 +318,7 @@ public class MainActivity extends AppCompatActivity {
             refreshBtn = findViewById(R.id.refresh_btn);
             trackBtn = findViewById(R.id.track_btn);
             trackBtnContainer = findViewById(R.id.track_btn_container);
-            
+
             bottomInfo.setVisibility(View.GONE);
 
             initDatabase();  // 先初始化数据库，以便在地图初始化时能够读取设备信息
@@ -498,7 +501,7 @@ public class MainActivity extends AppCompatActivity {
             if (locationOptimizationManager != null && locationOptimizationManager.isOptimizationEnabled()) {
                 Log.d(TAG, "=== Starting Location Optimization ===");
                 
-                // 【关键优化】先自动选择第一个设备，再启动蓝牙扫描
+                // 【关键优化】先自动选择第一个设备
                 locationOptimizationManager.autoSelectFirstDevice();
                 
                 // 如果有自动选中的设备，立即更新UI
@@ -514,9 +517,8 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(this, "⚠️ 未选中设备", Toast.LENGTH_SHORT).show();
                 }
                 
-                // 启动蓝牙扫描
-                Log.d(TAG, "Starting Bluetooth scanning...");
-                locationOptimizationManager.startBluetoothScanning();
+                // 不自动启动蓝牙扫描，由扫描开关按钮控制
+                Log.d(TAG, "Bluetooth scanning is OFF by default, use scan toggle button to start");
             } else {
                 Log.e(TAG, "Location optimization manager is NULL or disabled!");
                 Toast.makeText(this, "❌ 蓝牙扫描未启动", Toast.LENGTH_LONG).show();
@@ -534,7 +536,6 @@ public class MainActivity extends AppCompatActivity {
 
 
             checkPermissions();
-
 
             menuBtn.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -1202,6 +1203,7 @@ public class MainActivity extends AppCompatActivity {
         final List<String> menuItems = new ArrayList<>();
         menuItems.add(getString(R.string.device_list));
         menuItems.add(getString(R.string.geofence_settings));
+        menuItems.add(getString(R.string.bluetooth_enhance));
         menuItems.add(getString(R.string.switch_map));
         menuItems.add(getString(R.string.change_language));
         menuItems.add(getString(R.string.version_info));
@@ -1219,12 +1221,15 @@ public class MainActivity extends AppCompatActivity {
                                 openGeofenceSettings();
                                 break;
                             case 2:
-                                showMapSwitchOptions();
+                                showBluetoothEnhanceOptions();
                                 break;
                             case 3:
-                                showLanguageOptions();
+                                showMapSwitchOptions();
                                 break;
                             case 4:
+                                showLanguageOptions();
+                                break;
+                            case 5:
                                 showVersionInfo();
                                 break;
                         }
@@ -1351,7 +1356,15 @@ public class MainActivity extends AppCompatActivity {
         updateDeviceNameWithTag(device.getName(), device.getTag());
         deviceNameText.setVisibility(View.VISIBLE);
         bottomInfo.setVisibility(View.VISIBLE);
-        
+
+        // 【关键修复】切换设备时，如果新设备没有有效经纬度，立即将电量、地址、时间显示为 "--"
+        if (device.getLatitude() == 0 || device.getLongitude() == 0) {
+            Log.d(TAG, "Device has no valid coordinates, clearing battery/address/time UI");
+            batteryLevelText.setText(getString(R.string.battery_level_empty));
+            deviceAddressText.setText(getString(R.string.position_empty));
+            updateTimeText.setText(getString(R.string.last_update_empty));
+        }
+
         // 选择设备时，立即更新地图标记并移动到设备位置（如果本地有坐标）
         if (device.getLatitude() != 0 && device.getLongitude() != 0) {
             Log.d(TAG, "Device has local location: lat=" + device.getLatitude() + ", lng=" + device.getLongitude());
@@ -1699,7 +1712,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void showLanguageOptions() {
         final List<LanguageItem> languages = new ArrayList<>();
-        languages.add(new LanguageItem("\uD83C\uDDE8\uD83C\uDDF3", getString(R.string.chinese), "zh"));
+        languages.add(new LanguageItem("\uD83C\uDDE8\uD83C\uDDF3", "中文", "zh"));
         languages.add(new LanguageItem("\uD83C\uDDEC\uD83C\uDDE7", "English", "en"));
         languages.add(new LanguageItem("\uD83C\uDDE7\uD83C\uDDF7", "Português", "pt-rBR"));
         languages.add(new LanguageItem("\uD83C\uDDF7\uD83C\uDDFA", "Русский", "ru"));
@@ -1942,6 +1955,110 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
+    /**
+     * 显示蓝牙增强扫描强度选择对话框
+     */
+    private void showBluetoothEnhanceOptions() {
+        String[] options = {
+            getString(R.string.scan_intensity_off),
+            getString(R.string.scan_intensity_low),
+            getString(R.string.scan_intensity_high)
+        };
+
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.bluetooth_enhance)
+                .setSingleChoiceItems(options, scanIntensityLevel, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        int oldLevel = scanIntensityLevel;
+                        scanIntensityLevel = which;
+                        Log.d(TAG, "Scan intensity changed: " + oldLevel + " -> " + which);
+
+                        // 先停止当前扫描
+                        if (locationOptimizationManager != null) {
+                            locationOptimizationManager.stopBluetoothScanning();
+                        }
+                        if (scanningIndicator != null) {
+                            scanningIndicator.setVisibility(View.GONE);
+                        }
+
+                        // 根据新强度启动扫描
+                        switch (which) {
+                            case 0: // 关闭
+                                Log.d(TAG, "Scan intensity: OFF");
+                                break;
+                            case 1: // 低 - 单次扫描
+                                Log.d(TAG, "Scan intensity: LOW (single scan)");
+                                startSingleScanWithCheck();
+                                break;
+                            case 2: // 高 - 持续循环扫描
+                                Log.d(TAG, "Scan intensity: HIGH (continuous)");
+                                startContinuousScanWithCheck();
+                                break;
+                        }
+
+                        dialog.dismiss();
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    /**
+     * 启动单次扫描（低强度）：扫描成功更新UI后自动停止
+     */
+    private void startSingleScanWithCheck() {
+        if (locationOptimizationManager == null || !locationOptimizationManager.isOptimizationEnabled()) {
+            Log.w(TAG, "Cannot start scanning: LocationOptimizationManager not available");
+            scanIntensityLevel = 0;
+            Toast.makeText(this, "蓝牙扫描不可用", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        locationOptimizationManager.autoSelectFirstDevice();
+        locationOptimizationManager.startSingleBluetoothScan();
+        Log.d(TAG, "Single scan started (low intensity)");
+    }
+
+    /**
+     * 启动持续循环扫描（高强度）：扫描10秒，停止10秒，循环
+     */
+    private void startContinuousScanWithCheck() {
+        if (locationOptimizationManager == null || !locationOptimizationManager.isOptimizationEnabled()) {
+            Log.w(TAG, "Cannot start scanning: LocationOptimizationManager not available");
+            scanIntensityLevel = 0;
+            Toast.makeText(this, "蓝牙扫描不可用", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        locationOptimizationManager.autoSelectFirstDevice();
+        locationOptimizationManager.startBluetoothScanning();
+        Log.d(TAG, "Continuous scan started (high intensity)");
+    }
+
+    /**
+     * 根据当前扫描强度级别应用扫描行为
+     */
+    private void applyScanIntensity() {
+        // 先停止当前扫描
+        if (locationOptimizationManager != null) {
+            locationOptimizationManager.stopBluetoothScanning();
+        }
+        if (scanningIndicator != null) {
+            scanningIndicator.setVisibility(View.GONE);
+        }
+
+        switch (scanIntensityLevel) {
+            case 0: // 关闭
+                Log.d(TAG, "Scan intensity: OFF");
+                break;
+            case 1: // 低
+                startSingleScanWithCheck();
+                break;
+            case 2: // 高
+                startContinuousScanWithCheck();
+                break;
+        }
+    }
+
     private void startBLEScanning() {
         if (bleManager.isBluetoothEnabled()) {
             bleManager.startScanning(new BLEManager.DeviceScanCallback() {
@@ -2129,18 +2246,13 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "Reset MapManager user interaction state on resume");
         }
         
-        // 【关键修复】在 onResume 中重新启动蓝牙扫描
-        if (locationOptimizationManager != null && locationOptimizationManager.isOptimizationEnabled()) {
-            Log.d(TAG, "Restarting Bluetooth scanning in onResume...");
-            // 先停止之前的扫描（如果有的话）
-            locationOptimizationManager.stopBluetoothScanning();
-            // 确保有选中的设备
-            locationOptimizationManager.autoSelectFirstDevice();
-            // 重新启动蓝牙扫描
-            locationOptimizationManager.startBluetoothScanning();
+        // 【关键修复】在 onResume 中根据扫描强度级别决定是否重新启动蓝牙扫描
+        if (scanIntensityLevel > 0 && locationOptimizationManager != null && locationOptimizationManager.isOptimizationEnabled()) {
+            Log.d(TAG, "Restarting Bluetooth scanning in onResume (intensity=" + scanIntensityLevel + ")...");
+            applyScanIntensity();
             Log.d(TAG, "✓ Bluetooth scanning restarted in onResume");
         } else {
-            Log.w(TAG, "⚠️ Location optimization not enabled or manager is null, skipping Bluetooth scan restart");
+            Log.d(TAG, "Scan intensity is OFF or manager unavailable, skipping Bluetooth scan restart in onResume");
         }
         
         // 从数据库重新加载设备信息，确保立即显示最新的本地数据
@@ -2209,7 +2321,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onStop() {
         super.onStop();
         
-        // 【新增】在后台或退出时停止蓝牙扫描
+        // 【新增】在后台或退出时停止蓝牙扫描（onResume会根据开关状态决定是否恢复）
         if (locationOptimizationManager != null) {
             locationOptimizationManager.stopBluetoothScanning();
             Log.d(TAG, "Bluetooth scanning stopped in onStop (app going to background)");
@@ -2905,7 +3017,11 @@ public class MainActivity extends AppCompatActivity {
                         getAddressFromLocation(device.getLatitude(), device.getLongitude(), true);
                     }
                 } else {
-                    Log.d(TAG, "Device has no valid coordinates yet, waiting for server data");
+                    Log.d(TAG, "Device has no valid coordinates yet, clearing UI");
+                    // 设备没有有效坐标时，将电量、地址、时间显示为 "--"
+                    batteryLevelText.setText(getString(R.string.battery_level_empty));
+                    deviceAddressText.setText(getString(R.string.position_empty));
+                    updateTimeText.setText(getString(R.string.last_update_empty));
                 }
             }
         });

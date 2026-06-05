@@ -312,6 +312,13 @@
     <string name="error_no_network">网络不可用，请检查网络连接</string>
     
     <!-- 新增的字符串资源 -->
+    <string name="scan">扫描</string>
+    <string name="scan_on">扫描中</string>
+    <string name="bluetooth_enhance">蓝牙增强</string>
+    <string name="scan_intensity_off">关闭</string>
+    <string name="scan_intensity_low">低（单次扫描）</string>
+    <string name="scan_intensity_high">高（持续循环）</string>
+
     <string name="tag">标签</string>
     <string name="default_radius">100</string>
     <string name="time_separator">-</string>

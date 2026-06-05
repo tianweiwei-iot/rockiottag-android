@@ -376,4 +376,10 @@
     <string name="accuracy_default_value">Mevcut hassasiyet: Orta</string>
     <string name="accuracy_current_level">Mevcut hassasiyet: %s</string>
     <string name="accuracy_current_value">Mevcut hassasiyet: %d metre</string>
+
+    <!-- Bluetooth Geliştirme -->
+    <string name="bluetooth_enhance">Bluetooth Geliştirme</string>
+    <string name="scan_intensity_off">Kapalı</string>
+    <string name="scan_intensity_low">Düşük (Tek tarama)</string>
+    <string name="scan_intensity_high">Yüksek (Sürekli döngü)</string>
 </resources>

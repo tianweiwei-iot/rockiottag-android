@@ -383,4 +383,10 @@
     <string name="export">Экспорт</string>
     <string name="export_success">Экспорт успешен, сохранено в альбом</string>
     <string name="export_failed">Ошибка экспорта: %s</string>
+
+    <!-- Улучшение Bluetooth -->
+    <string name="bluetooth_enhance">Улучшение Bluetooth</string>
+    <string name="scan_intensity_off">Выключено</string>
+    <string name="scan_intensity_low">Низкий (Однократное сканирование)</string>
+    <string name="scan_intensity_high">Высокий (Непрерывный цикл)</string>
 </resources>
