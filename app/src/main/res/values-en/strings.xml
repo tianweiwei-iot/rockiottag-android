@@ -393,4 +393,28 @@
     <string name="scan_intensity_off">Off</string>
     <string name="scan_intensity_low">Low (Single scan)</string>
     <string name="scan_intensity_high">High (Continuous cycle)</string>
+
+    <!-- 导航 -->
+    <string name="navigation">Navigate</string>
+    <string name="navigation_title">Navigate to Device</string>
+    <string name="start_navigation">Start Navigation</string>
+    <string name="navi_drive">Drive</string>
+    <string name="navi_walk">Walk</string>
+    <string name="navi_ride">Ride</string>
+    <string name="navi_no_destination">Device location unknown, cannot navigate</string>
+    <string name="navi_init_failed">Navigation init failed</string>
+    <string name="navi_calculating_drive">Calculating drive route...</string>
+    <string name="navi_calculating_walk">Calculating walk route...</string>
+    <string name="navi_calculating_ride">Calculating ride route...</string>
+    <string name="navi_route_ready">Route ready</string>
+    <string name="navi_route_failed">Route planning failed</string>
+    <string name="navi_navigating">Navigating</string>
+    <string name="navi_reroute_yaw">Off route, recalculating</string>
+    <string name="navi_reroute_jam">Traffic ahead, recalculating</string>
+    <string name="navi_arrived">Arrived at destination</string>
+    <string name="navi_minutes">min</string>
+    <string name="navi_hour">hr</string>
+    <string name="navi_steps_count">%d navigation steps</string>
+    <string name="navi_next_step">Next Step</string>
+    <string name="navi_stop">Stop Navigation</string>
 </resources>

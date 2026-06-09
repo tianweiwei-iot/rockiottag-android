@@ -382,4 +382,28 @@
     <string name="scan_intensity_off">Kapalı</string>
     <string name="scan_intensity_low">Düşük (Tek tarama)</string>
     <string name="scan_intensity_high">Yüksek (Sürekli döngü)</string>
+
+    <!-- 导航 -->
+    <string name="navigation">Navigasyon</string>
+    <string name="navigation_title">Cihaza Navigasyon</string>
+    <string name="start_navigation">Navigasyonu Başlat</string>
+    <string name="navi_drive">Araba</string>
+    <string name="navi_walk">Yürü</string>
+    <string name="navi_ride">Bisiklet</string>
+    <string name="navi_no_destination">Cihaz konumu bilinmiyor, navigasyon yapılamaz</string>
+    <string name="navi_init_failed">Navigasyon başlatılamadı</string>
+    <string name="navi_calculating_drive">Araba rotası hesaplanıyor...</string>
+    <string name="navi_calculating_walk">Yürüme rotası hesaplanıyor...</string>
+    <string name="navi_calculating_ride">Bisiklet rotası hesaplanıyor...</string>
+    <string name="navi_route_ready">Rota hazır</string>
+    <string name="navi_route_failed">Rota hesaplanamadı</string>
+    <string name="navi_navigating">Navigasyon yapılıyor</string>
+    <string name="navi_reroute_yaw">Rotadan çıkıldı, yeniden hesaplanıyor</string>
+    <string name="navi_reroute_jam">İleride trafik, yeniden hesaplanıyor</string>
+    <string name="navi_arrived">Hedefe ulaşıldı</string>
+    <string name="navi_minutes">dk</string>
+    <string name="navi_hour">sa</string>
+    <string name="navi_steps_count">%d navigasyon adımı</string>
+    <string name="navi_next_step">Sonraki Adım</string>
+    <string name="navi_stop">Navigasyonu Durdur</string>
 </resources>

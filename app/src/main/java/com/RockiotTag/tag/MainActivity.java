@@ -84,6 +84,8 @@ public class MainActivity extends AppCompatActivity {
     private ImageButton refreshBtn;
     private ImageButton trackBtn;
     private LinearLayout trackBtnContainer;
+    private ImageButton naviBtn;
+    private LinearLayout naviBtnContainer;
     private TextView deviceNameText;
     private TextView noDeviceText;
     private LinearLayout deviceNameContainer;
@@ -318,6 +320,8 @@ public class MainActivity extends AppCompatActivity {
             refreshBtn = findViewById(R.id.refresh_btn);
             trackBtn = findViewById(R.id.track_btn);
             trackBtnContainer = findViewById(R.id.track_btn_container);
+            naviBtn = findViewById(R.id.navi_btn);
+            naviBtnContainer = findViewById(R.id.navi_btn_container);
 
             bottomInfo.setVisibility(View.GONE);
 
@@ -611,40 +615,76 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onClick(View v) {
                     Log.d(TAG, "========== REFRESH BUTTON CLICKED ==========");
-                    // 关键修复：优先从数据库获取最新数据，而不是立即从服务器获取
                     Device currentSelectedDevice = viewModel.getSelectedDevice().getValue();
-                    if (currentSelectedDevice != null) {
-                        Log.d(TAG, "Current selected device: " + currentSelectedDevice.getName());
-                        Log.d(TAG, "Current timestamp before refresh: " + currentSelectedDevice.getLastSeen() + " (" + 
-                            new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
-                                .format(new java.util.Date(currentSelectedDevice.getLastSeen())) + ")");
-                        
-                        startRefreshAnimation();
-                        
-                        // 先从数据库重新加载，获取最新的本地数据
-                        Device freshLocalDevice = databaseHelper.getDevice(currentSelectedDevice.getDeviceId());
-                        if (freshLocalDevice != null) {
-                            Log.d(TAG, "✓ Loaded fresh local data for device: " + freshLocalDevice.getName());
-                            Log.d(TAG, "  Fresh local timestamp: " + freshLocalDevice.getLastSeen() + " (" + 
-                                new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
-                                    .format(new java.util.Date(freshLocalDevice.getLastSeen())) + ")");
-                            
-                            // 更新UI显示本地最新数据
-                            selectDevice(freshLocalDevice);
-                            
-                            // 然后异步从服务器获取数据进行对比和同步
-                            String deviceNum = freshLocalDevice.getDeviceNum() != null ? freshLocalDevice.getDeviceNum() : freshLocalDevice.getDeviceId();
-                            Log.d(TAG, "Fetching server data for comparison... deviceNum=" + deviceNum);
-                            viewModel.fetchDeviceInfo(deviceNum);
-                        } else {
-                            // 如果数据库中没有，直接从服务器获取
-                            String deviceNum = currentSelectedDevice.getDeviceNum() != null ? currentSelectedDevice.getDeviceNum() : currentSelectedDevice.getDeviceId();
-                            Log.d(TAG, "No local data, fetching from server directly... deviceNum=" + deviceNum);
-                            viewModel.fetchDeviceInfo(deviceNum);
-                        }
-                    } else {
+                    if (currentSelectedDevice == null) {
                         Toast.makeText(MainActivity.this, R.string.please_select_device, Toast.LENGTH_SHORT).show();
+                        return;
                     }
+                    
+                    startRefreshAnimation();
+                    
+                    final String deviceNum = currentSelectedDevice.getDeviceNum() != null ? 
+                        currentSelectedDevice.getDeviceNum() : currentSelectedDevice.getDeviceId();
+                    final long currentTimestamp = currentSelectedDevice.getLastSeen();
+                    
+                    Log.d(TAG, "Refreshing device: " + deviceNum + ", current timestamp: " + currentTimestamp);
+                    
+                    // 异步调用API获取最新设备信息（使用mexbt API Key）
+                    new Thread(() -> {
+                        try {
+                            String apiUrl = ApiConfig.getMyServerUrl(deviceNum);
+                            NewApiService.setApiBaseUrl(apiUrl);
+                            NewApiService.DeviceInfo latestInfo = NewApiService.getInstance()
+                                .getDeviceLatest(deviceNum, ApiConfig.CUSTOMER_MEXBT);
+                            
+                            if (latestInfo == null) {
+                                Log.w(TAG, "API returned null for device: " + deviceNum);
+                                runOnUiThread(() -> {
+                                    stopRefreshAnimation();
+                                    Toast.makeText(MainActivity.this, R.string.refresh_failed, Toast.LENGTH_SHORT).show();
+                                });
+                                return;
+                            }
+                            
+                            long serverTimestamp = latestInfo.timestamp;
+                            Log.d(TAG, "Server timestamp: " + serverTimestamp + ", current timestamp: " + currentTimestamp);
+                            
+                            runOnUiThread(() -> {
+                                stopRefreshAnimation();
+                                
+                                if (serverTimestamp > currentTimestamp) {
+                                    // 服务器时间更新，更新UI
+                                    Log.d(TAG, "Server data is newer, updating UI");
+                                    updateDeviceUIWithoutCameraMove(latestInfo);
+                                    
+                                    // 更新本地设备数据
+                                    if (selectedDevice != null) {
+                                        selectedDevice.setLatitude(latestInfo.latitude);
+                                        selectedDevice.setLongitude(latestInfo.longitude);
+                                        selectedDevice.setLastSeen(serverTimestamp);
+                                        selectedDevice.setBattery(latestInfo.battery);
+                                        databaseHelper.addDevice(selectedDevice);
+                                    }
+                                    
+                                    // 更新ViewModel中的LiveData
+                                    viewModel.setSelectedDevice(selectedDevice);
+                                    if (latestInfo.battery > 0) {
+                                        viewModel.updateBatteryLevel(String.valueOf(latestInfo.battery));
+                                    }
+                                    viewModel.updateUpdateTime(String.valueOf(serverTimestamp));
+                                } else {
+                                    // 当前数据更新或相同，保持不变
+                                    Log.d(TAG, "Current data is newer or equal, keeping current display");
+                                }
+                            });
+                        } catch (Exception e) {
+                            Log.e(TAG, "Refresh API call failed: " + e.getMessage(), e);
+                            runOnUiThread(() -> {
+                                stopRefreshAnimation();
+                                Toast.makeText(MainActivity.this, R.string.refresh_failed, Toast.LENGTH_SHORT).show();
+                            });
+                        }
+                    }).start();
                 }
             });
 
@@ -663,6 +703,23 @@ public class MainActivity extends AppCompatActivity {
                     public void onClick(View v) {
                         Intent intent = new Intent(MainActivity.this, TrackActivity.class);
                         startActivity(intent);
+                    }
+                });
+            }
+
+            // 导航按钮点击事件
+            naviBtn.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    startNavigation();
+                }
+            });
+
+            if (naviBtnContainer != null) {
+                naviBtnContainer.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        startNavigation();
                     }
                 });
             }
@@ -694,6 +751,24 @@ public class MainActivity extends AppCompatActivity {
             throw e; // 重新抛出异常
         }
 
+    }
+
+    /**
+     * 启动导航到设备位置
+     */
+    private void startNavigation() {
+        if (selectedDevice == null) {
+            Toast.makeText(this, R.string.please_select_device, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (selectedDevice.getLatitude() == 0 || selectedDevice.getLongitude() == 0) {
+            Toast.makeText(this, R.string.navi_no_destination, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent intent = new Intent(MainActivity.this, NavigationActivity.class);
+        intent.putExtra("dest_latitude", selectedDevice.getLatitude());
+        intent.putExtra("dest_longitude", selectedDevice.getLongitude());
+        startActivity(intent);
     }
 
     private void startForegroundService() {

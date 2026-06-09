@@ -389,4 +389,28 @@
     <string name="scan_intensity_off">बंद</string>
     <string name="scan_intensity_low">निम्न (एकल स्कैन)</string>
     <string name="scan_intensity_high">उच्च (संतत चक्र)</string>
+
+    <!-- 导航 -->
+    <string name="navigation">नेविगेशन</string>
+    <string name="navigation_title">डिवाइस तक नेविगेट</string>
+    <string name="start_navigation">नेविगेशन शुरू करें</string>
+    <string name="navi_drive">गाड़ी</string>
+    <string name="navi_walk">पैदल</string>
+    <string name="navi_ride">साइकिल</string>
+    <string name="navi_no_destination">डिवाइस स्थान अज्ञात, नेविगेट नहीं कर सकते</string>
+    <string name="navi_init_failed">नेविगेशन आरंभ विफल</string>
+    <string name="navi_calculating_drive">गाड़ी मार्ग की गणना हो रही है...</string>
+    <string name="navi_calculating_walk">पैदल मार्ग की गणना हो रही है...</string>
+    <string name="navi_calculating_ride">साइकिल मार्ग की गणना हो रही है...</string>
+    <string name="navi_route_ready">मार्ग तैयार है</string>
+    <string name="navi_route_failed">मार्ग नियोजन विफल</string>
+    <string name="navi_navigating">नेविगेशन चल रहा है</string>
+    <string name="navi_reroute_yaw">मार्ग से विचलित, पुनर्गणना</string>
+    <string name="navi_reroute_jam">आगे यातायात, पुनर्गणना</string>
+    <string name="navi_arrived">गंतव्य पर पहुँच गए</string>
+    <string name="navi_minutes">मिनट</string>
+    <string name="navi_hour">घंटा</string>
+    <string name="navi_steps_count">%d नेविगेशन कदम</string>
+    <string name="navi_next_step">अगला कदम</string>
+    <string name="navi_stop">नेविगेशन बंद करें</string>
 </resources>

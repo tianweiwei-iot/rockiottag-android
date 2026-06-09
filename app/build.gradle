@@ -9,9 +9,9 @@ android {
     signingConfigs {
         release {
             storeFile file('../myapk/release-key.jks')
-            storePassword '123456'
-            keyAlias 'release'
-            keyPassword '123456'
+            storePassword 'QWERasdf1234'
+            keyAlias 'myapp_key'
+            keyPassword 'QWERasdf1234'
         }
     }
 
@@ -19,7 +19,7 @@ android {
         applicationId "com.RockiotTag.tag"
         minSdk 21
         targetSdk 35
-        versionCode 9
+        versionCode 10
         versionName "1.2.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

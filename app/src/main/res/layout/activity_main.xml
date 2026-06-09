@@ -220,7 +220,7 @@
             android:gravity="center"
             android:visibility="gone"
             app:layout_constraintStart_toEndOf="@id/menu_btn_container"
-            app:layout_constraintEnd_toStartOf="@id/track_btn_container"
+            app:layout_constraintEnd_toStartOf="@id/navi_btn_container"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent">
 
@@ -249,9 +249,39 @@
             android:textSize="16sp"
             android:textColor="@color/text_secondary"
             app:layout_constraintStart_toEndOf="@id/menu_btn_container"
-            app:layout_constraintEnd_toStartOf="@id/track_btn_container"
+            app:layout_constraintEnd_toStartOf="@id/navi_btn_container"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
+
+        <LinearLayout
+            android:id="@+id/navi_btn_container"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:minWidth="60dp"
+            app:layout_constraintEnd_toStartOf="@id/track_btn_container"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent">
+
+            <ImageButton
+                android:id="@+id/navi_btn"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_navigation"
+                android:background="@null"
+                android:scaleType="centerInside" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/navigation"
+                android:textSize="11sp"
+                android:textColor="#666666"
+                android:layout_marginTop="2dp" />
+
+        </LinearLayout>
 
         <LinearLayout
             android:id="@+id/track_btn_container"
