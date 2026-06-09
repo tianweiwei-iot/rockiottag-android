@@ -399,6 +399,7 @@ public class TrackViewModel extends ViewModel {
         
         Log.d(TAG, "[ACCURACY_FILTER] Input records: " + records.size() + ", threshold: " + accuracyThreshold + "m");
         
+        // 第1步：过滤无效坐标(0,0)
         List<LocationData> validRecords = new ArrayList<>();
         for (LocationData record : records) {
             if (record.getLatitude() != 0 && record.getLongitude() != 0 && record.getTimestamp() > 0) {
@@ -411,17 +412,30 @@ public class TrackViewModel extends ViewModel {
             return stayPoints;
         }
         
+        // 第2步：精度距离过滤 + 速度异常检测
         List<LocationData> filteredRecords = new ArrayList<>();
         LocationData basePoint = validRecords.get(0);
         filteredRecords.add(basePoint);
         Log.d(TAG, "[ACCURACY_FILTER] Base point: lat=" + basePoint.getLatitude() + ", lng=" + basePoint.getLongitude());
         
+        int anomalousCount = 0;
         for (int i = 1; i < validRecords.size(); i++) {
             LocationData currentPoint = validRecords.get(i);
             double distance = CoordinateUtils.calculateDistanceMeters(
                 basePoint.getLatitude(), basePoint.getLongitude(),
                 currentPoint.getLatitude(), currentPoint.getLongitude()
             );
+            long timeDiffMs = currentPoint.getTimestamp() - basePoint.getTimestamp();
+            
+            // 速度异常检测：过滤物理上不可能的跳变
+            if (BLETagFilter.isAnomalous(distance, timeDiffMs)) {
+                anomalousCount++;
+                double speedKmh = (timeDiffMs > 0) ? (distance / (timeDiffMs / 1000.0)) * 3.6 : 0;
+                Log.d(TAG, "[ACCURACY_FILTER] Point " + i + " ANOMALOUS skipped, distance=" + 
+                    String.format("%.1f", distance) + "m, time=" + (timeDiffMs/1000) + "s, speed=" + 
+                    String.format("%.1f", speedKmh) + "km/h");
+                continue;
+            }
             
             if (distance >= accuracyThreshold) {
                 filteredRecords.add(currentPoint);
@@ -432,7 +446,7 @@ public class TrackViewModel extends ViewModel {
             }
         }
         
-        Log.d(TAG, "[ACCURACY_FILTER] Filtered records: " + filteredRecords.size() + " (from " + validRecords.size() + ")");
+        Log.d(TAG, "[ACCURACY_FILTER] Filtered records: " + filteredRecords.size() + " (from " + validRecords.size() + ", anomalous: " + anomalousCount + ")");
         
         for (int i = 0; i < filteredRecords.size(); i++) {
             LocationData record = filteredRecords.get(i);
