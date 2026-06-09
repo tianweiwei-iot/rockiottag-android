@@ -212,7 +212,9 @@
     <string name="data_sync_success">डेटा सिंक सफल</string>
     <string name="data_sync_success_no_info">डेटा सिंक सफल, लेकिन नवीनतम जानकारी प्राप्त नहीं हो सकी</string>
     <string name="sync_failed">सिंक विफल</string>
-    <string name="refresh_failed">रिफ्रेश विफल: %s</string>
+    <string name="refresh_failed">रिफ्रेश विफल</string>
+    <string name="refresh_success">रिफ्रेश सफल</string>
+    <string name="data_already_latest">डेटा पहले से अपडेट है</string>
     <string name="bluetooth_not_enabled">ब्लूटूथ सक्षम नहीं</string>
     <string name="no_bound_devices_found">कोई बाउंड डिवाइस नहीं मिली</string>
     <string name="synced_devices">%d डिवाइसेस सिंक की गईं</string>
@@ -254,7 +256,6 @@
     <string name="recognize_success">पहचान सफल: %s</string>
     <string name="cannot_recognize_qr">QR कोड पहचान नहीं हो सका, कृपया दूसरी छवि आज़माएं</string>
     <string name="recognize_failed">पहचान विफल: %s</string>
-    <string name="refresh_success">रिफ्रेश सफल</string>
     <string name="no_location_data">कोई स्थान डेटा नहीं</string>
     
     <!-- ट्रैक आंकड़े -->
@@ -413,4 +414,7 @@
     <string name="navi_steps_count">%d नेविगेशन कदम</string>
     <string name="navi_next_step">अगला कदम</string>
     <string name="navi_stop">नेविगेशन बंद करें</string>
+    <string name="navi_nearby_suggest_walk">केवल %s दूर, पैदे जाने की सलाह</string>
+    <string name="navi_already_nearby">डिवाइस के पास है, नेविगेशन की आवश्यकता नहीं</string>
+    <string name="navi_layer_toggle">परत टॉगल</string>
 </resources>

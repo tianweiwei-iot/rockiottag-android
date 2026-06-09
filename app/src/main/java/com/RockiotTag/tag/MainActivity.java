@@ -651,12 +651,12 @@ public class MainActivity extends AppCompatActivity {
                             
                             runOnUiThread(() -> {
                                 stopRefreshAnimation();
-                                
+
                                 if (serverTimestamp > currentTimestamp) {
                                     // 服务器时间更新，更新UI
                                     Log.d(TAG, "Server data is newer, updating UI");
                                     updateDeviceUIWithoutCameraMove(latestInfo);
-                                    
+
                                     // 更新本地设备数据
                                     if (selectedDevice != null) {
                                         selectedDevice.setLatitude(latestInfo.latitude);
@@ -665,16 +665,20 @@ public class MainActivity extends AppCompatActivity {
                                         selectedDevice.setBattery(latestInfo.battery);
                                         databaseHelper.addDevice(selectedDevice);
                                     }
-                                    
+
                                     // 更新ViewModel中的LiveData
                                     viewModel.setSelectedDevice(selectedDevice);
                                     if (latestInfo.battery > 0) {
                                         viewModel.updateBatteryLevel(String.valueOf(latestInfo.battery));
                                     }
                                     viewModel.updateUpdateTime(String.valueOf(serverTimestamp));
+
+                                    // 显示刷新成功提示
+                                    Toast.makeText(MainActivity.this, R.string.refresh_success, Toast.LENGTH_SHORT).show();
                                 } else {
-                                    // 当前数据更新或相同，保持不变
+                                    // 当前数据更新或相同，提示数据已是最新
                                     Log.d(TAG, "Current data is newer or equal, keeping current display");
+                                    Toast.makeText(MainActivity.this, R.string.data_already_latest, Toast.LENGTH_SHORT).show();
                                 }
                             });
                         } catch (Exception e) {
@@ -768,6 +772,17 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(MainActivity.this, NavigationActivity.class);
         intent.putExtra("dest_latitude", selectedDevice.getLatitude());
         intent.putExtra("dest_longitude", selectedDevice.getLongitude());
+        intent.putExtra("device_id", selectedDevice.getDeviceId());
+        intent.putExtra("device_name", selectedDevice.getName());
+        // 传递手机当前位置作为导航起点
+        intent.putExtra("start_latitude", currentLatitude);
+        intent.putExtra("start_longitude", currentLongitude);
+        // 高德定位SDK返回的坐标已经是GCJ-02，不需要再次转换
+        // Google定位SDK返回的坐标是WGS-84，需要转换
+        boolean isStartGcj02 = (amapLocationService != null);
+        intent.putExtra("start_is_gcj02", isStartGcj02);
+        Log.d(TAG, "Starting navigation: phone=(" + currentLatitude + "," + currentLongitude 
+                + ", isGcj02=" + isStartGcj02 + "), device=(" + selectedDevice.getLatitude() + "," + selectedDevice.getLongitude() + ")");
         startActivity(intent);
     }
 

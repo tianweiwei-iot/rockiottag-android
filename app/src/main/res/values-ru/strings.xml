@@ -212,7 +212,9 @@
     <string name="data_sync_success">Синхронизация данных успешна</string>
     <string name="data_sync_success_no_info">Синхронизация данных успешна, но невозможно получить последнюю информацию</string>
     <string name="sync_failed">Ошибка синхронизации</string>
-    <string name="refresh_failed">Ошибка обновления: %s</string>
+    <string name="refresh_failed">Ошибка обновления</string>
+    <string name="refresh_success">Обновление успешно</string>
+    <string name="data_already_latest">Данные уже актуальны</string>
     <string name="bluetooth_not_enabled">Bluetooth не включен</string>
     <string name="no_bound_devices_found">Привязанные устройства не найдены</string>
     <string name="synced_devices">Синхронизировано %d устройств</string>
@@ -254,7 +256,6 @@
     <string name="recognize_success">Распознавание успешно: %s</string>
     <string name="cannot_recognize_qr">Невозможно распознать QR-код, попробуйте другое изображение</string>
     <string name="recognize_failed">Ошибка распознавания: %s</string>
-    <string name="refresh_success">Обновление успешно</string>
     <string name="no_location_data">Нет данных о местоположении</string>
     
     <!-- Статистика трека -->
@@ -413,4 +414,7 @@
     <string name="navi_steps_count">%d шагов навигации</string>
     <string name="navi_next_step">Следующий шаг</string>
     <string name="navi_stop">Остановить навигацию</string>
+    <string name="navi_nearby_suggest_walk">Только %s, рекомендуем идти пешком</string>
+    <string name="navi_already_nearby">Уже рядом с устройством, навигация не нужна</string>
+    <string name="navi_layer_toggle">Переключение слоёв</string>
 </resources>

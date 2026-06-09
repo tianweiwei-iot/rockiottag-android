@@ -215,7 +215,9 @@
     <string name="data_sync_success">Veri senkronizasyonu başarılı</string>
     <string name="data_sync_success_no_info">Veri senkronizasyonu başarılı, ancak en son bilgiler alınamıyor</string>
     <string name="sync_failed">Senkronizasyon başarısız</string>
-    <string name="refresh_failed">Yenileme başarısız: %s</string>
+    <string name="refresh_failed">Yenileme başarısız</string>
+    <string name="refresh_success">Yenileme başarılı</string>
+    <string name="data_already_latest">Veriler güncel</string>
     <string name="bluetooth_not_enabled">Bluetooth etkin değil</string>
     <string name="no_bound_devices_found">Bağlı cihaz bulunamadı</string>
     <string name="synced_devices">%d cihaz senkronize edildi</string>
@@ -257,7 +259,6 @@
     <string name="recognize_success">Tanıma başarılı: %s</string>
     <string name="cannot_recognize_qr">QR kod tanınamadı, lütfen başka bir resim deneyin</string>
     <string name="recognize_failed">Tanıma başarısız: %s</string>
-    <string name="refresh_success">Yenileme başarılı</string>
     <string name="no_location_data">Konum verisi yok</string>
     <string name="please_login_first">Lütfen önce giriş yapın</string>
     
@@ -406,4 +407,7 @@
     <string name="navi_steps_count">%d navigasyon adımı</string>
     <string name="navi_next_step">Sonraki Adım</string>
     <string name="navi_stop">Navigasyonu Durdur</string>
+    <string name="navi_nearby_suggest_walk">Sadece %s mesafede, yürüyerek gitmenizi öneririz</string>
+    <string name="navi_already_nearby">Cihazın yakınında, navigasyon gerekmez</string>
+    <string name="navi_layer_toggle">Katman Geçişi</string>
 </resources>

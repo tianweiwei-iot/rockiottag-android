@@ -231,7 +231,9 @@
     <string name="data_sync_success">Data sync successful</string>
     <string name="data_sync_success_no_info">Data sync successful, but cannot get latest info</string>
     <string name="sync_failed">Sync failed</string>
-    <string name="refresh_failed">Refresh failed: %s</string>
+    <string name="refresh_failed">Refresh failed</string>
+    <string name="refresh_success">Refresh successful</string>
+    <string name="data_already_latest">Data is already up to date</string>
     <string name="bluetooth_not_enabled">Bluetooth not enabled</string>
     <string name="no_bound_devices_found">No bound devices found</string>
     <string name="synced_devices">Synced %d devices</string>
@@ -273,7 +275,6 @@
     <string name="recognize_success">Recognize success: %s</string>
     <string name="cannot_recognize_qr">Cannot recognize QR code, please try another image</string>
     <string name="recognize_failed">Recognition failed: %s</string>
-    <string name="refresh_success">Refresh successful</string>
     <string name="no_location_data">No location data available</string>
     
     <!-- Track Statistics -->
@@ -417,4 +418,7 @@
     <string name="navi_steps_count">%d navigation steps</string>
     <string name="navi_next_step">Next Step</string>
     <string name="navi_stop">Stop Navigation</string>
+    <string name="navi_nearby_suggest_walk">Only %s away, suggest walking</string>
+    <string name="navi_already_nearby">Already near the device, no navigation needed</string>
+    <string name="navi_layer_toggle">Layer Toggle</string>
 </resources>

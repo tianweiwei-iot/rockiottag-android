@@ -81,6 +81,7 @@
         <activity
             android:name=".NavigationActivity"
             android:exported="false"
+            android:theme="@style/Theme.RockiotTag.NoActionBar"
             android:screenOrientation="portrait" />
 
         <activity

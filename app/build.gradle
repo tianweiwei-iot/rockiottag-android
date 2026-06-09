@@ -79,8 +79,8 @@ dependencies {
     testImplementation 'androidx.arch.core:core-testing:2.2.0'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
-    // 高德地图SDK V11.2.000 (本地JAR文件 + jniLibs)
-    implementation files('libs/AMap3DMap_11.2.000_AMapSearch_9.8.0_AMapLocation_11.2.000_20260529.jar')
+    // 高德地图+导航SDK V11.2.000 (本地JAR文件 + jniLibs)
+    implementation files('libs/AMap3DMap_11.2.000_AMapNavi_11.2.000_AMapSearch_9.8.0_AMapLocation_11.2.000_20260602.jar')
     // 高德地图依赖的网络库
     implementation 'com.android.volley:volley:1.2.1'
     // 蓝牙低功耗

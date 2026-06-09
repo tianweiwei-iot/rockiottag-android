@@ -212,7 +212,9 @@
     <string name="data_sync_success">Sincronização de dados bem-sucedida</string>
     <string name="data_sync_success_no_info">Sincronização de dados bem-sucedida, mas não foi possível obter as informações mais recentes</string>
     <string name="sync_failed">Falha na sincronização</string>
-    <string name="refresh_failed">Falha na atualização: %s</string>
+    <string name="refresh_failed">Falha na atualização</string>
+    <string name="refresh_success">Atualização bem-sucedida</string>
+    <string name="data_already_latest">Os dados já estão atualizados</string>
     <string name="bluetooth_not_enabled">Bluetooth não ativado</string>
     <string name="no_bound_devices_found">Nenhum dispositivo vinculado encontrado</string>
     <string name="synced_devices">%d dispositivos sincronizados</string>
@@ -254,7 +256,6 @@
     <string name="recognize_success">Reconhecimento bem-sucedido: %s</string>
     <string name="cannot_recognize_qr">Não é possível reconhecer o QR code, tente outra imagem</string>
     <string name="recognize_failed">Falha no reconhecimento: %s</string>
-    <string name="refresh_success">Atualização bem-sucedida</string>
     <string name="no_location_data">Sem dados de localização</string>
     
     <!-- Estatísticas de Rastreamento -->
@@ -413,4 +414,7 @@
     <string name="navi_steps_count">%d etapas de navegação</string>
     <string name="navi_next_step">Próximo passo</string>
     <string name="navi_stop">Parar navegação</string>
+    <string name="navi_nearby_suggest_walk">Apenas %s, sugerimos ir a pé</string>
+    <string name="navi_already_nearby">Já está próximo do dispositivo, não precisa de navegação</string>
+    <string name="navi_layer_toggle">Alternar Camadas</string>
 </resources>

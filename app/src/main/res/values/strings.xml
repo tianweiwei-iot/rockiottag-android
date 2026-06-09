@@ -231,7 +231,9 @@
     <string name="data_sync_success">数据同步成功</string>
     <string name="data_sync_success_no_info">数据同步成功，但无法获取最新信息</string>
     <string name="sync_failed">同步失败</string>
-    <string name="refresh_failed">刷新失败: %s</string>
+    <string name="refresh_failed">刷新失败</string>
+    <string name="refresh_success">刷新成功</string>
+    <string name="data_already_latest">数据已是最新</string>
     <string name="bluetooth_not_enabled">蓝牙未开启</string>
     <string name="no_bound_devices_found">没有找到已绑定的设备</string>
     <string name="synced_devices">同步了 %d 个设备</string>
@@ -273,7 +275,6 @@
     <string name="recognize_success">识别成功: %s</string>
     <string name="cannot_recognize_qr">无法识别二维码，请尝试其他图片</string>
     <string name="recognize_failed">识别失败: %s</string>
-    <string name="refresh_success">刷新成功</string>
     <string name="no_location_data">暂无位置数据</string>
     <string name="please_login_first">请先登录</string>
     
@@ -418,4 +419,7 @@
     <string name="navi_steps_count">共 %d 个导航步骤</string>
     <string name="navi_next_step">下一步</string>
     <string name="navi_stop">停止导航</string>
+    <string name="navi_nearby_suggest_walk">距离仅%s，建议步行前往</string>
+    <string name="navi_already_nearby">已在设备附近，无需导航</string>
+    <string name="navi_layer_toggle">图层开关</string>
 </resources>
