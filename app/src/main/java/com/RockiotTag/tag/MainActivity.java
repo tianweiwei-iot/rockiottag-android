@@ -119,6 +119,9 @@ public class MainActivity extends AppCompatActivity {
     private long lastRecordedTimestamp = 0;
     private static final long TRACK_REFRESH_INTERVAL = 30 * 1000; // 30秒
     private boolean isFetchingDeviceInfo = false; // 防止重复请求
+
+    // 设备切换/刷新序列号：确保只处理最新请求的结果
+    private volatile int deviceRefreshSequence = 0;
     
     // 地址缓存相关
     private double lastAddressLatitude = 0;
@@ -626,19 +629,65 @@ public class MainActivity extends AppCompatActivity {
                     final String deviceNum = currentSelectedDevice.getDeviceNum() != null ? 
                         currentSelectedDevice.getDeviceNum() : currentSelectedDevice.getDeviceId();
                     final long currentTimestamp = currentSelectedDevice.getLastSeen();
+                    final String savedCustomerCode = currentSelectedDevice.getCustomerCode();
                     
-                    Log.d(TAG, "Refreshing device: " + deviceNum + ", current timestamp: " + currentTimestamp);
+                    // 递增序列号，使旧请求的结果失效
+                    final int currentSeq = ++deviceRefreshSequence;
+                    Log.d(TAG, "Refreshing device: " + deviceNum + ", seq: " + currentSeq 
+                        + ", current timestamp: " + currentTimestamp
+                        + ", savedCustomerCode: " + savedCustomerCode);
                     
-                    // 异步调用API获取最新设备信息（使用mexbt API Key）
+                    // 异步调用API获取最新设备信息
                     new Thread(() -> {
                         try {
                             String apiUrl = ApiConfig.getMyServerUrl(deviceNum);
                             NewApiService.setApiBaseUrl(apiUrl);
-                            NewApiService.DeviceInfo latestInfo = NewApiService.getInstance()
-                                .getDeviceLatest(deviceNum, ApiConfig.CUSTOMER_MEXBT);
+                            
+                            // 使用与GetDeviceInfoUseCase相同的策略：先尝试保存的customerCode，再遍历所有
+                            NewApiService.DeviceInfo latestInfo = null;
+                            String matchedCustomerCode = null;
+                            
+                            // 1. 优先使用设备保存的customerCode
+                            if (savedCustomerCode != null && !savedCustomerCode.isEmpty()) {
+                                Log.d(TAG, "Trying with saved customerCode: " + savedCustomerCode);
+                                latestInfo = NewApiService.getInstance().getDeviceLatest(deviceNum, savedCustomerCode);
+                                if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
+                                    matchedCustomerCode = savedCustomerCode;
+                                    Log.d(TAG, "Success with saved customerCode: " + savedCustomerCode);
+                                } else {
+                                    Log.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
+                                    latestInfo = null;
+                                }
+                            }
+                            
+                            // 2. 如果保存的customerCode失败，遍历所有customerCode
+                            if (latestInfo == null) {
+                                java.util.Map<String, ApiConfig.CustomerConfig> configs = ApiConfig.getAllCustomerConfigs();
+                                for (java.util.Map.Entry<String, ApiConfig.CustomerConfig> entry : configs.entrySet()) {
+                                    String customerCode = entry.getKey();
+                                    if (customerCode.equals(savedCustomerCode)) {
+                                        continue; // 已经尝试过
+                                    }
+                                    
+                                    Log.d(TAG, "Trying customerCode: " + customerCode);
+                                    latestInfo = NewApiService.getInstance().getDeviceLatest(deviceNum, customerCode);
+                                    if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
+                                        matchedCustomerCode = customerCode;
+                                        Log.d(TAG, "Success with customerCode: " + customerCode);
+                                        break;
+                                    }
+                                    latestInfo = null;
+                                }
+                            }
+                            
+                            // 检查序列号，如果已有新请求则丢弃本结果
+                            if (currentSeq != deviceRefreshSequence) {
+                                Log.d(TAG, "Refresh seq #" + currentSeq + " ignored (stale), current=#" + deviceRefreshSequence);
+                                return;
+                            }
                             
                             if (latestInfo == null) {
-                                Log.w(TAG, "API returned null for device: " + deviceNum);
+                                Log.w(TAG, "API returned null for device: " + deviceNum + " with all customer codes");
                                 runOnUiThread(() -> {
                                     stopRefreshAnimation();
                                     Toast.makeText(MainActivity.this, R.string.refresh_failed, Toast.LENGTH_SHORT).show();
@@ -646,6 +695,18 @@ public class MainActivity extends AppCompatActivity {
                                 return;
                             }
                             
+                            // 保存匹配的customerCode到设备
+                            if (matchedCustomerCode != null && selectedDevice != null) {
+                                if (!matchedCustomerCode.equals(selectedDevice.getCustomerCode())) {
+                                    selectedDevice.setCustomerCode(matchedCustomerCode);
+                                    databaseHelper.addDevice(selectedDevice);
+                                    Log.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
+                                }
+                            }
+                            
+                            // 创建final副本供lambda使用
+                            final NewApiService.DeviceInfo finalLatestInfo = latestInfo;
+                            final String finalMatchedCustomerCode = matchedCustomerCode;
                             long serverTimestamp = latestInfo.timestamp;
                             Log.d(TAG, "Server timestamp: " + serverTimestamp + ", current timestamp: " + currentTimestamp);
                             
@@ -655,21 +716,24 @@ public class MainActivity extends AppCompatActivity {
                                 if (serverTimestamp > currentTimestamp) {
                                     // 服务器时间更新，更新UI
                                     Log.d(TAG, "Server data is newer, updating UI");
-                                    updateDeviceUIWithoutCameraMove(latestInfo);
+                                    updateDeviceUIWithoutCameraMove(finalLatestInfo);
 
                                     // 更新本地设备数据
                                     if (selectedDevice != null) {
-                                        selectedDevice.setLatitude(latestInfo.latitude);
-                                        selectedDevice.setLongitude(latestInfo.longitude);
+                                        selectedDevice.setLatitude(finalLatestInfo.latitude);
+                                        selectedDevice.setLongitude(finalLatestInfo.longitude);
                                         selectedDevice.setLastSeen(serverTimestamp);
-                                        selectedDevice.setBattery(latestInfo.battery);
+                                        selectedDevice.setBattery(finalLatestInfo.battery);
+                                        if (finalMatchedCustomerCode != null) {
+                                            selectedDevice.setCustomerCode(finalMatchedCustomerCode);
+                                        }
                                         databaseHelper.addDevice(selectedDevice);
                                     }
 
                                     // 更新ViewModel中的LiveData
                                     viewModel.setSelectedDevice(selectedDevice);
-                                    if (latestInfo.battery > 0) {
-                                        viewModel.updateBatteryLevel(String.valueOf(latestInfo.battery));
+                                    if (finalLatestInfo.battery > 0) {
+                                        viewModel.updateBatteryLevel(String.valueOf(finalLatestInfo.battery));
                                     }
                                     viewModel.updateUpdateTime(String.valueOf(serverTimestamp));
 
@@ -1397,6 +1461,10 @@ public class MainActivity extends AppCompatActivity {
             new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                 .format(new java.util.Date(device.getLastSeen())) + ")");
         
+        // 递增序列号，使旧设备的刷新请求失效
+        int newSeq = ++deviceRefreshSequence;
+        Log.d(TAG, "  Device refresh sequence: " + newSeq);
+        
         // 【关键】设置当前选中的设备MAC地址，用于蓝牙扫描匹配
         // currentSelectedDeviceId 存储的是MAC地址（如 D4:DE:42:0F:57:7A）
         // 不是16位设备号（如 1756726632035006）
@@ -1404,24 +1472,9 @@ public class MainActivity extends AppCompatActivity {
             String macAddress = device.getMac();
             if (macAddress != null && !macAddress.isEmpty()) {
                 locationOptimizationManager.setCurrentSelectedDeviceId(macAddress);
-                Log.d(TAG, "✓ Set selected device MAC for bluetooth matching: " + macAddress);
-                
-                // 添加Toast提示：已设置当前选中设备
-                runOnUiThread(() -> {
-                    String toastMsg = "📱 已选择设备: " + device.getName() + " (" + macAddress + ")";
-                    Toast.makeText(MainActivity.this, toastMsg, Toast.LENGTH_SHORT).show();
-                    Log.d(TAG, "TOAST: " + toastMsg);
-                });
+                Log.d(TAG, "Set selected device MAC for bluetooth matching: " + macAddress);
             } else {
-                Log.w(TAG, " Device MAC is null/empty, cannot set for bluetooth filtering: " + device.getName());
-                Log.w(TAG, "  This means bluetooth scan will NOT trigger UI updates!");
-                
-                // 添加Toast提示：MAC地址为空
-                runOnUiThread(() -> {
-                    String toastMsg = "⚠️ 设备MAC地址为空: " + device.getName();
-                    Toast.makeText(MainActivity.this, toastMsg, Toast.LENGTH_LONG).show();
-                    Log.w(TAG, "TOAST: " + toastMsg);
-                });
+                Log.w(TAG, "Device MAC is null/empty, cannot set for bluetooth filtering: " + device.getName());
             }
         }
         
@@ -1558,16 +1611,9 @@ public class MainActivity extends AppCompatActivity {
         
         bottomInfo.setVisibility(View.VISIBLE);
         
-        // 1. 更新设备名称
-        if (deviceInfo.nickName != null && !deviceInfo.nickName.isEmpty() 
-                && !deviceInfo.nickName.equals(deviceInfo.deviceNum)
-                && !deviceInfo.nickName.matches("\\d+")) {
-            updateDeviceNameWithTag(deviceInfo.nickName, selectedDevice != null ? selectedDevice.getTag() : null);
-            if (selectedDevice != null) {
-                selectedDevice.setName(deviceInfo.nickName);
-                databaseHelper.addDevice(selectedDevice);
-            }
-        } else if (selectedDevice != null && selectedDevice.getName() != null) {
+        // 1. 更新设备名称 - 保留本地昵称，不使用服务器昵称覆盖
+        // 因为本地昵称可能是用户刚修改但尚未同步到服务器的
+        if (selectedDevice != null && selectedDevice.getName() != null) {
             updateDeviceNameWithTag(selectedDevice.getName(), selectedDevice.getTag());
         }
         
@@ -2456,6 +2502,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         final String deviceNum = selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId();
+        final int currentSeq = ++deviceRefreshSequence;
         
         // 根据设备号长度设置对应的API URL
         NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNum));
@@ -2467,10 +2514,22 @@ public class MainActivity extends AppCompatActivity {
                     NewApiService.ApiResponse syncResponse = apiService.syncDevice(deviceNum);
                     Log.d(TAG, "Auto refresh - sync device response: " + (syncResponse != null ? syncResponse.isSuccess() : "null"));
                     
+                    // 检查序列号，如果已有新请求则丢弃本结果
+                    if (currentSeq != deviceRefreshSequence) {
+                        Log.d(TAG, "Auto refresh seq #" + currentSeq + " ignored (stale)");
+                        return;
+                    }
+                    
                     NewApiService.DeviceInfo deviceInfo = null;
                     if (syncResponse != null && syncResponse.isSuccess()) {
                         deviceInfo = apiService.getDeviceLatest(deviceNum);
                         Log.d(TAG, "Auto refresh - got latest device info: " + (deviceInfo != null ? "yes" : "null"));
+                    }
+                    
+                    // 再次检查序列号
+                    if (currentSeq != deviceRefreshSequence) {
+                        Log.d(TAG, "Auto refresh seq #" + currentSeq + " ignored (stale) after getDeviceLatest");
+                        return;
                     }
                     
                     if (deviceInfo == null) {
@@ -2479,6 +2538,12 @@ public class MainActivity extends AppCompatActivity {
                     }
                     
                     if (deviceInfo != null) {
+                        // 最终检查序列号
+                        if (currentSeq != deviceRefreshSequence) {
+                            Log.d(TAG, "Auto refresh seq #" + currentSeq + " ignored (stale) before UI update");
+                            return;
+                        }
+                        
                         final NewApiService.DeviceInfo finalDeviceInfo = deviceInfo;
                         runOnUiThread(new Runnable() {
                             @Override
@@ -2772,9 +2837,7 @@ public class MainActivity extends AppCompatActivity {
                                 if (existingDevice.getDeviceNum() == null) {
                                     existingDevice.setDeviceNum(info.deviceNum);
                                 }
-                                if (info.nickName != null && !info.nickName.isEmpty()) {
-                                    existingDevice.setName(info.nickName);
-                                }
+                                // 昵称：保留本地昵称，不使用服务器昵称覆盖
                                 existingDevice.setLatitude(info.latitude);
                                 existingDevice.setLongitude(info.longitude);
                                 existingDevice.setLastSeen(info.timestamp > 0 ? info.timestamp : System.currentTimeMillis());

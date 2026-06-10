@@ -467,11 +467,15 @@ public class DeviceListActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         try {
-                            // 更新服务器
+                            // 更新服务器（传递customerCode以确保使用正确的API Key）
                             if (!deviceNumFromUI.isEmpty()) {
                                 NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNumFromUI));
-                                NewApiService.ApiResponse response = apiService.updateDevice(deviceNumFromUI, finalNickName);
+                                String customerCode = device.getCustomerCode();
+                                NewApiService.ApiResponse response = apiService.updateDevice(deviceNumFromUI, finalNickName, customerCode);
                                 Log.d(TAG, "Server update response: " + (response != null ? response.isSuccess() : "null"));
+                                if (response != null && !response.isSuccess()) {
+                                    Log.e(TAG, "Server update failed: " + response.getMessage());
+                                }
                             }
                             
                             // 使用设备号更新数据库
@@ -531,19 +535,12 @@ public class DeviceListActivity extends AppCompatActivity {
                                     setResult(RESULT_OK);
                                                                         
                                     if (updated) {
-                                        Toast.makeText(DeviceListActivity.this, 
-                                            "✅ 保存成功: " + finalNickName, Toast.LENGTH_SHORT).show();
+                                        Toast.makeText(DeviceListActivity.this,
+                                            "保存成功", Toast.LENGTH_SHORT).show();
                                     } else {
-                                        Toast.makeText(DeviceListActivity.this, 
-                                            "⚠️ 保存可能失败，请检查日志", Toast.LENGTH_LONG).show();
+                                        Toast.makeText(DeviceListActivity.this,
+                                            "保存可能失败，请检查日志", Toast.LENGTH_LONG).show();
                                     }
-                                                                        
-                                    new android.os.Handler().postDelayed(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            finish();
-                                        }
-                                    }, 800);
                                 }
                             });
                         } catch (Exception e) {

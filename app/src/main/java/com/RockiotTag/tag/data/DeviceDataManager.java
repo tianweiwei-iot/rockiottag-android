@@ -110,9 +110,8 @@ public class DeviceDataManager {
                             if (existingDevice.getDeviceNum() == null) {
                                 existingDevice.setDeviceNum(info.deviceNum);
                             }
-                            if (info.nickName != null && !info.nickName.isEmpty()) {
-                                existingDevice.setName(info.nickName);
-                            }
+                            // 昵称：保留本地昵称，不使用服务器昵称覆盖
+                            // 因为本地昵称可能是用户刚修改但尚未同步到服务器的
                             existingDevice.setLatitude(info.latitude);
                             existingDevice.setLongitude(info.longitude);
                             existingDevice.setLastSeen(info.timestamp > 0 ? info.timestamp : System.currentTimeMillis());
@@ -154,15 +153,13 @@ public class DeviceDataManager {
                 }
                 
                 if (deviceInfo != null) {
-                    // 更新本地数据库
+                    // 更新本地数据库（只更新位置和电量，不覆盖昵称）
                     Device device = databaseHelper.getDevice(deviceNum);
                     if (device != null) {
-                        if (deviceInfo.nickName != null && !deviceInfo.nickName.isEmpty()) {
-                            device.setName(deviceInfo.nickName);
-                        }
+                        // 昵称：保留本地昵称，不使用服务器昵称覆盖
                         device.setLatitude(deviceInfo.latitude);
                         device.setLongitude(deviceInfo.longitude);
-                        device.setLastSeen(deviceInfo.timestamp > 0 ? 
+                        device.setLastSeen(deviceInfo.timestamp > 0 ?
                             deviceInfo.timestamp : System.currentTimeMillis());
                         databaseHelper.addDevice(device);
                     }

@@ -38,6 +38,7 @@ public class TrackStatisticsHelper {
         List<StayPoint> stayPoints,
         TextView totalDistanceText,
         String deviceNum,
+        String deviceName,
         long selectedDateMillis,
         List<LocationData> allLocationRecords) {
             
@@ -85,8 +86,38 @@ public class TrackStatisticsHelper {
         titleView.setTextSize(18);
         titleView.setTypeface(titleView.getTypeface(), android.graphics.Typeface.BOLD);
         titleView.setTextColor(Color.parseColor("#333333"));
-        titleView.setPadding(0, 0, 0, dpToPx(context, 16));
+        titleView.setPadding(0, 0, 0, dpToPx(context, 8));
         layout.addView(titleView);
+            
+        // 添加设备信息（昵称 + 设备号）
+        if (deviceName != null && !deviceName.isEmpty()) {
+            android.widget.LinearLayout deviceInfoRow = new android.widget.LinearLayout(context);
+            deviceInfoRow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+            deviceInfoRow.setPadding(0, 0, 0, dpToPx(context, 12));
+            deviceInfoRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+            TextView nameView = new TextView(context);
+            nameView.setText(deviceName);
+            nameView.setTextSize(15);
+            nameView.setTypeface(nameView.getTypeface(), android.graphics.Typeface.BOLD);
+            nameView.setTextColor(Color.parseColor("#2196F3"));
+            nameView.setPadding(0, 0, dpToPx(context, 12), 0);
+            deviceInfoRow.addView(nameView);
+
+            TextView numView = new TextView(context);
+            numView.setText(deviceNum);
+            numView.setTextSize(12);
+            numView.setTextColor(Color.parseColor("#999999"));
+            android.widget.LinearLayout.LayoutParams numParams = new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            numParams.gravity = android.view.Gravity.CENTER_VERTICAL;
+            numView.setLayoutParams(numParams);
+            deviceInfoRow.addView(numView);
+
+            layout.addView(deviceInfoRow);
+        }
             
         // 添加分隔线
         layout.addView(createDivider(context));

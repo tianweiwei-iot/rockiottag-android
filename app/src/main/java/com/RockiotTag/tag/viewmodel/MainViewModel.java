@@ -55,8 +55,8 @@ public class MainViewModel extends AndroidViewModel {
     private final MutableLiveData<Boolean> isLoading = new MutableLiveData<>(false);
     private final MutableLiveData<String> errorMessage = new MutableLiveData<>();
     
-    // 并发控制：防止重复请求
-    private volatile boolean isFetching = false;
+    // 并发控制：设备信息请求序列号，确保只处理最新请求的结果
+    private volatile int fetchSequence = 0;
     
     // 地址请求序列号：确保只处理最新的地址请求结果
     private volatile int addressRequestSequence = 0;
@@ -165,6 +165,7 @@ public class MainViewModel extends AndroidViewModel {
     
     /**
      * 从服务器获取设备最新信息（使用UseCase）
+     * 使用序列号机制：每次新请求递增序列号，旧请求的结果会被丢弃
      */
     public void fetchDeviceInfo(String deviceNum) {
         if (deviceNum == null || deviceNum.isEmpty()) {
@@ -172,18 +173,20 @@ public class MainViewModel extends AndroidViewModel {
             return;
         }
         
-        // 并发安全：如果正在请求中，则忽略本次调用
-        if (isFetching) {
-            Log.d(TAG, "Fetch already in progress, ignoring request for: " + deviceNum);
-            return;
-        }
+        // 递增序列号，使旧请求的结果失效
+        int currentSeq = ++fetchSequence;
+        Log.d(TAG, "Fetch request #" + currentSeq + " for device: " + deviceNum);
         
-        isFetching = true;
         isLoading.setValue(true);
         
         // 执行UseCase
         getDeviceInfoUseCase.execute(deviceNum).observeForever(resource -> {
-            isFetching = false;
+            // 只处理最新请求的结果，丢弃旧请求
+            if (currentSeq != fetchSequence) {
+                Log.d(TAG, "Fetch request #" + currentSeq + " ignored (stale), current=#" + fetchSequence);
+                return;
+            }
+            
             isLoading.setValue(false);
             
             if (resource.isSuccess()) {
@@ -225,46 +228,42 @@ public class MainViewModel extends AndroidViewModel {
             
             // 【最简单逻辑】直接比较时间戳，哪个新用哪个
             if (serverTimestamp > localTimestamp) {
-                // 服务器时间更新，使用服务器数据
+                // 服务器时间更新，使用服务器数据（位置、电量等）
                 Log.d(TAG, "Server newer: " + serverTimestamp + " > " + localTimestamp);
-                
+
                 Device updatedDevice = new Device(localDevice.getDeviceId(), localDevice.getName());
                 updatedDevice.setDeviceNum(localDevice.getDeviceNum());
                 updatedDevice.setTag(localDevice.getTag());
                 updatedDevice.setMac(localDevice.getMac());
+                updatedDevice.setCustomerCode(localDevice.getCustomerCode());
                 updatedDevice.setLatitude(deviceInfo.latitude);
                 updatedDevice.setLongitude(deviceInfo.longitude);
                 updatedDevice.setLastSeen(serverTimestamp);
                 updatedDevice.setBattery(deviceInfo.battery);
-                
-                if (deviceInfo.nickName != null && !deviceInfo.nickName.isEmpty() 
-                    && !deviceInfo.nickName.equals(localDevice.getDeviceId())) {
-                    updatedDevice.setName(deviceInfo.nickName);
-                    deviceName.setValue(deviceInfo.nickName);
-                }
-                
+
+                // 昵称：保留本地昵称，不使用服务器昵称覆盖
+                // 因为本地昵称可能是用户刚修改但尚未同步到服务器的
+                deviceName.setValue(localDevice.getName());
+
                 deviceRepository.saveDevice(updatedDevice);
                 selectedDevice.setValue(updatedDevice);
-                
+
                 finalDevice = updatedDevice;
                 finalTimestamp = serverTimestamp;
             } else {
                 // 本地时间更新或相等，使用本地数据
                 Log.d(TAG, "Local newer or equal: " + localTimestamp + " >= " + serverTimestamp);
-                
-                if (deviceInfo.nickName != null && !deviceInfo.nickName.isEmpty() 
-                    && !deviceInfo.nickName.equals(localDevice.getDeviceId())) {
-                    localDevice.setName(deviceInfo.nickName);
-                    deviceName.setValue(deviceInfo.nickName);
-                }
-                
+
+                // 昵称：保留本地昵称，不使用服务器昵称覆盖
+                deviceName.setValue(localDevice.getName());
+
                 if (deviceInfo.battery > 0) {
                     localDevice.setBattery(deviceInfo.battery);
                 }
-                
+
                 deviceRepository.saveDevice(localDevice);
                 selectedDevice.setValue(localDevice);
-                
+
                 finalDevice = localDevice;
                 finalTimestamp = localTimestamp;
             }

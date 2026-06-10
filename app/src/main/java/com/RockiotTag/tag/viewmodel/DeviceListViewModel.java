@@ -108,13 +108,18 @@ public class DeviceListViewModel extends AndroidViewModel {
     }
     
     public void updateDevice(String deviceId, String deviceNum, String name, String tag, UpdateCallback callback) {
+        updateDevice(deviceId, deviceNum, name, tag, null, callback);
+    }
+
+    public void updateDevice(String deviceId, String deviceNum, String name, String tag, String customerCode, UpdateCallback callback) {
         Log.d(TAG, "=== updateDevice called ===");
         Log.d(TAG, "deviceId: " + deviceId);
         Log.d(TAG, "deviceNum: " + deviceNum);
         Log.d(TAG, "name: " + name);
         Log.d(TAG, "tag: " + tag);
-        
-        deviceRepository.updateDeviceNameAndTag(deviceId, deviceNum, name, tag, new DeviceRepository.UpdateCallback() {
+        Log.d(TAG, "customerCode: " + customerCode);
+
+        deviceRepository.updateDeviceNameAndTag(deviceId, deviceNum, name, tag, customerCode, new DeviceRepository.UpdateCallback() {
             @Override
             public void onSuccess() {
                 Log.d(TAG, "=== DeviceRepository updateDevice onSuccess ===");

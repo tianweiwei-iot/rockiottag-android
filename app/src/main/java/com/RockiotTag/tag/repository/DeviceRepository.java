@@ -147,19 +147,23 @@ public class DeviceRepository {
     }
     
     public void updateDeviceNameAndTag(String deviceId, String deviceNum, String name, String tag, UpdateCallback callback) {
+        updateDeviceNameAndTag(deviceId, deviceNum, name, tag, null, callback);
+    }
+
+    public void updateDeviceNameAndTag(String deviceId, String deviceNum, String name, String tag, String customerCode, UpdateCallback callback) {
         Log.d(TAG, "=== updateDeviceNameAndTag called ===");
         Log.d(TAG, "deviceId: " + deviceId + ", deviceNum: " + deviceNum);
-        Log.d(TAG, "name: " + name + ", tag: " + tag);
+        Log.d(TAG, "name: " + name + ", tag: " + tag + ", customerCode: " + customerCode);
         Log.d(TAG, "callback: " + (callback != null ? "not null" : "NULL"));
-        
+
         new Thread(() -> {
             try {
-                // 更新服务器
+                // 更新服务器（传递customerCode以确保使用正确的API Key）
                 if (deviceNum != null && !deviceNum.isEmpty()) {
                     try {
                         Log.d(TAG, "[Thread] Updating server for device: " + deviceNum);
                         NewApiService.setApiBaseUrl(com.RockiotTag.tag.ApiConfig.getMyServerUrl(deviceNum));
-                        NewApiService.ApiResponse response = apiService.updateDevice(deviceNum, name);
+                        NewApiService.ApiResponse response = apiService.updateDevice(deviceNum, name, customerCode);
                         Log.d(TAG, "[Thread] Server update response: success=" + (response != null ? response.isSuccess() : "null"));
                         
                         // 检查服务器响应

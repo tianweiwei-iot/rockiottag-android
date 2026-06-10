@@ -319,16 +319,19 @@ public class NewApiService {
     }
     
     public ApiResponse updateDevice(String deviceNum, String nickName) {
-        Log.d(TAG, "updateDevice called for deviceNum: " + deviceNum + ", nickName: " + nickName);
-        
+        return updateDevice(deviceNum, nickName, null);
+    }
+
+    public ApiResponse updateDevice(String deviceNum, String nickName, String customerCode) {
+        Log.d(TAG, "updateDevice called for deviceNum: " + deviceNum + ", nickName: " + nickName + ", customerCode: " + customerCode);
+
         Map<String, String> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
         if (nickName != null && !nickName.isEmpty()) {
             params.put("nickName", nickName);
         }
-        
-        // 调用正确的更新端点
-        ApiResponse response = postRequest("/devices/update", params, false);
+
+        ApiResponse response = postRequest("/devices/update", params, false, customerCode);
         Log.d(TAG, "updateDevice response - success: " + (response != null ? response.isSuccess() : "null"));
         return response;
     }

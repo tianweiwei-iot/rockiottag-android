@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 外层白色圆形（边框效果） -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFF" />
+            <size android:width="48dp" android:height="48dp" />
+        </shape>
+    </item>
+
+    <!-- 内层蓝色圆形 -->
+    <item
+        android:bottom="3dp"
+        android:left="3dp"
+        android:right="3dp"
+        android:top="3dp">
+        <shape android:shape="oval">
+            <solid android:color="#1976D2" />
+            <size android:width="42dp" android:height="42dp" />
+        </shape>
+    </item>
+
+    <!-- 白色导航箭头图标 -->
+    <item
+        android:bottom="10dp"
+        android:left="10dp"
+        android:right="10dp"
+        android:top="10dp">
+        <vector xmlns:android="http://schemas.android.com/apk/res/android"
+            android:width="28dp"
+            android:height="28dp"
+            android:viewportWidth="24"
+            android:viewportHeight="24">
+            <path
+                android:fillColor="#FFFFFF"
+                android:pathData="M12,2C13.66,2 15,3.34 15,5C15,6.66 13.66,8 12,8C10.34,8 9,6.66 9,5C9,3.34 10.34,2 12,2ZM12,10C13.1,10 14,10.9 14,12V18H10V12C10,10.9 10.9,10 12,10ZM6,10.5C6,11.6 6.9,12.5 8,12.5V15H10V13.5C10,12.7 9.57,12 8.97,11.67C9.59,10.69 8.82,9.5 7.75,9.5C6.76,9.5 6,10.26 6,11.25V11.5C6,11.5 6,10.5 6,10.5V10.5Z" />
+            <path
+                android:fillColor="#FFFFFF"
+                android:pathData="M18,10.5C18,11.6 17.1,12.5 16,12.5V15H14V13.5C14,12.7 14.43,12 15.03,11.67C14.41,10.69 15.18,9.5 16.25,9.5C17.24,9.5 18,10.26 18,11.25V11.5Z" />
+        </vector>
+    </item>
+
+</layer-list>

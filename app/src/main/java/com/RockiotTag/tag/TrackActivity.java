@@ -2959,10 +2959,11 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     private void showTrackStatistics() {
         String deviceNum = selectedDevice != null ? 
             (selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId()) : "";
+        String deviceName = selectedDevice != null ? selectedDevice.getName() : "";
         long dateMillis = selectedDate != null ? selectedDate.getTimeInMillis() : System.currentTimeMillis();
         
         com.RockiotTag.tag.helper.TrackStatisticsHelper.showStatisticsDialog(
-            this, stayPoints, totalDistanceText, deviceNum, dateMillis, allLocationRecords);
+            this, stayPoints, totalDistanceText, deviceNum, deviceName, dateMillis, allLocationRecords);
     }
     
     private com.amap.api.maps.model.BitmapDescriptor createArrowMarker(double angle) {

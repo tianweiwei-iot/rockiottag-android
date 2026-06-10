@@ -155,9 +155,11 @@ public class AddDeviceViewModel extends AndroidViewModel {
                 if (needSyncToServer) {
                     try {
                         NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(actualDeviceNum));
-                        NewApiService.ApiResponse updateResponse = apiService.updateDevice(actualDeviceNum, finalNickname);
+                        NewApiService.ApiResponse updateResponse = apiService.updateDevice(actualDeviceNum, finalNickname, finalCustomerCode);
                         if (updateResponse != null && updateResponse.isSuccess()) {
                             Log.d(TAG, "Nickname synced to server successfully");
+                        } else {
+                            Log.e(TAG, "Failed to sync nickname to server: " + (updateResponse != null ? updateResponse.getMessage() : "null response"));
                         }
                     } catch (Exception e) {
                         Log.e(TAG, "Error syncing nickname to server: " + e.getMessage(), e);
