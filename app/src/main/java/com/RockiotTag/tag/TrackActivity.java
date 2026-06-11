@@ -2445,6 +2445,10 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         Log.d(TAG, "SelectedDevice ID: " + (selectedDevice != null ? selectedDevice.getDeviceId() : "null"));
         Log.d(TAG, "Time range: " + startTime + " - " + endTime);
         
+        // 获取设备的 customerCode
+        final String savedCustomerCode = selectedDevice != null ? selectedDevice.getCustomerCode() : null;
+        Log.d(TAG, "savedCustomerCode: " + savedCustomerCode);
+        
         // 根据设备号长度设置对应的API URL
         NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNum));
         
@@ -2454,8 +2458,52 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 try {
                     NewApiService apiService = NewApiService.getInstance();
                     
-                    Log.d(TAG, "Calling getLocations with deviceNum=" + deviceNum + ", startTime=" + startTime + ", endTime=" + endTime);
-                    List<NewApiService.LocationInfo> locations = apiService.getLocations(deviceNum, startTime, endTime);
+                    // 使用与MainActivity相同的策略：先尝试保存的customerCode，再遍历所有
+                    List<NewApiService.LocationInfo> locations = null;
+                    String matchedCustomerCode = null;
+                    
+                    // 1. 优先使用设备保存的customerCode
+                    if (savedCustomerCode != null && !savedCustomerCode.isEmpty()) {
+                        Log.d(TAG, "Trying getLocations with saved customerCode: " + savedCustomerCode);
+                        locations = apiService.getLocations(deviceNum, startTime, endTime, savedCustomerCode);
+                        if (locations != null && !locations.isEmpty()) {
+                            matchedCustomerCode = savedCustomerCode;
+                            Log.d(TAG, "Success with saved customerCode: " + savedCustomerCode + ", got " + locations.size() + " locations");
+                        } else {
+                            Log.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
+                            locations = null;
+                        }
+                    }
+                    
+                    // 2. 如果保存的customerCode失败，遍历所有customerCode
+                    if (locations == null) {
+                        java.util.Map<String, ApiConfig.CustomerConfig> configs = ApiConfig.getAllCustomerConfigs();
+                        for (java.util.Map.Entry<String, ApiConfig.CustomerConfig> entry : configs.entrySet()) {
+                            String customerCode = entry.getKey();
+                            if (customerCode.equals(savedCustomerCode)) {
+                                continue; // 已经尝试过
+                            }
+                            
+                            Log.d(TAG, "Trying getLocations with customerCode: " + customerCode);
+                            locations = apiService.getLocations(deviceNum, startTime, endTime, customerCode);
+                            if (locations != null && !locations.isEmpty()) {
+                                matchedCustomerCode = customerCode;
+                                Log.d(TAG, "Success with customerCode: " + customerCode + ", got " + locations.size() + " locations");
+                                break;
+                            }
+                            locations = null;
+                        }
+                    }
+                    
+                    // 保存匹配的customerCode到设备
+                    if (matchedCustomerCode != null && selectedDevice != null) {
+                        if (!matchedCustomerCode.equals(selectedDevice.getCustomerCode())) {
+                            selectedDevice.setCustomerCode(matchedCustomerCode);
+                            databaseHelper.addDevice(selectedDevice);
+                            Log.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
+                        }
+                    }
+                    
                     Log.d(TAG, "Got " + (locations != null ? locations.size() : 0) + " locations from server");
                     
                     // 添加详细日志：打印服务器返回的前3条数据
@@ -2824,10 +2872,59 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             return;
         }
         
+        // 获取设备的 customerCode
+        final String savedCustomerCode = selectedDevice != null ? selectedDevice.getCustomerCode() : null;
+        Log.d(TAG, "syncTrackFromServer savedCustomerCode: " + savedCustomerCode);
+        
         new Thread(() -> {
             try {
                 com.RockiotTag.tag.NewApiService apiService = com.RockiotTag.tag.NewApiService.getInstance();
-                List<com.RockiotTag.tag.NewApiService.LocationInfo> serverRecords = apiService.getLocations(deviceNum, startTime, endTime);
+                
+                // 使用与MainActivity相同的策略：先尝试保存的customerCode，再遍历所有
+                List<com.RockiotTag.tag.NewApiService.LocationInfo> serverRecords = null;
+                String matchedCustomerCode = null;
+                
+                // 1. 优先使用设备保存的customerCode
+                if (savedCustomerCode != null && !savedCustomerCode.isEmpty()) {
+                    Log.d(TAG, "Trying getLocations with saved customerCode: " + savedCustomerCode);
+                    serverRecords = apiService.getLocations(deviceNum, startTime, endTime, savedCustomerCode);
+                    if (serverRecords != null && !serverRecords.isEmpty()) {
+                        matchedCustomerCode = savedCustomerCode;
+                        Log.d(TAG, "Success with saved customerCode: " + savedCustomerCode);
+                    } else {
+                        Log.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
+                        serverRecords = null;
+                    }
+                }
+                
+                // 2. 如果保存的customerCode失败，遍历所有customerCode
+                if (serverRecords == null) {
+                    java.util.Map<String, com.RockiotTag.tag.ApiConfig.CustomerConfig> configs = com.RockiotTag.tag.ApiConfig.getAllCustomerConfigs();
+                    for (java.util.Map.Entry<String, com.RockiotTag.tag.ApiConfig.CustomerConfig> entry : configs.entrySet()) {
+                        String customerCode = entry.getKey();
+                        if (customerCode.equals(savedCustomerCode)) {
+                            continue; // 已经尝试过
+                        }
+                        
+                        Log.d(TAG, "Trying getLocations with customerCode: " + customerCode);
+                        serverRecords = apiService.getLocations(deviceNum, startTime, endTime, customerCode);
+                        if (serverRecords != null && !serverRecords.isEmpty()) {
+                            matchedCustomerCode = customerCode;
+                            Log.d(TAG, "Success with customerCode: " + customerCode);
+                            break;
+                        }
+                        serverRecords = null;
+                    }
+                }
+                
+                // 保存匹配的customerCode到设备
+                if (matchedCustomerCode != null && selectedDevice != null) {
+                    if (!matchedCustomerCode.equals(selectedDevice.getCustomerCode())) {
+                        selectedDevice.setCustomerCode(matchedCustomerCode);
+                        databaseHelper.addDevice(selectedDevice);
+                        Log.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
+                    }
+                }
                 
                 Log.d(TAG, "Received " + (serverRecords != null ? serverRecords.size() : 0) + " records from server");
                 
@@ -2887,6 +2984,8 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         }
         
         String deviceNum = selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId();
+        final String savedCustomerCode = selectedDevice.getCustomerCode();
+        Log.d(TAG, "checkServerForNewDataAsync savedCustomerCode: " + savedCustomerCode);
         
         new Thread(() -> {
             try {
@@ -2900,9 +2999,52 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     Log.d(TAG, "Local latest time: " + localLatestTime);
                 }
                 
-                // 获取服务器最新数据的时间戳
+                // 获取服务器最新数据的时间戳 - 使用与MainActivity相同的策略
                 com.RockiotTag.tag.NewApiService apiService = com.RockiotTag.tag.NewApiService.getInstance();
-                com.RockiotTag.tag.NewApiService.DeviceInfo latestInfo = apiService.getDeviceLatest(deviceNum);
+                com.RockiotTag.tag.NewApiService.DeviceInfo latestInfo = null;
+                String matchedCustomerCode = null;
+                
+                // 1. 优先使用设备保存的customerCode
+                if (savedCustomerCode != null && !savedCustomerCode.isEmpty()) {
+                    Log.d(TAG, "Trying getDeviceLatest with saved customerCode: " + savedCustomerCode);
+                    latestInfo = apiService.getDeviceLatest(deviceNum, savedCustomerCode);
+                    if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
+                        matchedCustomerCode = savedCustomerCode;
+                        Log.d(TAG, "Success with saved customerCode: " + savedCustomerCode);
+                    } else {
+                        Log.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
+                        latestInfo = null;
+                    }
+                }
+                
+                // 2. 如果保存的customerCode失败，遍历所有customerCode
+                if (latestInfo == null) {
+                    java.util.Map<String, com.RockiotTag.tag.ApiConfig.CustomerConfig> configs = com.RockiotTag.tag.ApiConfig.getAllCustomerConfigs();
+                    for (java.util.Map.Entry<String, com.RockiotTag.tag.ApiConfig.CustomerConfig> entry : configs.entrySet()) {
+                        String customerCode = entry.getKey();
+                        if (customerCode.equals(savedCustomerCode)) {
+                            continue; // 已经尝试过
+                        }
+                        
+                        Log.d(TAG, "Trying getDeviceLatest with customerCode: " + customerCode);
+                        latestInfo = apiService.getDeviceLatest(deviceNum, customerCode);
+                        if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
+                            matchedCustomerCode = customerCode;
+                            Log.d(TAG, "Success with customerCode: " + customerCode);
+                            break;
+                        }
+                        latestInfo = null;
+                    }
+                }
+                
+                // 保存匹配的customerCode到设备
+                if (matchedCustomerCode != null && selectedDevice != null) {
+                    if (!matchedCustomerCode.equals(selectedDevice.getCustomerCode())) {
+                        selectedDevice.setCustomerCode(matchedCustomerCode);
+                        databaseHelper.addDevice(selectedDevice);
+                        Log.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
+                    }
+                }
                 
                 if (latestInfo != null && latestInfo.timestamp > 0) {
                     long serverLatestTime = latestInfo.timestamp;
