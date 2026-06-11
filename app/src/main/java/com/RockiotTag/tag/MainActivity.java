@@ -122,6 +122,7 @@ public class MainActivity extends AppCompatActivity {
 
     // 设备切换/刷新序列号：确保只处理最新请求的结果
     private volatile int deviceRefreshSequence = 0;
+    private volatile boolean isRefreshInProgress = false;
     
     // 地址缓存相关
     private double lastAddressLatitude = 0;
@@ -617,142 +618,7 @@ public class MainActivity extends AppCompatActivity {
             refreshBtn.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    Log.d(TAG, "========== REFRESH BUTTON CLICKED ==========");
-                    Device currentSelectedDevice = viewModel.getSelectedDevice().getValue();
-                    if (currentSelectedDevice == null) {
-                        Toast.makeText(MainActivity.this, R.string.please_select_device, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    
-                    startRefreshAnimation();
-                    
-                    final String deviceNum = currentSelectedDevice.getDeviceNum() != null ? 
-                        currentSelectedDevice.getDeviceNum() : currentSelectedDevice.getDeviceId();
-                    final long currentTimestamp = currentSelectedDevice.getLastSeen();
-                    final String savedCustomerCode = currentSelectedDevice.getCustomerCode();
-                    
-                    // 递增序列号，使旧请求的结果失效
-                    final int currentSeq = ++deviceRefreshSequence;
-                    Log.d(TAG, "Refreshing device: " + deviceNum + ", seq: " + currentSeq 
-                        + ", current timestamp: " + currentTimestamp
-                        + ", savedCustomerCode: " + savedCustomerCode);
-                    
-                    // 异步调用API获取最新设备信息
-                    new Thread(() -> {
-                        try {
-                            String apiUrl = ApiConfig.getMyServerUrl(deviceNum);
-                            NewApiService.setApiBaseUrl(apiUrl);
-                            
-                            // 使用与GetDeviceInfoUseCase相同的策略：先尝试保存的customerCode，再遍历所有
-                            NewApiService.DeviceInfo latestInfo = null;
-                            String matchedCustomerCode = null;
-                            
-                            // 1. 优先使用设备保存的customerCode
-                            if (savedCustomerCode != null && !savedCustomerCode.isEmpty()) {
-                                Log.d(TAG, "Trying with saved customerCode: " + savedCustomerCode);
-                                latestInfo = NewApiService.getInstance().getDeviceLatest(deviceNum, savedCustomerCode);
-                                if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
-                                    matchedCustomerCode = savedCustomerCode;
-                                    Log.d(TAG, "Success with saved customerCode: " + savedCustomerCode);
-                                } else {
-                                    Log.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
-                                    latestInfo = null;
-                                }
-                            }
-                            
-                            // 2. 如果保存的customerCode失败，遍历所有customerCode
-                            if (latestInfo == null) {
-                                java.util.Map<String, ApiConfig.CustomerConfig> configs = ApiConfig.getAllCustomerConfigs();
-                                for (java.util.Map.Entry<String, ApiConfig.CustomerConfig> entry : configs.entrySet()) {
-                                    String customerCode = entry.getKey();
-                                    if (customerCode.equals(savedCustomerCode)) {
-                                        continue; // 已经尝试过
-                                    }
-                                    
-                                    Log.d(TAG, "Trying customerCode: " + customerCode);
-                                    latestInfo = NewApiService.getInstance().getDeviceLatest(deviceNum, customerCode);
-                                    if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
-                                        matchedCustomerCode = customerCode;
-                                        Log.d(TAG, "Success with customerCode: " + customerCode);
-                                        break;
-                                    }
-                                    latestInfo = null;
-                                }
-                            }
-                            
-                            // 检查序列号，如果已有新请求则丢弃本结果
-                            if (currentSeq != deviceRefreshSequence) {
-                                Log.d(TAG, "Refresh seq #" + currentSeq + " ignored (stale), current=#" + deviceRefreshSequence);
-                                return;
-                            }
-                            
-                            if (latestInfo == null) {
-                                Log.w(TAG, "API returned null for device: " + deviceNum + " with all customer codes");
-                                runOnUiThread(() -> {
-                                    stopRefreshAnimation();
-                                    Toast.makeText(MainActivity.this, R.string.refresh_failed, Toast.LENGTH_SHORT).show();
-                                });
-                                return;
-                            }
-                            
-                            // 保存匹配的customerCode到设备
-                            if (matchedCustomerCode != null && selectedDevice != null) {
-                                if (!matchedCustomerCode.equals(selectedDevice.getCustomerCode())) {
-                                    selectedDevice.setCustomerCode(matchedCustomerCode);
-                                    databaseHelper.addDevice(selectedDevice);
-                                    Log.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
-                                }
-                            }
-                            
-                            // 创建final副本供lambda使用
-                            final NewApiService.DeviceInfo finalLatestInfo = latestInfo;
-                            final String finalMatchedCustomerCode = matchedCustomerCode;
-                            long serverTimestamp = latestInfo.timestamp;
-                            Log.d(TAG, "Server timestamp: " + serverTimestamp + ", current timestamp: " + currentTimestamp);
-                            
-                            runOnUiThread(() -> {
-                                stopRefreshAnimation();
-
-                                if (serverTimestamp > currentTimestamp) {
-                                    // 服务器时间更新，更新UI
-                                    Log.d(TAG, "Server data is newer, updating UI");
-                                    updateDeviceUIWithoutCameraMove(finalLatestInfo);
-
-                                    // 更新本地设备数据
-                                    if (selectedDevice != null) {
-                                        selectedDevice.setLatitude(finalLatestInfo.latitude);
-                                        selectedDevice.setLongitude(finalLatestInfo.longitude);
-                                        selectedDevice.setLastSeen(serverTimestamp);
-                                        selectedDevice.setBattery(finalLatestInfo.battery);
-                                        if (finalMatchedCustomerCode != null) {
-                                            selectedDevice.setCustomerCode(finalMatchedCustomerCode);
-                                        }
-                                        databaseHelper.addDevice(selectedDevice);
-                                    }
-
-                                    // 更新ViewModel中的LiveData
-                                    viewModel.setSelectedDevice(selectedDevice);
-                                    if (finalLatestInfo.battery > 0) {
-                                        viewModel.updateBatteryLevel(String.valueOf(finalLatestInfo.battery));
-                                    }
-                                    viewModel.updateUpdateTime(String.valueOf(serverTimestamp));
-
-                                    // 显示刷新成功提示
-                                    Toast.makeText(MainActivity.this, R.string.refresh_success, Toast.LENGTH_SHORT).show();
-                                } else {
-                                    // 当前数据更新或相同，提示数据已是最新
-                                    Log.d(TAG, "Current data is newer or equal, keeping current display");
-                                    Toast.makeText(MainActivity.this, R.string.data_already_latest, Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                        } catch (Exception e) {
-                            Log.e(TAG, "Refresh API call failed: " + e.getMessage(), e);
-                            runOnUiThread(() -> {
-                                stopRefreshAnimation();
-                                Toast.makeText(MainActivity.this, R.string.refresh_failed, Toast.LENGTH_SHORT).show();
-                            });
-                        }
-                    }).start();
+                    performDeviceRefresh(true);
                 }
             });
 
@@ -1530,6 +1396,9 @@ public class MainActivity extends AppCompatActivity {
         // MVVM - 使用 ViewModel 获取设备信息（这会在服务器返回后触发观察者更新UI和移动相机）
         Log.d(TAG, "Fetching device info from server: " + deviceNumToFetch);
         viewModel.fetchDeviceInfo(deviceNumToFetch);
+        
+        // 切换设备后自动刷新，获取供应商最新数据
+        performDeviceRefresh(true);
     }
     
 
@@ -2018,6 +1887,175 @@ public class MainActivity extends AppCompatActivity {
 
     private void stopRefreshAnimation() {
         refreshBtn.clearAnimation();
+    }
+
+    /**
+     * 执行设备刷新操作（从供应商API获取最新数据）
+     * @param showToast 是否显示"请选择设备"等提示（手动点击时true，自动刷新时false）
+     */
+    private void performDeviceRefresh(boolean showToast) {
+        Log.d(TAG, "========== performDeviceRefresh (showToast=" + showToast + ") ==========");
+        Device currentSelectedDevice = viewModel.getSelectedDevice().getValue();
+        if (currentSelectedDevice == null) {
+            if (showToast) {
+                Toast.makeText(MainActivity.this, R.string.please_select_device, Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+        
+        // 防止重复刷新
+        if (isRefreshInProgress) {
+            Log.d(TAG, "Refresh already in progress, skipping");
+            return;
+        }
+        isRefreshInProgress = true;
+        startRefreshAnimation();
+        
+        final String deviceNum = currentSelectedDevice.getDeviceNum() != null ? 
+            currentSelectedDevice.getDeviceNum() : currentSelectedDevice.getDeviceId();
+        final long currentTimestamp = currentSelectedDevice.getLastSeen();
+        final String savedCustomerCode = currentSelectedDevice.getCustomerCode();
+        
+        // 递增序列号，使旧请求的结果失效
+        final int currentSeq = ++deviceRefreshSequence;
+        Log.d(TAG, "Refreshing device: " + deviceNum + ", seq: " + currentSeq 
+            + ", current timestamp: " + currentTimestamp
+            + ", savedCustomerCode: " + savedCustomerCode);
+        
+        // 异步调用API获取最新设备信息
+        new Thread(() -> {
+            try {
+                String apiUrl = ApiConfig.getMyServerUrl(deviceNum);
+                NewApiService.setApiBaseUrl(apiUrl);
+                
+                // 使用与GetDeviceInfoUseCase相同的策略：先尝试保存的customerCode，再遍历所有
+                NewApiService.DeviceInfo latestInfo = null;
+                String matchedCustomerCode = null;
+                
+                // 1. 优先使用设备保存的customerCode
+                if (savedCustomerCode != null && !savedCustomerCode.isEmpty()) {
+                    Log.d(TAG, "Trying with saved customerCode: " + savedCustomerCode);
+                    latestInfo = NewApiService.getInstance().getDeviceLatest(deviceNum, savedCustomerCode);
+                    if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
+                        matchedCustomerCode = savedCustomerCode;
+                        Log.d(TAG, "Success with saved customerCode: " + savedCustomerCode);
+                    } else {
+                        Log.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
+                        latestInfo = null;
+                    }
+                }
+                
+                // 2. 如果保存的customerCode失败，遍历所有customerCode
+                if (latestInfo == null) {
+                    java.util.Map<String, ApiConfig.CustomerConfig> configs = ApiConfig.getAllCustomerConfigs();
+                    for (java.util.Map.Entry<String, ApiConfig.CustomerConfig> entry : configs.entrySet()) {
+                        // 检查序列号，如果已有新请求则提前退出
+                        if (currentSeq != deviceRefreshSequence) {
+                            break;
+                        }
+                        String customerCode = entry.getKey();
+                        if (customerCode.equals(savedCustomerCode)) {
+                            continue; // 已经尝试过
+                        }
+                        
+                        Log.d(TAG, "Trying customerCode: " + customerCode);
+                        latestInfo = NewApiService.getInstance().getDeviceLatest(deviceNum, customerCode);
+                        if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
+                            matchedCustomerCode = customerCode;
+                            Log.d(TAG, "Success with customerCode: " + customerCode);
+                            break;
+                        }
+                        latestInfo = null;
+                    }
+                }
+                
+                // 检查序列号，如果已有新请求则丢弃本结果（但仍需停止动画）
+                if (currentSeq != deviceRefreshSequence) {
+                    Log.d(TAG, "Refresh seq #" + currentSeq + " ignored (stale), current=#" + deviceRefreshSequence);
+                    // 不需要停止动画，因为新的刷新请求会接管动画
+                    isRefreshInProgress = false;
+                    return;
+                }
+                
+                if (latestInfo == null) {
+                    Log.w(TAG, "API returned null for device: " + deviceNum + " with all customer codes");
+                    runOnUiThread(() -> {
+                        stopRefreshAnimation();
+                        isRefreshInProgress = false;
+                        if (showToast) {
+                            Toast.makeText(MainActivity.this, R.string.refresh_failed, Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                    return;
+                }
+                
+                // 保存匹配的customerCode到设备
+                if (matchedCustomerCode != null && selectedDevice != null) {
+                    if (!matchedCustomerCode.equals(selectedDevice.getCustomerCode())) {
+                        selectedDevice.setCustomerCode(matchedCustomerCode);
+                        databaseHelper.addDevice(selectedDevice);
+                        Log.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
+                    }
+                }
+                
+                // 创建final副本供lambda使用
+                final NewApiService.DeviceInfo finalLatestInfo = latestInfo;
+                final String finalMatchedCustomerCode = matchedCustomerCode;
+                final boolean finalShowToast = showToast;
+                long serverTimestamp = latestInfo.timestamp;
+                Log.d(TAG, "Server timestamp: " + serverTimestamp + ", current timestamp: " + currentTimestamp);
+                
+                runOnUiThread(() -> {
+                    stopRefreshAnimation();
+                    isRefreshInProgress = false;
+
+                    if (serverTimestamp > currentTimestamp) {
+                        // 服务器时间更新，更新UI
+                        Log.d(TAG, "Server data is newer, updating UI");
+                        updateDeviceUIWithoutCameraMove(finalLatestInfo);
+
+                        // 更新本地设备数据
+                        if (selectedDevice != null) {
+                            selectedDevice.setLatitude(finalLatestInfo.latitude);
+                            selectedDevice.setLongitude(finalLatestInfo.longitude);
+                            selectedDevice.setLastSeen(serverTimestamp);
+                            selectedDevice.setBattery(finalLatestInfo.battery);
+                            if (finalMatchedCustomerCode != null) {
+                                selectedDevice.setCustomerCode(finalMatchedCustomerCode);
+                            }
+                            databaseHelper.addDevice(selectedDevice);
+                        }
+
+                        // 更新ViewModel中的LiveData
+                        viewModel.setSelectedDevice(selectedDevice);
+                        if (finalLatestInfo.battery > 0) {
+                            viewModel.updateBatteryLevel(String.valueOf(finalLatestInfo.battery));
+                        }
+                        viewModel.updateUpdateTime(String.valueOf(serverTimestamp));
+
+                        // 显示刷新成功提示
+                        if (finalShowToast) {
+                            Toast.makeText(MainActivity.this, R.string.refresh_success, Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        // 当前数据更新或相同，提示数据已是最新
+                        Log.d(TAG, "Current data is newer or equal, keeping current display");
+                        if (finalShowToast) {
+                            Toast.makeText(MainActivity.this, R.string.data_already_latest, Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Refresh API call failed: " + e.getMessage(), e);
+                runOnUiThread(() -> {
+                    stopRefreshAnimation();
+                    isRefreshInProgress = false;
+                    if (showToast) {
+                        Toast.makeText(MainActivity.this, R.string.refresh_failed, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        }).start();
     }
 
     /**
