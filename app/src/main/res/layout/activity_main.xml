@@ -309,4 +309,13 @@
 
     </LinearLayout>
 
+    <!-- 底部填充区域（填充导航栏下方的空白） -->
+    <View
+        android:id="@+id/bottom_fill"
+        android:layout_width="match_parent"
+        android:layout_height="30dp"
+        android:background="@color/top_bar_background"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/bottom_navigation" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>
