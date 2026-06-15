@@ -180,11 +180,10 @@
     <LinearLayout
         android:id="@+id/bottom_navigation"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:layout_marginBottom="30dp"
+        android:layout_height="86dp"
         android:orientation="horizontal"
         android:background="@color/top_bar_background"
-        android:elevation="8dp"
+        android:paddingBottom="30dp"
         app:layout_constraintBottom_toBottomOf="parent">
 
         <!-- 首页 -->
@@ -308,14 +307,5 @@
         </LinearLayout>
 
     </LinearLayout>
-
-    <!-- 底部填充区域（填充导航栏下方的空白） -->
-    <View
-        android:id="@+id/bottom_fill"
-        android:layout_width="match_parent"
-        android:layout_height="30dp"
-        android:background="@color/top_bar_background"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/bottom_navigation" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
