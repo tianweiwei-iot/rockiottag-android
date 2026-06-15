@@ -13,6 +13,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -31,6 +32,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
 
 import com.RockiotTag.tag.viewmodel.MainViewModel;
 import com.RockiotTag.tag.viewmodel.BleViewModel;
@@ -75,21 +79,9 @@ public class MainActivity extends AppCompatActivity {
     private BleViewModel bleViewModel;
     private MapViewModel mapViewModel;
 
-    private ImageButton menuBtn;
-    private LinearLayout menuBtnContainer;
-    private ImageButton buzzerBtn;
-    private LinearLayout buzzerBtnContainer;
     private ImageButton locateBtn;
     private ImageButton mapTypeBtn;
     private ImageButton refreshBtn;
-    private ImageButton trackBtn;
-    private LinearLayout trackBtnContainer;
-    private ImageButton naviBtn;
-    private LinearLayout naviBtnContainer;
-    private TextView deviceNameText;
-    private TextView noDeviceText;
-    private LinearLayout deviceNameContainer;
-    private TextView deviceTagIcon;
     private TextView batteryLevelText;
     private TextView deviceAddressText;
     private TextView updateTimeText;
@@ -97,6 +89,20 @@ public class MainActivity extends AppCompatActivity {
     private ImageView scanningIndicator;  // 扫描状态指示图标（时间戳后面）
     private View bottomInfo;
     private boolean isSatelliteMap = false;
+
+    // 底部导航栏
+    private LinearLayout tabHome, tabList, tabTrack, tabProfile;
+    private ImageView tabHomeIcon, tabListIcon, tabTrackIcon, tabProfileIcon;
+    private TextView tabHomeText, tabListText, tabTrackText, tabProfileText;
+    private int currentTab = 0; // 当前选中的Tab索引
+    private long lastTabClickTime = 0; // 上次点击Tab的时间，用于防止快速重复点击
+    private static final long TAB_CLICK_INTERVAL = 500; // Tab点击间隔（毫秒）
+
+    // Fragment
+    private HomeFragment homeFragment;
+    private DeviceListFragment deviceListFragment;
+    private TrackFragment trackFragment;
+    private ProfileFragment profileFragment;
 
     // 蓝牙增强扫描强度：0=关闭，1=低（单次），2=高（持续循环）
     private int scanIntensityLevel = 0;
@@ -141,30 +147,7 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void updateDeviceNameWithTag(String name, String tag) {
-        if (name != null && !name.isEmpty() && !name.equals(getString(R.string.no_device_selected))) {
-            // 有设备名称，显示设备名称容器，隐藏“未选择设备”文本
-            deviceNameText.setText(name);
-            if (deviceTagIcon != null) {
-                String icon = DeviceTag.getEmoji(tag);  // 直接使用 DeviceTag 枚举
-                deviceTagIcon.setText(icon);
-                deviceTagIcon.setVisibility(icon.isEmpty() ? View.GONE : View.VISIBLE);
-            }
-            if (deviceNameContainer != null) {
-                deviceNameContainer.setVisibility(View.VISIBLE);
-            }
-            if (noDeviceText != null) {
-                noDeviceText.setVisibility(View.GONE);
-            }
-        } else {
-            // 没有设备，显示“未选择设备”文本，隐藏设备名称容器
-            if (deviceNameContainer != null) {
-                deviceNameContainer.setVisibility(View.GONE);
-            }
-            if (noDeviceText != null) {
-                noDeviceText.setVisibility(View.VISIBLE);
-                noDeviceText.setText(getString(R.string.no_device_selected));
-            }
-        }
+        // 设备名称显示已移至底部信息卡片区域，此方法保留为空以兼容旧调用
     }
 
     
@@ -305,14 +288,6 @@ public class MainActivity extends AppCompatActivity {
             mapView.setPadding(0, mapPaddingTop, 0, 0);
             googleMapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.google_map_fragment);
 
-            menuBtn = findViewById(R.id.menu_btn);
-            menuBtnContainer = findViewById(R.id.menu_btn_container);
-            buzzerBtn = findViewById(R.id.buzzer_btn);
-            buzzerBtnContainer = findViewById(R.id.buzzer_btn_container);
-            deviceNameContainer = findViewById(R.id.device_name_container);
-            deviceNameText = findViewById(R.id.device_name);
-            noDeviceText = findViewById(R.id.no_device_text);
-            deviceTagIcon = findViewById(R.id.device_tag_icon);
             batteryLevelText = findViewById(R.id.battery_level);
             deviceAddressText = findViewById(R.id.device_address);
             updateTimeText = findViewById(R.id.update_time);
@@ -322,10 +297,23 @@ public class MainActivity extends AppCompatActivity {
             locateBtn = findViewById(R.id.locate_btn);
             mapTypeBtn = findViewById(R.id.map_type_btn);
             refreshBtn = findViewById(R.id.refresh_btn);
-            trackBtn = findViewById(R.id.track_btn);
-            trackBtnContainer = findViewById(R.id.track_btn_container);
-            naviBtn = findViewById(R.id.navi_btn);
-            naviBtnContainer = findViewById(R.id.navi_btn_container);
+
+            // 底部导航栏
+            tabHome = findViewById(R.id.tab_home);
+            tabList = findViewById(R.id.tab_list);
+            tabTrack = findViewById(R.id.tab_track);
+            tabProfile = findViewById(R.id.tab_profile);
+            tabHomeIcon = findViewById(R.id.tab_home_icon);
+            tabListIcon = findViewById(R.id.tab_list_icon);
+            tabTrackIcon = findViewById(R.id.tab_track_icon);
+            tabProfileIcon = findViewById(R.id.tab_profile_icon);
+            tabHomeText = findViewById(R.id.tab_home_text);
+            tabListText = findViewById(R.id.tab_list_text);
+            tabTrackText = findViewById(R.id.tab_track_text);
+            tabProfileText = findViewById(R.id.tab_profile_text);
+
+            initBottomNavigation();
+            initFragments();
 
             bottomInfo.setVisibility(View.GONE);
 
@@ -545,44 +533,6 @@ public class MainActivity extends AppCompatActivity {
 
             checkPermissions();
 
-            menuBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    // 显示菜单选项
-                    showMenuOptions();
-                }
-            });
-
-            // 为整个菜单按钮容器设置点击监听器
-            if (menuBtnContainer != null) {
-                menuBtnContainer.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        showMenuOptions();
-                    }
-                });
-            }
-
-            buzzerBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    // MVVM - 使用 BleViewModel 触发蜂鸣器
-                    bleViewModel.triggerBuzzer();
-                    Toast.makeText(MainActivity.this, R.string.trigger_buzzer, Toast.LENGTH_SHORT).show();
-                }
-            });
-
-            // 为整个蜂鸣器按钮容器设置点击监听器
-            if (buzzerBtnContainer != null) {
-                buzzerBtnContainer.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        bleViewModel.triggerBuzzer();
-                        Toast.makeText(MainActivity.this, R.string.trigger_buzzer, Toast.LENGTH_SHORT).show();
-                    }
-                });
-            }
-
             locateBtn.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -621,42 +571,6 @@ public class MainActivity extends AppCompatActivity {
                     performDeviceRefresh(true);
                 }
             });
-
-            trackBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    Intent intent = new Intent(MainActivity.this, TrackActivity.class);
-                    startActivity(intent);
-                }
-            });
-
-            // 为整个轨迹按钮容器设置点击监听器，使点击文本和图标都能进入轨迹界面
-            if (trackBtnContainer != null) {
-                trackBtnContainer.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        Intent intent = new Intent(MainActivity.this, TrackActivity.class);
-                        startActivity(intent);
-                    }
-                });
-            }
-
-            // 导航按钮点击事件
-            naviBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    startNavigation();
-                }
-            });
-
-            if (naviBtnContainer != null) {
-                naviBtnContainer.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        startNavigation();
-                    }
-                });
-            }
 
 
             initTrackRefresh();
@@ -1221,11 +1135,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void showMenuOptions() {
         final List<String> menuItems = new ArrayList<>();
-        menuItems.add(getString(R.string.device_list));
         menuItems.add(getString(R.string.geofence_settings));
         menuItems.add(getString(R.string.bluetooth_enhance));
-        menuItems.add(getString(R.string.switch_map));
-        menuItems.add(getString(R.string.change_language));
         menuItems.add(getString(R.string.version_info));
 
         new androidx.appcompat.app.AlertDialog.Builder(this)
@@ -1235,21 +1146,12 @@ public class MainActivity extends AppCompatActivity {
                     public void onClick(DialogInterface dialog, int which) {
                         switch (which) {
                             case 0:
-                                openDeviceList();
-                                break;
-                            case 1:
                                 openGeofenceSettings();
                                 break;
-                            case 2:
+                            case 1:
                                 showBluetoothEnhanceOptions();
                                 break;
-                            case 3:
-                                showMapSwitchOptions();
-                                break;
-                            case 4:
-                                showLanguageOptions();
-                                break;
-                            case 5:
+                            case 2:
                                 showVersionInfo();
                                 break;
                         }
@@ -1259,7 +1161,7 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
     
-    private void showMapSwitchOptions() {
+    public void showMapSwitchOptions() {
         android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
         String currentMap = prefs.getString("map_provider", "amap");
         
@@ -1317,7 +1219,7 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
-    private void selectDevice(Device device) {
+    public void selectDevice(Device device) {
         Log.d(TAG, "=== Selecting device ===");
         Log.d(TAG, "  Device Name: " + device.getName());
         Log.d(TAG, "  Device Num (16-digit): " + device.getDeviceNum());
@@ -1363,8 +1265,7 @@ public class MainActivity extends AppCompatActivity {
         }
         
         updateDeviceNameWithTag(device.getName(), device.getTag());
-        deviceNameText.setVisibility(View.VISIBLE);
-        bottomInfo.setVisibility(View.VISIBLE);
+        if (bottomInfo != null) bottomInfo.setVisibility(View.VISIBLE);
 
         // 【关键修复】切换设备时，如果新设备没有有效经纬度，立即将电量、地址、时间显示为 "--"
         if (device.getLatitude() == 0 || device.getLongitude() == 0) {
@@ -1478,8 +1379,8 @@ public class MainActivity extends AppCompatActivity {
     private void updateDeviceUIWithLatest(NewApiService.DeviceInfo deviceInfo, boolean moveCamera) {
         Log.d(TAG, "Updating device UI: " + deviceInfo.deviceNum + ", moveCamera=" + moveCamera);
         
-        bottomInfo.setVisibility(View.VISIBLE);
-        
+        if (bottomInfo != null) bottomInfo.setVisibility(View.VISIBLE);
+
         // 1. 更新设备名称 - 保留本地昵称，不使用服务器昵称覆盖
         // 因为本地昵称可能是用户刚修改但尚未同步到服务器的
         if (selectedDevice != null && selectedDevice.getName() != null) {
@@ -1715,7 +1616,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void showLanguageOptions() {
+    public void showLanguageOptions() {
         final List<LanguageItem> languages = new ArrayList<>();
         languages.add(new LanguageItem("\uD83C\uDDE8\uD83C\uDDF3", "中文", "zh"));
         languages.add(new LanguageItem("\uD83C\uDDEC\uD83C\uDDE7", "English", "en"));
@@ -1878,6 +1779,341 @@ public class MainActivity extends AppCompatActivity {
         // MVVM - 使用 ViewModel 的 UseCase 触发蜂鸣器
         viewModel.triggerBuzzer();
         Toast.makeText(this, R.string.trigger_buzzer, Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * 初始化底部导航栏
+     */
+    private void initBottomNavigation() {
+        View.OnClickListener tabClickListener = new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // 防止快速重复点击
+                long now = System.currentTimeMillis();
+                if (now - lastTabClickTime < TAB_CLICK_INTERVAL) {
+                    return;
+                }
+                lastTabClickTime = now;
+
+                int tabIndex;
+                if (v.getId() == R.id.tab_home) tabIndex = 0;
+                else if (v.getId() == R.id.tab_list) tabIndex = 1;
+                else if (v.getId() == R.id.tab_track) tabIndex = 2;
+                else if (v.getId() == R.id.tab_profile) tabIndex = 3;
+                else return;
+
+                // 禁止重复点击同一Tab
+                if (tabIndex == currentTab) return;
+
+                switchToTab(tabIndex);
+            }
+        };
+
+        tabHome.setOnClickListener(tabClickListener);
+        tabList.setOnClickListener(tabClickListener);
+        tabTrack.setOnClickListener(tabClickListener);
+        tabProfile.setOnClickListener(tabClickListener);
+
+        // 默认选中首页
+        updateTabSelection(0);
+    }
+
+    /**
+     * 初始化Fragment
+     */
+    private void initFragments() {
+        homeFragment = new HomeFragment();
+        deviceListFragment = new DeviceListFragment();
+        trackFragment = new TrackFragment();
+        profileFragment = new ProfileFragment();
+
+        // 默认显示首页
+        FragmentManager fm = getSupportFragmentManager();
+        FragmentTransaction ft = fm.beginTransaction();
+        ft.add(R.id.fragment_container, homeFragment, "home");
+        ft.add(R.id.fragment_container, deviceListFragment, "list");
+        ft.add(R.id.fragment_container, trackFragment, "track");
+        ft.add(R.id.fragment_container, profileFragment, "profile");
+        ft.hide(deviceListFragment);
+        ft.hide(trackFragment);
+        ft.hide(profileFragment);
+        ft.commit();
+    }
+
+    /**
+     * 切换Tab
+     * @param tabIndex 0=首页, 1=列表, 2=轨迹, 3=我的
+     */
+    public void switchToTab(int tabIndex) {
+        if (tabIndex == currentTab) return;
+
+        FragmentManager fm = getSupportFragmentManager();
+        FragmentTransaction ft = fm.beginTransaction();
+
+        // 隐藏所有Fragment
+        ft.hide(homeFragment);
+        ft.hide(deviceListFragment);
+        ft.hide(trackFragment);
+        ft.hide(profileFragment);
+
+        // 显示目标Fragment
+        switch (tabIndex) {
+            case 0: ft.show(homeFragment); break;
+            case 1: ft.show(deviceListFragment); break;
+            case 2: ft.show(trackFragment); break;
+            case 3: ft.show(profileFragment); break;
+        }
+        ft.commit();
+
+        currentTab = tabIndex;
+        updateTabSelection(tabIndex);
+        updateHomeUIVisibility(tabIndex == 0);
+    }
+
+    /**
+     * 更新Tab选中状态
+     */
+    private void updateTabSelection(int tabIndex) {
+        tabHome.setSelected(tabIndex == 0);
+        tabList.setSelected(tabIndex == 1);
+        tabTrack.setSelected(tabIndex == 2);
+        tabProfile.setSelected(tabIndex == 3);
+
+        // 更新图标颜色
+        int selectedColor = getResources().getColor(R.color.purple_500, null);
+        int unselectedColor = getResources().getColor(R.color.text_secondary, null);
+
+        tabHomeIcon.setColorFilter(tabIndex == 0 ? selectedColor : unselectedColor);
+        tabListIcon.setColorFilter(tabIndex == 1 ? selectedColor : unselectedColor);
+        tabTrackIcon.setColorFilter(tabIndex == 2 ? selectedColor : unselectedColor);
+        tabProfileIcon.setColorFilter(tabIndex == 3 ? selectedColor : unselectedColor);
+    }
+
+    /**
+     * 控制首页UI元素的可见性（浮动按钮、底部信息卡片）
+     */
+    private void updateHomeUIVisibility(boolean visible) {
+        int visibility = visible ? View.VISIBLE : View.GONE;
+        if (refreshBtn != null) refreshBtn.setVisibility(visibility);
+        if (mapTypeBtn != null) mapTypeBtn.setVisibility(visibility);
+        if (locateBtn != null) locateBtn.setVisibility(visibility);
+        if (bottomInfo != null && selectedDevice != null) {
+            bottomInfo.setVisibility(visibility);
+        }
+    }
+
+    /**
+     * 首页Fragment可见时回调
+     */
+    public void onHomeFragmentVisible() {
+        updateHomeUIVisibility(true);
+    }
+
+    /**
+     * 获取当前选中的设备（供Fragment调用）
+     */
+    public Device getSelectedDevice() {
+        return selectedDevice;
+    }
+
+    /**
+     * 打开添加设备页面（供Fragment调用）
+     */
+    public void openAddDevice() {
+        Intent intent = new Intent(this, AddDeviceActivity.class);
+        startActivity(intent);
+    }
+
+    /**
+     * 切换深色模式
+     */
+    public void toggleDarkMode(boolean isDarkMode) {
+        if (isDarkMode) {
+            androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES);
+        } else {
+            androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO);
+        }
+        // 保存设置
+        getSharedPreferences("app_settings", MODE_PRIVATE)
+            .edit().putBoolean("dark_mode", isDarkMode).apply();
+    }
+
+    /**
+     * 显示登录对话框
+     */
+    public void showLoginDialog() {
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle(R.string.login);
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 40, 50, 10);
+
+        final EditText usernameInput = new EditText(this);
+        usernameInput.setHint(R.string.username);
+        usernameInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        layout.addView(usernameInput);
+
+        final EditText passwordInput = new EditText(this);
+        passwordInput.setHint(R.string.password);
+        passwordInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        layout.addView(passwordInput);
+
+        builder.setView(layout);
+
+        builder.setPositiveButton(R.string.login, null);
+        builder.setNegativeButton(R.string.cancel, null);
+        builder.setNeutralButton(R.string.forgot_password, null);
+
+        android.app.AlertDialog dialog = builder.create();
+        dialog.show();
+
+        // 重写按钮点击，防止自动关闭
+        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String username = usernameInput.getText().toString().trim();
+            String password = passwordInput.getText().toString().trim();
+
+            if (!UserApiService.isValidUsername(username)) {
+                Toast.makeText(this, R.string.username_invalid, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (!UserApiService.isValidPassword(password)) {
+                Toast.makeText(this, R.string.password_invalid, Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            new Thread(() -> {
+                NewApiService.ApiResponse response = UserApiService.getInstance().login(username, password);
+                runOnUiThread(() -> {
+                    if (response.isSuccess() && response.getToken() != null) {
+                        // 保存登录状态
+                        getSharedPreferences("app_settings", MODE_PRIVATE).edit()
+                            .putString("auth_token", response.getToken())
+                            .putString("user_username", username)
+                            .apply();
+                        Toast.makeText(this, R.string.login_success, Toast.LENGTH_SHORT).show();
+                        dialog.dismiss();
+                        // 更新ProfileFragment
+                        if (profileFragment != null) {
+                            profileFragment.onResume();
+                        }
+                    } else {
+                        String msg = response.getMessage();
+                        if (msg != null && msg.contains("not found")) {
+                            Toast.makeText(this, R.string.user_not_found, Toast.LENGTH_SHORT).show();
+                        } else if (msg != null && msg.contains("password")) {
+                            Toast.makeText(this, R.string.wrong_password, Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(this, R.string.login_failed, Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
+            }).start();
+        });
+
+        // 忘记密码
+        dialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+            Toast.makeText(this, R.string.reset_password_contact_admin, Toast.LENGTH_LONG).show();
+        });
+    }
+
+    /**
+     * 显示注册对话框
+     */
+    public void showRegisterDialog() {
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle(R.string.register);
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(50, 40, 50, 10);
+
+        final EditText usernameInput = new EditText(this);
+        usernameInput.setHint(R.string.username);
+        usernameInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        layout.addView(usernameInput);
+
+        TextView usernameHint = new TextView(this);
+        usernameHint.setText(getString(R.string.username_rule));
+        usernameHint.setTextSize(12);
+        usernameHint.setTextColor(getResources().getColor(R.color.text_secondary, null));
+        layout.addView(usernameHint);
+
+        final EditText passwordInput = new EditText(this);
+        passwordInput.setHint(R.string.password);
+        passwordInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        layout.addView(passwordInput);
+
+        TextView passwordHint = new TextView(this);
+        passwordHint.setText(getString(R.string.password_rule));
+        passwordHint.setTextSize(12);
+        passwordHint.setTextColor(getResources().getColor(R.color.text_secondary, null));
+        layout.addView(passwordHint);
+
+        final EditText confirmPasswordInput = new EditText(this);
+        confirmPasswordInput.setHint(R.string.confirm_password);
+        confirmPasswordInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        layout.addView(confirmPasswordInput);
+
+        builder.setView(layout);
+
+        builder.setPositiveButton(R.string.register, null);
+        builder.setNegativeButton(R.string.cancel, null);
+
+        android.app.AlertDialog dialog = builder.create();
+        dialog.show();
+
+        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String username = usernameInput.getText().toString().trim();
+            String password = passwordInput.getText().toString().trim();
+            String confirmPassword = confirmPasswordInput.getText().toString().trim();
+
+            if (!UserApiService.isValidUsername(username)) {
+                Toast.makeText(this, R.string.username_invalid, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (!UserApiService.isValidPassword(password)) {
+                Toast.makeText(this, R.string.password_invalid, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (!password.equals(confirmPassword)) {
+                Toast.makeText(this, R.string.password_not_match, Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            new Thread(() -> {
+                NewApiService.ApiResponse response = UserApiService.getInstance().register(username, password);
+                runOnUiThread(() -> {
+                    if (response.isSuccess()) {
+                        Toast.makeText(this, R.string.register_success, Toast.LENGTH_SHORT).show();
+                        // 注册成功后自动登录
+                        new Thread(() -> {
+                            NewApiService.ApiResponse loginResp = UserApiService.getInstance().login(username, password);
+                            runOnUiThread(() -> {
+                                if (loginResp.isSuccess() && loginResp.getToken() != null) {
+                                    getSharedPreferences("app_settings", MODE_PRIVATE).edit()
+                                        .putString("auth_token", loginResp.getToken())
+                                        .putString("user_username", username)
+                                        .apply();
+                                    Toast.makeText(this, R.string.login_success, Toast.LENGTH_SHORT).show();
+                                    if (profileFragment != null) {
+                                        profileFragment.onResume();
+                                    }
+                                }
+                            });
+                        }).start();
+                        dialog.dismiss();
+                    } else {
+                        String msg = response.getMessage();
+                        if (msg != null && (msg.contains("exist") || msg.contains("already"))) {
+                            Toast.makeText(this, R.string.username_exists, Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(this, R.string.register_failed, Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
+            }).start();
+        });
     }
 
     private void startRefreshAnimation() {
@@ -2407,6 +2643,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         mapView.onResume();
+
+        // 从TrackActivity返回时，如果当前在轨迹Tab，切回首页
+        if (currentTab == 2) {
+            switchToTab(0);
+        }
         
         Log.d(TAG, "=== onResume called ===");
         
@@ -2731,8 +2972,7 @@ public class MainActivity extends AppCompatActivity {
                     viewModel.setSelectedDevice(device);
                     selectedDevice = device; // 保持兼容性
                     updateDeviceNameWithTag(device.getName(), device.getTag());
-                    deviceNameText.setVisibility(View.VISIBLE);
-                    bottomInfo.setVisibility(View.VISIBLE);
+                    if (bottomInfo != null) bottomInfo.setVisibility(View.VISIBLE);
                     
                     // 先显示默认的设备信息
                     updateDeviceUIDefault();
@@ -2804,8 +3044,7 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "Clearing device info");
         selectedDevice = null;
         updateDeviceNameWithTag(getString(R.string.no_device_selected), null);
-        deviceNameText.setVisibility(View.VISIBLE);
-        bottomInfo.setVisibility(View.VISIBLE);
+        if (bottomInfo != null) bottomInfo.setVisibility(View.VISIBLE);
         batteryLevelText.setText(getString(R.string.battery_level_empty));
         deviceAddressText.setText(getString(R.string.position_empty));
         updateTimeText.setText(getString(R.string.last_update_empty));
@@ -2940,8 +3179,7 @@ public class MainActivity extends AppCompatActivity {
         selectedDevice = firstDevice; // 保持兼容性
         
         updateDeviceNameWithTag(firstDevice.getName(), firstDevice.getTag());
-        deviceNameText.setVisibility(View.VISIBLE);
-        bottomInfo.setVisibility(View.VISIBLE);
+        if (bottomInfo != null) bottomInfo.setVisibility(View.VISIBLE);
         
         // 先显示默认的设备信息
         updateDeviceUIDefault();

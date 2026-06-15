@@ -1,0 +1,1 @@
+﻿debugAndroidTestCompileClasspath - Resolved configuration for compilation for variant: debugAndroidTest
