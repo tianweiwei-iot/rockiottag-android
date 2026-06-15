@@ -262,7 +262,11 @@ public class MainActivity extends AppCompatActivity {
             
             super.onCreate(savedInstanceState);
             
+            Log.d(TAG, "=== STEP 1: super.onCreate DONE ===");
+            
             setContentView(R.layout.activity_main);
+            
+            Log.d(TAG, "=== STEP 2: setContentView DONE ===");
             
             // 设置标题栏标题
             if (getSupportActionBar() != null) {
@@ -282,7 +286,13 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
             }
             mapView = findViewById(R.id.mapView);
+            Log.d(TAG, "=== STEP 3: mapView findViewById ===");
+            if (mapView == null) {
+                Log.e(TAG, "!!! mapView is NULL !!!");
+                throw new RuntimeException("mapView is null - check layout");
+            }
             mapView.onCreate(savedInstanceState);
+            Log.d(TAG, "=== STEP 4: mapView.onCreate DONE ===");
             // 设置地图内边距，让标尺、logo、缩放按钮上移22dp，指南针额外下移10dp
             int mapPaddingTop = (int) (42 * getResources().getDisplayMetrics().density);
             mapView.setPadding(0, mapPaddingTop, 0, 0);
@@ -313,11 +323,15 @@ public class MainActivity extends AppCompatActivity {
             tabProfileText = findViewById(R.id.tab_profile_text);
 
             initBottomNavigation();
+            Log.d(TAG, "=== STEP 5: initBottomNavigation DONE ===");
             initFragments();
+            Log.d(TAG, "=== STEP 6: initFragments DONE ===");
 
             bottomInfo.setVisibility(View.GONE);
+            Log.d(TAG, "=== STEP 7: bottomInfo.setVisibility DONE ===");
 
             initDatabase();  // 先初始化数据库，以便在地图初始化时能够读取设备信息
+            Log.d(TAG, "=== STEP 8: initDatabase DONE ===");
             
             // MVVM - 初始化 ViewModel
             viewModel = new ViewModelProvider(this).get(MainViewModel.class);
@@ -1822,22 +1836,27 @@ public class MainActivity extends AppCompatActivity {
      * 初始化Fragment
      */
     private void initFragments() {
+        Log.d(TAG, "=== initFragments START ===");
         homeFragment = new HomeFragment();
         deviceListFragment = new DeviceListFragment();
         trackFragment = new TrackFragment();
         profileFragment = new ProfileFragment();
+        Log.d(TAG, "=== initFragments: all fragments created ===");
 
         // 默认显示首页
         FragmentManager fm = getSupportFragmentManager();
         FragmentTransaction ft = fm.beginTransaction();
         ft.add(R.id.fragment_container, homeFragment, "home");
+        Log.d(TAG, "=== initFragments: homeFragment added ===");
         ft.add(R.id.fragment_container, deviceListFragment, "list");
         ft.add(R.id.fragment_container, trackFragment, "track");
         ft.add(R.id.fragment_container, profileFragment, "profile");
+        Log.d(TAG, "=== initFragments: all fragments added ===");
         ft.hide(deviceListFragment);
         ft.hide(trackFragment);
         ft.hide(profileFragment);
         ft.commit();
+        Log.d(TAG, "=== initFragments END (commit done) ===");
     }
 
     /**
