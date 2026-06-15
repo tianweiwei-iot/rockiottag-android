@@ -25,14 +25,13 @@ public class TrackFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         Log.d(TAG, "=== TrackFragment onViewCreated ===");
-        // 不在这里启动TrackActivity，等用户主动点击轨迹Tab
     }
 
     @Override
     public void onResume() {
         super.onResume();
         Log.d(TAG, "=== TrackFragment onResume ===");
-        // 用户点击轨迹Tab时启动TrackActivity
+        // 用户点击轨迹Tab时启动TrackActivity（带底部导航栏）
         openTrackActivity();
     }
 
@@ -53,7 +52,6 @@ public class TrackFragment extends Fragment {
         if (selectedDevice == null) {
             Log.w(TAG, "No selected device, switching to home tab");
             Toast.makeText(requireContext(), R.string.please_select_device, Toast.LENGTH_SHORT).show();
-            // 切换回首页
             if (getActivity() instanceof MainActivity) {
                 ((MainActivity) getActivity()).switchToTab(0);
             }

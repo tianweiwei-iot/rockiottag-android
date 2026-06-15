@@ -101,6 +101,7 @@ public class MainActivity extends AppCompatActivity {
     // Fragment
     private HomeFragment homeFragment;
     private DeviceListFragment deviceListFragment;
+    private TrackFragment trackFragment;
     private ProfileFragment profileFragment;
 
     // 蓝牙增强扫描强度：0=关闭，1=低（单次），2=高（持续循环）
@@ -267,10 +268,9 @@ public class MainActivity extends AppCompatActivity {
             
             Log.d(TAG, "=== STEP 2: setContentView DONE ===");
             
-            // 设置标题栏标题
+            // 隐藏标题栏
             if (getSupportActionBar() != null) {
-                getSupportActionBar().setTitle(R.string.app_name);
-                getSupportActionBar().setDisplayHomeAsUpEnabled(false);
+                getSupportActionBar().hide();
             }
             
             // 设置状态栏样式（必须在setContentView之后）
@@ -292,9 +292,11 @@ public class MainActivity extends AppCompatActivity {
             }
             mapView.onCreate(savedInstanceState);
             Log.d(TAG, "=== STEP 4: mapView.onCreate DONE ===");
-            // 设置地图内边距，让标尺、logo、缩放按钮上移22dp，指南针额外下移10dp
-            int mapPaddingTop = (int) (42 * getResources().getDisplayMetrics().density);
-            mapView.setPadding(0, mapPaddingTop, 0, 0);
+            // 设置地图内边距，让标尺、logo、缩放按钮上移到设备信息栏上方
+            // 底部需要留出空间给设备信息卡片(100dp) + 底部导航栏(86dp)
+            int mapPaddingBottom = (int) (186 * getResources().getDisplayMetrics().density);
+            int mapPaddingTop = (int) (8 * getResources().getDisplayMetrics().density);
+            mapView.setPadding(0, mapPaddingTop, 0, mapPaddingBottom);
             googleMapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.google_map_fragment);
 
             batteryLevelText = findViewById(R.id.battery_level);
@@ -962,6 +964,7 @@ public class MainActivity extends AppCompatActivity {
                 aMap.setMyLocationEnabled(false);
                 aMap.getUiSettings().setCompassEnabled(true); // 启用指南针
                 aMap.getUiSettings().setScaleControlsEnabled(true);
+                aMap.getUiSettings().setZoomControlsEnabled(true); // 启用缩放按钮
                 aMap.moveCamera(com.amap.api.maps.CameraUpdateFactory.zoomTo(17));
                 
                 aMap.setOnMapTouchListener(new com.amap.api.maps.AMap.OnMapTouchListener() {
@@ -1818,17 +1821,8 @@ public class MainActivity extends AppCompatActivity {
                 // 禁止重复点击同一Tab
                 if (tabIndex == currentTab) return;
 
-                // 轨迹Tab特殊处理：直接启动TrackActivity，不切换Fragment
-                if (tabIndex == 2) {
-                    if (selectedDevice == null) {
-                        Toast.makeText(MainActivity.this, R.string.please_select_device, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    Intent intent = new Intent(MainActivity.this, TrackActivity.class);
-                    startActivity(intent);
-                    // 不切换Tab，保持在当前Tab
-                    return;
-                }
+                // 轨迹Tab：切换到轨迹Fragment
+                // （不再启动独立Activity，改为Fragment嵌入）
 
                 switchToTab(tabIndex);
             }
@@ -1850,6 +1844,7 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "=== initFragments START ===");
         homeFragment = new HomeFragment();
         deviceListFragment = new DeviceListFragment();
+        trackFragment = new TrackFragment();
         profileFragment = new ProfileFragment();
         Log.d(TAG, "=== initFragments: all fragments created ===");
 
@@ -1858,9 +1853,11 @@ public class MainActivity extends AppCompatActivity {
         FragmentTransaction ft = fm.beginTransaction();
         ft.add(R.id.fragment_container, homeFragment, "home");
         ft.add(R.id.fragment_container, deviceListFragment, "list");
+        ft.add(R.id.fragment_container, trackFragment, "track");
         ft.add(R.id.fragment_container, profileFragment, "profile");
         Log.d(TAG, "=== initFragments: all fragments added ===");
         ft.hide(deviceListFragment);
+        ft.hide(trackFragment);
         ft.hide(profileFragment);
         ft.commit();
         Log.d(TAG, "=== initFragments END (commit done) ===");
@@ -1873,21 +1870,20 @@ public class MainActivity extends AppCompatActivity {
     public void switchToTab(int tabIndex) {
         if (tabIndex == currentTab) return;
 
-        // 轨迹Tab不切换Fragment，直接启动TrackActivity
-        if (tabIndex == 2) return;
-
         FragmentManager fm = getSupportFragmentManager();
         FragmentTransaction ft = fm.beginTransaction();
 
         // 隐藏所有Fragment
         ft.hide(homeFragment);
         ft.hide(deviceListFragment);
+        ft.hide(trackFragment);
         ft.hide(profileFragment);
 
         // 显示目标Fragment
         switch (tabIndex) {
             case 0: ft.show(homeFragment); break;
             case 1: ft.show(deviceListFragment); break;
+            case 2: ft.show(trackFragment); break;
             case 3: ft.show(profileFragment); break;
         }
         ft.commit();
