@@ -98,6 +98,7 @@ public class MainActivity extends AppCompatActivity {
     private ImageView tabHomeIcon, tabListIcon, tabTrackIcon, tabProfileIcon;
     private TextView tabHomeText, tabListText, tabTrackText, tabProfileText;
     private int currentTab = 0; // 当前选中的Tab索引
+    private Bundle savedState = null; // 保存Activity重建前的状态
     private long lastTabClickTime = 0; // 上次点击Tab的时间，用于防止快速重复点击
     private static final long TAB_CLICK_INTERVAL = 500; // Tab点击间隔（毫秒）
 
@@ -266,6 +267,9 @@ public class MainActivity extends AppCompatActivity {
             super.onCreate(savedInstanceState);
             
             Log.d(TAG, "=== STEP 1: super.onCreate DONE ===");
+
+            // 保存savedInstanceState供后续使用
+            savedState = savedInstanceState;
             
             setContentView(R.layout.activity_main);
             
@@ -1868,6 +1872,13 @@ public class MainActivity extends AppCompatActivity {
      */
     private void initFragments() {
         Log.d(TAG, "=== initFragments START ===");
+
+        // 检查是否有保存的Tab状态（Activity重建时恢复）
+        int savedTab = -1;
+        if (savedState != null) {
+            savedTab = savedState.getInt("current_tab", -1);
+        }
+
         homeFragment = new HomeFragment();
         deviceListFragment = new DeviceListFragment();
         trackFragment = new TrackFragment();
@@ -1885,8 +1896,14 @@ public class MainActivity extends AppCompatActivity {
         ft.hide(deviceListFragment);
         ft.hide(trackFragment);
         ft.hide(profileFragment);
-        ft.commit();
+        ft.commitNowAllowingStateLoss();
         Log.d(TAG, "=== initFragments END (commit done) ===");
+
+        // 恢复之前选中的Tab
+        if (savedTab > 0 && savedTab <= 3) {
+            Log.d(TAG, "Restoring saved tab: " + savedTab);
+            switchToTab(savedTab);
+        }
     }
 
     /**
@@ -3279,6 +3296,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         mapView.onSaveInstanceState(outState);
+        // 保存当前Tab索引，Activity重建时恢复
+        outState.putInt("current_tab", currentTab);
     }
 
     /**
