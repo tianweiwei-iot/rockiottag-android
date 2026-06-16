@@ -1879,30 +1879,48 @@ public class MainActivity extends AppCompatActivity {
             savedTab = savedState.getInt("current_tab", -1);
         }
 
-        homeFragment = new HomeFragment();
-        deviceListFragment = new DeviceListFragment();
-        trackFragment = new TrackFragment();
-        profileFragment = new ProfileFragment();
-        Log.d(TAG, "=== initFragments: all fragments created ===");
-
-        // 默认显示首页
         FragmentManager fm = getSupportFragmentManager();
-        FragmentTransaction ft = fm.beginTransaction();
-        ft.add(R.id.fragment_container, homeFragment, "home");
-        ft.add(R.id.fragment_container, deviceListFragment, "list");
-        ft.add(R.id.fragment_container, trackFragment, "track");
-        ft.add(R.id.fragment_container, profileFragment, "profile");
-        Log.d(TAG, "=== initFragments: all fragments added ===");
-        ft.hide(deviceListFragment);
-        ft.hide(trackFragment);
-        ft.hide(profileFragment);
-        ft.commitNowAllowingStateLoss();
-        Log.d(TAG, "=== initFragments END (commit done) ===");
+        
+        // Activity重建时，系统会自动恢复Fragment，不要重复创建
+        homeFragment = (HomeFragment) fm.findFragmentByTag("home");
+        deviceListFragment = (DeviceListFragment) fm.findFragmentByTag("list");
+        trackFragment = (TrackFragment) fm.findFragmentByTag("track");
+        profileFragment = (ProfileFragment) fm.findFragmentByTag("profile");
+        
+        if (homeFragment != null && deviceListFragment != null && trackFragment != null && profileFragment != null) {
+            // Fragment已由系统恢复，只需更新UI状态
+            Log.d(TAG, "=== initFragments: fragments restored from saved state ===");
+        } else {
+            // 首次创建，添加所有Fragment
+            Log.d(TAG, "=== initFragments: creating new fragments ===");
+            homeFragment = new HomeFragment();
+            deviceListFragment = new DeviceListFragment();
+            trackFragment = new TrackFragment();
+            profileFragment = new ProfileFragment();
+
+            FragmentTransaction ft = fm.beginTransaction();
+            ft.add(R.id.fragment_container, homeFragment, "home");
+            ft.add(R.id.fragment_container, deviceListFragment, "list");
+            ft.add(R.id.fragment_container, trackFragment, "track");
+            ft.add(R.id.fragment_container, profileFragment, "profile");
+            ft.hide(deviceListFragment);
+            ft.hide(trackFragment);
+            ft.hide(profileFragment);
+            ft.commitNowAllowingStateLoss();
+            Log.d(TAG, "=== initFragments: new fragments added ===");
+        }
+        
+        Log.d(TAG, "=== initFragments END ===");
 
         // 恢复之前选中的Tab
         if (savedTab > 0 && savedTab <= 3) {
             Log.d(TAG, "Restoring saved tab: " + savedTab);
             switchToTab(savedTab);
+        } else if (savedTab == 0) {
+            // 恢复到首页，更新首页UI
+            currentTab = 0;
+            updateTabSelection(0);
+            updateHomeUIVisibility(true);
         }
     }
 
@@ -1929,7 +1947,7 @@ public class MainActivity extends AppCompatActivity {
             case 2: ft.show(trackFragment); break;
             case 3: ft.show(profileFragment); break;
         }
-        ft.commit();
+        ft.commitNowAllowingStateLoss();
 
         currentTab = tabIndex;
         updateTabSelection(tabIndex);
@@ -2013,14 +2031,16 @@ public class MainActivity extends AppCompatActivity {
      * 切换深色模式
      */
     public void toggleDarkMode(boolean isDarkMode) {
+        // 保存设置
+        getSharedPreferences("app_settings", MODE_PRIVATE)
+            .edit().putBoolean("dark_mode", isDarkMode).apply();
+        
+        // 使用setDefaultNightMode触发Activity重建
         if (isDarkMode) {
             androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES);
         } else {
             androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO);
         }
-        // 保存设置
-        getSharedPreferences("app_settings", MODE_PRIVATE)
-            .edit().putBoolean("dark_mode", isDarkMode).apply();
     }
 
     /**
@@ -2727,9 +2747,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        mapView.onResume();
+        if (mapView != null) {
+            mapView.onResume();
+        }
 
-        Log.d(TAG, "=== onResume called ===");
+        Log.d(TAG, "=== onResume called, currentTab=" + currentTab + " ===");
 
         // 从轨迹界面返回时，切换到指定Tab
         if (pendingTabSwitch >= 0) {
@@ -2738,6 +2760,7 @@ public class MainActivity extends AppCompatActivity {
             pendingTabSwitch = -1;
             switchToTab(targetTab);
         } else if (currentTab == 2) {
+            // 只有从TrackActivity返回时currentTab才是2（轨迹Tab不使用Fragment显示）
             Log.d(TAG, "Returning from TrackActivity, switching to home tab");
             switchToTab(0);
         }
@@ -2813,7 +2836,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        mapView.onPause();
+        if (mapView != null) {
+            mapView.onPause();
+        }
         stopTrackRefresh();
         
         // 【关键】只停止时间刷新，不停止蓝牙扫描（蓝牙扫描应该持续运行）
