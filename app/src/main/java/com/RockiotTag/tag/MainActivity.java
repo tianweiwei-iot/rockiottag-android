@@ -1002,6 +1002,12 @@ public class MainActivity extends AppCompatActivity {
                 
                 Log.d(TAG, "Map initialized successfully");
                 
+                // 初始化后立即应用深色地图样式（如果启用了深色模式）
+                boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
+                if (isDarkMode) {
+                    aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
+                }
+                
                 // MVVM 修复：地图初始化完成后，立即尝试刷新设备位置
                 refreshMapWithCurrentDevice(false);
             } else {
@@ -2076,6 +2082,29 @@ public class MainActivity extends AppCompatActivity {
                 getWindow().getDecorView().setSystemUiVisibility(
                     getWindow().getDecorView().getSystemUiVisibility() 
                     | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
+        }
+        
+        // 深色模式：设置地图样式
+        if (mapManager.isAmap()) {
+            if (aMap != null) {
+                if (isDarkMode) {
+                    // 使用导航地图样式（深色风格，蓝黑配色）
+                    aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
+                } else {
+                    aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NORMAL);
+                }
+            }
+        } else if (mapManager != null && mapManager.getGoogleMap() != null) {
+            com.google.android.gms.maps.GoogleMap gMap = mapManager.getGoogleMap();
+            if (isDarkMode) {
+                try {
+                    gMap.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style_night));
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to apply dark map style: " + e.getMessage());
+                }
+            } else {
+                gMap.setMapStyle(null);
             }
         }
         

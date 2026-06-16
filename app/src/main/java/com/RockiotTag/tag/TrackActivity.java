@@ -1231,6 +1231,11 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         // 设置logo底部margin，让logo不被导航栏遮挡
                         int logoMargin = dpToPx(86); // 导航栏高度
                         aMap.getUiSettings().setLogoBottomMargin(logoMargin);
+                        // 应用深色地图样式（如果启用了深色模式）
+                        boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
+                        if (isDarkMode) {
+                            aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
+                        }
                         aMap.moveCamera(com.amap.api.maps.CameraUpdateFactory.zoomTo(17));
                         aMap.setOnMarkerClickListener(this);
                         
@@ -1279,6 +1284,17 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 googleMap.getUiSettings().setTiltGesturesEnabled(true);
                 // 地图全屏显示，不设置padding（让地图瓦片延伸到导航栏位置）
                 // googleMap.setPadding(0, 0, 0, 0); // 不设置padding
+                
+                // 应用深色地图样式（如果启用了深色模式）
+                boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
+                if (isDarkMode) {
+                    try {
+                        googleMap.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style_night));
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to apply dark map style: " + e.getMessage());
+                    }
+                }
+                
                 // 完全禁用初始相机移动，让用户完全控制地图位置
                 Log.d(TAG, "Google Map - Initial camera move COMPLETELY DISABLED");
                 // googleMap.moveCamera(com.google.android.gms.maps.CameraUpdateFactory.zoomTo(17));
@@ -3483,6 +3499,29 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 getWindow().getDecorView().setSystemUiVisibility(
                     getWindow().getDecorView().getSystemUiVisibility() 
                     | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
+        }
+        
+        // 深色模式：设置地图样式
+        if (isGoogleMapMode) {
+            if (googleMap != null) {
+                if (isDarkMode) {
+                    try {
+                        googleMap.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style_night));
+                    } catch (Exception e) {
+                        android.util.Log.e("TrackActivity", "Failed to apply dark map style: " + e.getMessage());
+                    }
+                } else {
+                    googleMap.setMapStyle(null);
+                }
+            }
+        } else {
+            if (aMap != null) {
+                if (isDarkMode) {
+                    aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
+                } else {
+                    aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NORMAL);
+                }
             }
         }
     }

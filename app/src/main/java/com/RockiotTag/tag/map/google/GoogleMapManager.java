@@ -181,6 +181,27 @@ public class GoogleMapManager implements OnMapReadyCallback {
             googleMap.setMapType(type);
         }
     }
+
+    /**
+     * 设置深色地图样式
+     * @param isDarkMode 是否深色模式
+     */
+    public void setDarkMapStyle(boolean isDarkMode) {
+        if (googleMap != null) {
+            if (isDarkMode) {
+                try {
+                    int resId = context.getResources().getIdentifier("map_style_night", "raw", context.getPackageName());
+                    if (resId != 0) {
+                        googleMap.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(context, resId));
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to apply dark map style: " + e.getMessage());
+                }
+            } else {
+                googleMap.setMapStyle(null);
+            }
+        }
+    }
     
     /**
      * 获取当前缩放级别

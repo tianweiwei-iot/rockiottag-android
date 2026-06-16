@@ -159,6 +159,22 @@ public class AMapManager {
             aMap.setMapType(type);
         }
     }
+
+    /**
+     * 设置深色地图样式
+     * @param isDarkMode 是否深色模式
+     */
+    public void setDarkMapStyle(boolean isDarkMode) {
+        if (aMap != null) {
+            if (isDarkMode) {
+                // 使用导航地图样式（深色风格，蓝黑配色）
+                aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
+            } else {
+                // 恢复普通地图样式
+                aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NORMAL);
+            }
+        }
+    }
     
     /**
      * 获取当前缩放级别
