@@ -281,9 +281,10 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             mapView = findViewById(R.id.mapView);
             mapView.onCreate(savedInstanceState);
             
-            // 设置地图内边距，让标尺、logo、缩放按钮上移20dp
-            int mapPaddingTop = dpToPx(20);
-            mapView.setPadding(0, mapPaddingTop, 0, 0);
+            // 地图全屏，设置padding让logo和缩放按钮不被浮动UI遮挡
+            int mapPaddingTop = dpToPx(50); // 标题栏高度
+            int mapPaddingBottom = dpToPx(200); // 播放控制栏+导航栏高度
+            mapView.setPadding(0, mapPaddingTop, 0, mapPaddingBottom);
             
             googleMapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.googleMapFragment);
             
@@ -293,13 +294,11 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 
                 if (googleMapFragment != null) {
                     googleMapFragment.getView().setVisibility(View.VISIBLE);
-                    googleMapFragment.getView().bringToFront(); // 确保Google地图在最前面
                     googleMapFragment.getMapAsync(this);
                 }
             } else {
                 // 显示高德地图，隐藏Google地图
                 mapView.setVisibility(View.VISIBLE);
-                mapView.bringToFront(); // 确保高德地图在最前面
                 
                 if (googleMapFragment != null && googleMapFragment.getView() != null) {
                     googleMapFragment.getView().setVisibility(View.GONE);
@@ -1417,9 +1416,10 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 googleMap.getUiSettings().setCompassEnabled(true);
                 googleMap.getUiSettings().setRotateGesturesEnabled(true);
                 googleMap.getUiSettings().setTiltGesturesEnabled(true);
-                // 设置地图内边距，让标尺、logo、缩放按钮上移20dp
-                int mapPaddingTop = dpToPx(20);
-                googleMap.setPadding(0, mapPaddingTop, 0, 0);
+                // 地图全屏，设置padding让logo和缩放按钮不被浮动UI遮挡
+                int mapPaddingTop = dpToPx(50);
+                int mapPaddingBottom = dpToPx(200);
+                googleMap.setPadding(0, mapPaddingTop, 0, mapPaddingBottom);
                 // 完全禁用初始相机移动，让用户完全控制地图位置
                 Log.d(TAG, "Google Map - Initial camera move COMPLETELY DISABLED");
                 // googleMap.moveCamera(com.google.android.gms.maps.CameraUpdateFactory.zoomTo(17));
@@ -3083,7 +3083,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 }
                 if (googleMapFragment != null && googleMapFragment.getView() != null) {
                     googleMapFragment.getView().setVisibility(View.VISIBLE);
-                    googleMapFragment.getView().bringToFront();
                 }
                 Log.d(TAG, "onResume: Showing Google Map, hiding AMap");
                 Log.d(TAG, "onResume - MapView visibility: " + (mapView != null ? mapView.getVisibility() : "null"));
@@ -3091,7 +3090,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             } else {
                 if (mapView != null) {
                     mapView.setVisibility(View.VISIBLE);
-                    mapView.bringToFront();
                 }
                 if (googleMapFragment != null && googleMapFragment.getView() != null) {
                     googleMapFragment.getView().setVisibility(View.GONE);
@@ -3606,6 +3604,24 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         // 底部导航栏
         View bottomNav = findViewById(R.id.bottom_navigation);
         if (bottomNav != null) bottomNav.setBackgroundColor(topBarColor);
+        
+        // 更新导航栏Tab文字和图标颜色
+        int selectedColor = getResources().getColor(R.color.purple_500, null);
+        int unselectedColor = isDarkMode ? 
+            getResources().getColor(R.color.dark_text_secondary, null) : 
+            getResources().getColor(R.color.text_secondary, null);
+        int[][] tabPairs = {
+            {R.id.tab_home_icon, R.id.tab_home_text},
+            {R.id.tab_list_icon, R.id.tab_list_text},
+            {R.id.tab_track_icon, R.id.tab_track_text},
+            {R.id.tab_profile_icon, R.id.tab_profile_text}
+        };
+        for (int i = 0; i < tabPairs.length; i++) {
+            android.widget.ImageView icon = findViewById(tabPairs[i][0]);
+            TextView text = findViewById(tabPairs[i][1]);
+            if (icon != null) icon.setColorFilter(unselectedColor);
+            if (text != null) text.setTextColor(unselectedColor);
+        }
         
         // 状态栏
         if (isDarkMode) {

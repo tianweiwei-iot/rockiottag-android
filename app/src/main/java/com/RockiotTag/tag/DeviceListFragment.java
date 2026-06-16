@@ -287,7 +287,7 @@ public class DeviceListFragment extends Fragment {
 
             String deviceNum = device.getDeviceNum();
             if (deviceNum != null && !deviceNum.isEmpty()) {
-                holder.numText.setText("SN: " + deviceNum);
+                holder.numText.setText("ID: " + deviceNum);
                 holder.numText.setVisibility(View.VISIBLE);
             } else {
                 holder.numText.setVisibility(View.GONE);
@@ -300,6 +300,20 @@ public class DeviceListFragment extends Fragment {
             } else {
                 holder.macText.setVisibility(View.GONE);
             }
+
+            // 根据当前深色模式设置颜色
+            boolean isDarkMode = holder.itemView.getContext()
+                .getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+                .getBoolean("dark_mode", false);
+            int onSurfaceColor = holder.itemView.getContext().getResources().getColor(
+                isDarkMode ? R.color.dark_onSurface : R.color.onSurface, null);
+            int textSecColor = holder.itemView.getContext().getResources().getColor(
+                isDarkMode ? R.color.dark_text_secondary : R.color.text_secondary, null);
+            
+            holder.nameText.setTextColor(onSurfaceColor);
+            holder.tagText.setTextColor(textSecColor);
+            holder.numText.setTextColor(textSecColor);
+            holder.macText.setTextColor(textSecColor);
 
             holder.itemView.setOnClickListener(v -> clickListener.onDeviceClick(device));
             holder.editBtn.setOnClickListener(v -> editListener.onEditDevice(device));
