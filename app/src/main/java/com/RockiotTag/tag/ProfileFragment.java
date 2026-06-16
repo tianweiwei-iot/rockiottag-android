@@ -111,6 +111,11 @@ public class ProfileFragment extends Fragment {
         });
 
         updateLoginUI();
+
+        // 首次创建时应用深色模式
+        boolean isDarkModeInit = requireContext().getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+            .getBoolean("dark_mode", false);
+        applyTheme(isDarkModeInit);
     }
 
     @Override

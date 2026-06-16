@@ -62,6 +62,11 @@ public class DeviceListFragment extends Fragment {
         });
 
         loadDevices();
+
+        // 首次创建时应用深色模式
+        boolean isDarkMode = requireContext().getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+            .getBoolean("dark_mode", false);
+        applyTheme(isDarkMode);
     }
 
     @Override

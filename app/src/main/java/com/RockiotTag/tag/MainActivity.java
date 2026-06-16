@@ -963,13 +963,13 @@ public class MainActivity extends AppCompatActivity {
             aMap = mapManager.getAmap();
             if (aMap != null) {
                 // 地图全屏显示，设备信息栏浮在地图上方
-                // 底部padding = 导航栏实际高度56dp + 设备信息栏(100dp+12dp margin) = 168dp
-                // 让标尺、logo、缩放按钮在设备信息栏上方
-                int bottomMargin = (int) (168 * getResources().getDisplayMetrics().density);
+                // 底部padding仅导航栏实际高度56dp（86-30），让地图瓦片延伸到导航栏
+                // logo、标尺、缩放按钮在导航栏上方即可
+                int bottomMargin = (int) (56 * getResources().getDisplayMetrics().density);
                 mapView.setPadding(0, 0, 0, bottomMargin);
                 // logo上移同样的距离
                 aMap.getUiSettings().setLogoBottomMargin(bottomMargin);
-                // 缩放按钮移到右下角，紧贴设备信息栏上方
+                // 缩放按钮移到右下角
                 aMap.getUiSettings().setZoomPosition(com.amap.api.maps.AMapOptions.ZOOM_POSITION_RIGHT_BOTTOM);
                 // 禁用SDK指南针，使用自定义指南针
                 aMap.getUiSettings().setCompassEnabled(false);
