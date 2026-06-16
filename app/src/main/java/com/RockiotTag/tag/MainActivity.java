@@ -962,11 +962,10 @@ public class MainActivity extends AppCompatActivity {
         if (mapManager.isAmap()) {
             aMap = mapManager.getAmap();
             if (aMap != null) {
-                // 设置地图内边距，让标尺和logo上移到设备信息栏上方
-                // fragment_container已在导航栏上方，所以底部padding只需设备信息栏高度
-                // 设备信息卡片100dp + margin上下各12dp = 124dp
-                int bottomMargin = (int) (124 * getResources().getDisplayMetrics().density);
-                // 不设置顶部padding，地图全屏显示
+                // 地图全屏显示，设备信息栏浮在地图上方
+                // 底部padding = 导航栏实际高度56dp + 设备信息栏(100dp+12dp margin) = 168dp
+                // 让标尺、logo、缩放按钮在设备信息栏上方
+                int bottomMargin = (int) (168 * getResources().getDisplayMetrics().density);
                 mapView.setPadding(0, 0, 0, bottomMargin);
                 // logo上移同样的距离
                 aMap.getUiSettings().setLogoBottomMargin(bottomMargin);

@@ -15,6 +15,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.ImageButton;
@@ -229,6 +230,10 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             
             super.onCreate(savedInstanceState);
             setContentView(R.layout.activity_track);
+
+            // 应用深色模式
+            boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
+            applyDarkMode(isDarkMode);
 
             // 处理状态栏，让 top_bar 向下偏移状态栏高度
             View topBar = findViewById(R.id.top_bar);
@@ -3722,6 +3727,97 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             result = getResources().getDimensionPixelSize(resourceId);
         }
         return result;
+    }
+
+    /**
+     * 手动应用深色/浅色模式
+     */
+    private void applyDarkMode(boolean isDarkMode) {
+        int bgColor = getResources().getColor(isDarkMode ? R.color.dark_background : R.color.background, null);
+        int topBarColor = getResources().getColor(isDarkMode ? R.color.dark_top_bar_background : R.color.top_bar_background, null);
+        int onSurfaceColor = getResources().getColor(isDarkMode ? R.color.dark_onSurface : R.color.onSurface, null);
+        int textSecColor = getResources().getColor(isDarkMode ? R.color.dark_text_secondary : R.color.text_secondary, null);
+        int cardColor = getResources().getColor(isDarkMode ? R.color.dark_card_background : R.color.card_background, null);
+        
+        // 根视图
+        View rootView = findViewById(android.R.id.content);
+        if (rootView != null) rootView.setBackgroundColor(bgColor);
+        
+        // 顶部栏
+        View topBar = findViewById(R.id.top_bar);
+        if (topBar != null) topBar.setBackgroundColor(topBarColor);
+        
+        // 标题文字
+        TextView titleText = findViewById(R.id.title_text);
+        if (titleText != null) titleText.setTextColor(onSurfaceColor);
+        
+        // 时间范围容器
+        View timeRangeContainer = findViewById(R.id.time_range_container);
+        if (timeRangeContainer != null) {
+            timeRangeContainer.setBackgroundColor(isDarkMode ? 
+                getResources().getColor(R.color.dark_surface, null) : 
+                getResources().getColor(R.color.surface, null));
+            // 更新子View文字颜色
+            if (timeRangeContainer instanceof ViewGroup) {
+                updateChildViewsColor((ViewGroup) timeRangeContainer, onSurfaceColor, textSecColor);
+            }
+        }
+        
+        // 工具栏容器
+        View toolbarContainer = findViewById(R.id.toolbar_container);
+        if (toolbarContainer != null) {
+            toolbarContainer.setBackgroundColor(topBarColor);
+            if (toolbarContainer instanceof ViewGroup) {
+                updateChildViewsColor((ViewGroup) toolbarContainer, onSurfaceColor, textSecColor);
+            }
+        }
+        
+        // 播放控制栏
+        View playbackBar = findViewById(R.id.playback_control_bar);
+        if (playbackBar != null) {
+            playbackBar.setBackgroundColor(topBarColor);
+            if (playbackBar instanceof ViewGroup) {
+                updateChildViewsColor((ViewGroup) playbackBar, onSurfaceColor, textSecColor);
+            }
+        }
+        
+        // 底部导航栏
+        View bottomNav = findViewById(R.id.bottom_navigation);
+        if (bottomNav != null) bottomNav.setBackgroundColor(topBarColor);
+        
+        // 状态栏
+        if (isDarkMode) {
+            getWindow().setStatusBarColor(getResources().getColor(R.color.dark_surface, null));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                getWindow().getDecorView().setSystemUiVisibility(
+                    getWindow().getDecorView().getSystemUiVisibility() 
+                    & ~android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
+        } else {
+            getWindow().setStatusBarColor(getResources().getColor(R.color.top_bar_background, null));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                getWindow().getDecorView().setSystemUiVisibility(
+                    getWindow().getDecorView().getSystemUiVisibility() 
+                    | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
+        }
+    }
+    
+    private void updateChildViewsColor(ViewGroup parent, int onSurfaceColor, int textSecColor) {
+        for (int i = 0; i < parent.getChildCount(); i++) {
+            View child = parent.getChildAt(i);
+            if (child instanceof TextView) {
+                TextView tv = (TextView) child;
+                // 按钮文字保持原色（白色），只改普通文字
+                if (!(child instanceof Button)) {
+                    tv.setTextColor(onSurfaceColor);
+                }
+            } else if (child instanceof ImageView) {
+                ((ImageView) child).setColorFilter(textSecColor);
+            } else if (child instanceof ViewGroup) {
+                updateChildViewsColor((ViewGroup) child, onSurfaceColor, textSecColor);
+            }
+        }
     }
 
     private int dpToPx(int dp) {
