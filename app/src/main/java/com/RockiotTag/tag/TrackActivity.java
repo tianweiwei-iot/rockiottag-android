@@ -245,10 +245,9 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             mapView = findViewById(R.id.mapView);
             mapView.onCreate(savedInstanceState);
             
-            // 地图全屏，设置padding让logo和缩放按钮不被浮动UI遮挡
-            int mapPaddingTop = dpToPx(50); // 标题栏高度
-            int mapPaddingBottom = dpToPx(200); // 播放控制栏+导航栏高度
-            mapView.setPadding(0, mapPaddingTop, 0, mapPaddingBottom);
+            // 地图全屏显示，不设置padding（让地图瓦片延伸到导航栏位置）
+            // 只设置logo的底部margin，让logo不被导航栏遮挡
+            // mapView.setPadding(0, 0, 0, 0); // 不设置padding
             
             googleMapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.googleMapFragment);
             
@@ -1229,6 +1228,9 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     if (aMap != null) {
                         aMap.getUiSettings().setScaleControlsEnabled(true);
                         aMap.getUiSettings().setZoomControlsEnabled(false);
+                        // 设置logo底部margin，让logo不被导航栏遮挡
+                        int logoMargin = dpToPx(86); // 导航栏高度
+                        aMap.getUiSettings().setLogoBottomMargin(logoMargin);
                         aMap.moveCamera(com.amap.api.maps.CameraUpdateFactory.zoomTo(17));
                         aMap.setOnMarkerClickListener(this);
                         
@@ -1275,10 +1277,8 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 googleMap.getUiSettings().setCompassEnabled(true);
                 googleMap.getUiSettings().setRotateGesturesEnabled(true);
                 googleMap.getUiSettings().setTiltGesturesEnabled(true);
-                // 地图全屏，设置padding让logo和缩放按钮不被浮动UI遮挡
-                int mapPaddingTop = dpToPx(50);
-                int mapPaddingBottom = dpToPx(200);
-                googleMap.setPadding(0, mapPaddingTop, 0, mapPaddingBottom);
+                // 地图全屏显示，不设置padding（让地图瓦片延伸到导航栏位置）
+                // googleMap.setPadding(0, 0, 0, 0); // 不设置padding
                 // 完全禁用初始相机移动，让用户完全控制地图位置
                 Log.d(TAG, "Google Map - Initial camera move COMPLETELY DISABLED");
                 // googleMap.moveCamera(com.google.android.gms.maps.CameraUpdateFactory.zoomTo(17));

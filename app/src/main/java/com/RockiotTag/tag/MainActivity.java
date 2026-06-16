@@ -85,9 +85,6 @@ public class MainActivity extends AppCompatActivity {
     private ImageButton mapTypeBtn;
     private ImageButton refreshBtn;
     private ImageView customCompass;  // 自定义指南针
-    private LinearLayout customZoomControls;  // 自定义缩放按钮容器
-    private ImageButton zoomInBtn;  // 放大按钮
-    private ImageButton zoomOutBtn;  // 缩小按钮
     private TextView batteryLevelText;
     private TextView deviceAddressText;
     private TextView updateTimeText;
@@ -308,25 +305,6 @@ public class MainActivity extends AppCompatActivity {
             mapTypeBtn = findViewById(R.id.map_type_btn);
             refreshBtn = findViewById(R.id.refresh_btn);
             customCompass = findViewById(R.id.custom_compass);  // 自定义指南针
-            customZoomControls = findViewById(R.id.custom_zoom_controls);  // 自定义缩放按钮
-            zoomInBtn = findViewById(R.id.zoom_in_btn);
-            zoomOutBtn = findViewById(R.id.zoom_out_btn);
-
-            // 设置自定义缩放按钮点击事件
-            if (zoomInBtn != null) {
-                zoomInBtn.setOnClickListener(v -> {
-                    if (aMap != null) {
-                        aMap.animateCamera(com.amap.api.maps.CameraUpdateFactory.zoomIn());
-                    }
-                });
-            }
-            if (zoomOutBtn != null) {
-                zoomOutBtn.setOnClickListener(v -> {
-                    if (aMap != null) {
-                        aMap.animateCamera(com.amap.api.maps.CameraUpdateFactory.zoomOut());
-                    }
-                });
-            }
 
             // 底部导航栏
             bottomNavigation = findViewById(R.id.bottom_navigation);
@@ -1976,7 +1954,6 @@ public class MainActivity extends AppCompatActivity {
         if (mapTypeBtn != null) mapTypeBtn.setVisibility(visibility);
         if (locateBtn != null) locateBtn.setVisibility(visibility);
         if (customCompass != null) customCompass.setVisibility(visibility);  // 自定义指南针
-        if (customZoomControls != null) customZoomControls.setVisibility(visibility);  // 自定义缩放按钮
         if (bottomInfo != null && selectedDevice != null) {
             bottomInfo.setVisibility(visibility);
         }
@@ -2084,17 +2061,6 @@ public class MainActivity extends AppCompatActivity {
         if (batteryLevelText != null) batteryLevelText.setTextColor(onSurfaceColor);
         if (deviceAddressText != null) deviceAddressText.setTextColor(onSurfaceColor);
         if (updateTimeText != null) updateTimeText.setTextColor(onSurfaceColor);
-        
-        // 应用到自定义缩放按钮
-        if (customZoomControls != null) {
-            customZoomControls.setBackgroundColor(surfaceColor);
-        }
-        if (zoomInBtn != null) {
-            zoomInBtn.setColorFilter(isDarkMode ? onSurfaceColor : textSecColor);
-        }
-        if (zoomOutBtn != null) {
-            zoomOutBtn.setColorFilter(isDarkMode ? onSurfaceColor : textSecColor);
-        }
         
         // 更新状态栏
         if (isDarkMode) {
