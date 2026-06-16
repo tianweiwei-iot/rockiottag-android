@@ -94,17 +94,6 @@ public class MapManager implements OnMapReadyCallback {
                 amap.setMyLocationEnabled(false);
                 amap.getUiSettings().setCompassEnabled(false);
                 amap.getUiSettings().setScaleControlsEnabled(true);
-                
-                // 应用深色地图样式（如果启用了深色模式）
-                try {
-                    boolean isDarkMode = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE).getBoolean("dark_mode", false);
-                    if (isDarkMode) {
-                        amap.setMapType(AMap.MAP_TYPE_NAVI);
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Failed to apply dark map style: " + e.getMessage());
-                }
-                
                 amap.moveCamera(CameraUpdateFactory.zoomTo(17));
                 
                 amap.setOnMapClickListener(new AMap.OnMapClickListener() {
@@ -156,20 +145,6 @@ public class MapManager implements OnMapReadyCallback {
                 
                 // 设置默认地图类型为普通地图
                 googleMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
-                
-                // 应用深色地图样式（如果启用了深色模式）
-                try {
-                    boolean isDarkMode = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE).getBoolean("dark_mode", false);
-                    if (isDarkMode) {
-                        int resId = context.getResources().getIdentifier("map_style_night", "raw", context.getPackageName());
-                        if (resId != 0) {
-                            googleMap.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(context, resId));
-                        }
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Failed to apply dark map style: " + e.getMessage());
-                }
-                
                 Log.d(TAG, "Map type set to NORMAL");
                 
                 // 添加地图加载完成监听

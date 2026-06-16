@@ -1232,9 +1232,13 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         int logoMargin = dpToPx(86); // 导航栏高度
                         aMap.getUiSettings().setLogoBottomMargin(logoMargin);
                         // 应用深色地图样式（如果启用了深色模式）
-                        boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
-                        if (isDarkMode) {
-                            aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
+                        try {
+                            boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
+                            if (isDarkMode) {
+                                aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "Failed to apply dark map style: " + e.getMessage());
                         }
                         aMap.moveCamera(com.amap.api.maps.CameraUpdateFactory.zoomTo(17));
                         aMap.setOnMarkerClickListener(this);
@@ -3502,27 +3506,31 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             }
         }
         
-        // 深色模式：设置地图样式
-        if (isGoogleMapMode) {
-            if (googleMap != null) {
-                if (isDarkMode) {
-                    try {
-                        googleMap.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style_night));
-                    } catch (Exception e) {
-                        android.util.Log.e("TrackActivity", "Failed to apply dark map style: " + e.getMessage());
+        // 深色模式：设置地图样式（添加完善的异常处理）
+        try {
+            if (isGoogleMapMode) {
+                if (googleMap != null) {
+                    if (isDarkMode) {
+                        try {
+                            googleMap.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style_night));
+                        } catch (Exception e) {
+                            android.util.Log.e("TrackActivity", "Failed to apply dark map style: " + e.getMessage());
+                        }
+                    } else {
+                        googleMap.setMapStyle(null);
                     }
-                } else {
-                    googleMap.setMapStyle(null);
+                }
+            } else {
+                if (aMap != null) {
+                    if (isDarkMode) {
+                        aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
+                    } else {
+                        aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NORMAL);
+                    }
                 }
             }
-        } else {
-            if (aMap != null) {
-                if (isDarkMode) {
-                    aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
-                } else {
-                    aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NORMAL);
-                }
-            }
+        } catch (Exception e) {
+            android.util.Log.e("TrackActivity", "Error applying dark map style: " + e.getMessage());
         }
     }
     
