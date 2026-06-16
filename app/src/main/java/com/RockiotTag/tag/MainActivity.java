@@ -1931,14 +1931,22 @@ public class MainActivity extends AppCompatActivity {
         tabTrack.setSelected(tabIndex == 2);
         tabProfile.setSelected(tabIndex == 3);
 
-        // 更新图标颜色
+        // 更新图标和文字颜色（深色模式下未选中颜色不同）
         int selectedColor = getResources().getColor(R.color.purple_500, null);
-        int unselectedColor = getResources().getColor(R.color.text_secondary, null);
+        boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
+        int unselectedColor = isDarkMode ? 
+            getResources().getColor(R.color.dark_text_secondary, null) : 
+            getResources().getColor(R.color.text_secondary, null);
 
         tabHomeIcon.setColorFilter(tabIndex == 0 ? selectedColor : unselectedColor);
         tabListIcon.setColorFilter(tabIndex == 1 ? selectedColor : unselectedColor);
         tabTrackIcon.setColorFilter(tabIndex == 2 ? selectedColor : unselectedColor);
         tabProfileIcon.setColorFilter(tabIndex == 3 ? selectedColor : unselectedColor);
+        
+        tabHomeText.setTextColor(tabIndex == 0 ? selectedColor : unselectedColor);
+        tabListText.setTextColor(tabIndex == 1 ? selectedColor : unselectedColor);
+        tabTrackText.setTextColor(tabIndex == 2 ? selectedColor : unselectedColor);
+        tabProfileText.setTextColor(tabIndex == 3 ? selectedColor : unselectedColor);
     }
 
     /**
@@ -2030,12 +2038,21 @@ public class MainActivity extends AppCompatActivity {
             getResources().getColor(R.color.dark_text_secondary, null) : 
             getResources().getColor(R.color.text_secondary, null);
         
+        // 选中/未选中Tab颜色
+        int selectedColor = getResources().getColor(R.color.purple_500, null);
+        int unselectedColor = isDarkMode ? 
+            getResources().getColor(R.color.dark_text_secondary, null) : 
+            getResources().getColor(R.color.text_secondary, null);
+        
         // 应用到根视图
         View rootView = findViewById(android.R.id.content);
         if (rootView != null) rootView.setBackgroundColor(bgColor);
         
-        // 应用到底部导航栏
+        // 应用到底部导航栏背景
         if (bottomNavigation != null) bottomNavigation.setBackgroundColor(topBarColor);
+        
+        // 应用到导航栏Tab文字和图标颜色
+        updateTabColors(selectedColor, unselectedColor);
         
         // 应用到底部信息卡片
         if (bottomInfo != null) {
@@ -2052,13 +2069,48 @@ public class MainActivity extends AppCompatActivity {
         // 更新状态栏
         if (isDarkMode) {
             getWindow().setStatusBarColor(getResources().getColor(R.color.dark_surface, null));
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                getWindow().getDecorView().setSystemUiVisibility(
+                    getWindow().getDecorView().getSystemUiVisibility() 
+                    & ~android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
         } else {
             getWindow().setStatusBarColor(getResources().getColor(R.color.top_bar_background, null));
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                getWindow().getDecorView().setSystemUiVisibility(
+                    getWindow().getDecorView().getSystemUiVisibility() 
+                    | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
         }
         
         // 通知Fragment更新
         if (deviceListFragment != null) deviceListFragment.applyTheme(isDarkMode);
         if (profileFragment != null) profileFragment.applyTheme(isDarkMode);
+    }
+    
+    /**
+     * 更新导航栏Tab文字和图标颜色
+     */
+    private void updateTabColors(int selectedColor, int unselectedColor) {
+        // 更新当前选中的Tab
+        int[][] tabPairs = {
+            {R.id.tab_home_icon, R.id.tab_home_text},
+            {R.id.tab_list_icon, R.id.tab_list_text},
+            {R.id.tab_track_icon, R.id.tab_track_text},
+            {R.id.tab_profile_icon, R.id.tab_profile_text}
+        };
+        
+        for (int i = 0; i < tabPairs.length; i++) {
+            ImageView icon = findViewById(tabPairs[i][0]);
+            TextView text = findViewById(tabPairs[i][1]);
+            boolean isSelected = (i == currentTab);
+            int color = isSelected ? selectedColor : unselectedColor;
+            if (icon != null) icon.setColorFilter(color);
+            if (text != null) {
+                text.setTextColor(color);
+                text.setSelected(isSelected);
+            }
+        }
     }
 
     /**

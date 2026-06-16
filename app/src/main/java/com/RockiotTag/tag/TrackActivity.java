@@ -78,9 +78,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     private DatabaseHelper databaseHelper;
     // GeocodeSearch 已迁移到 GeocodeHelper
     private Button dateBtn;
-    private Button startTimeBtn;
-    private Button endTimeBtn;
-    private Button resetTimeBtn;
     private Calendar selectedDate;
     private Calendar startDate;
     private Calendar endDate;
@@ -98,7 +95,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     
     private TextView trackPointTime;
     private TextView trackPointAddress;
-    private TextView totalDistanceText;
     
     private ImageButton playBtn;
     private SeekBar playbackSeekbar;
@@ -156,17 +152,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     private com.google.android.gms.maps.model.Polyline googlePlayedPolyline = null;
     private List<com.google.android.gms.maps.model.LatLng> googlePlayedPoints = new ArrayList<>();
     
-    private ImageButton toggleMarkersBtn;
-    private ImageButton togglePolylineBtn;
-
     // 底部导航栏
     private LinearLayout tabHome, tabList, tabTrack, tabProfile;
     private ImageView tabHomeIcon, tabListIcon, tabTrackIcon, tabProfileIcon;
-    private ImageButton toggleSatelliteBtn;
     private ImageButton statisticsBtn; // 统计按钮
     private boolean showMarkers = true;
     private boolean showPolyline = true;
-    private boolean isSatelliteMode = false;
     
     // 精度调节相关变量
     private SeekBar accuracySeekBar;
@@ -345,30 +336,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 Log.e(TAG, "dateBtn is null after findViewById!");
             }
 
-            startTimeBtn = findViewById(R.id.start_time_btn);
-            startTimeBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    showStartTimePicker();
-                }
-            });
-
-            endTimeBtn = findViewById(R.id.end_time_btn);
-            endTimeBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    showEndTimePicker();
-                }
-            });
-
-            resetTimeBtn = findViewById(R.id.reset_time_btn);
-            resetTimeBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    resetTimeRange();
-                }
-            });
-
             updateDateBtnText();
 
             ImageButton prevDayBtn = findViewById(R.id.prev_day_btn);
@@ -390,16 +357,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             // 关键修复：检查所有 UI 组件是否为 null
             trackPointTime = findViewById(R.id.track_point_time);
             trackPointAddress = findViewById(R.id.track_point_address);
-            totalDistanceText = findViewById(R.id.total_distance_text);
             
             if (trackPointTime == null) {
                 Log.e(TAG, "trackPointTime is null after findViewById!");
             }
             if (trackPointAddress == null) {
                 Log.e(TAG, "trackPointAddress is null after findViewById!");
-            }
-            if (totalDistanceText == null) {
-                Log.e(TAG, "totalDistanceText is null after findViewById!");
             }
             
             // 初始化 Handler
@@ -657,9 +620,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     }
 
     private void initToolbar() {
-        toggleMarkersBtn = findViewById(R.id.toggle_markers_btn);
-        togglePolylineBtn = findViewById(R.id.toggle_polyline_btn);
-        toggleSatelliteBtn = findViewById(R.id.toggle_satellite_btn);
         statisticsBtn = findViewById(R.id.statistics_btn);
         ImageButton refreshBtn = findViewById(R.id.refresh_btn);
         
@@ -667,40 +627,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         accuracySeekBar = findViewById(R.id.accuracy_seekbar);
         accuracyValueText = findViewById(R.id.accuracy_value_text);
 
-        // 关键修复：添加空指针检查
-        if (toggleMarkersBtn != null) {
-            toggleMarkersBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    toggleMarkers();
-                }
-            });
-        } else {
-            Log.e(TAG, "toggleMarkersBtn is null after findViewById!");
-        }
-
-        if (togglePolylineBtn != null) {
-            togglePolylineBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    togglePolyline();
-                }
-            });
-        } else {
-            Log.e(TAG, "togglePolylineBtn is null after findViewById!");
-        }
-
-        if (toggleSatelliteBtn != null) {
-            toggleSatelliteBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    toggleSatellite();
-                }
-            });
-        } else {
-            Log.e(TAG, "toggleSatelliteBtn is null after findViewById!");
-        }
-        
         if (statisticsBtn != null) {
             statisticsBtn.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -907,13 +833,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             }
         });
         
-        viewModel.getStatistics().observe(this, stats -> {
-            if (stats != null && totalDistanceText != null) {
-                double distanceKm = stats.totalDistanceKm;
-                totalDistanceText.setText(String.format("%.2f km", distanceKm));
-            }
-        });
-        
         viewModel.getErrorMessage().observe(this, error -> {
             if (error != null && !error.isEmpty()) {
                 Log.e(TAG, "[OBSERVER] errorMessage: " + error);
@@ -944,80 +863,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 speedBtn.setText(speed + "x");
             }
         });
-    }
-
-    private void toggleMarkers() {
-        try {
-            showMarkers = !showMarkers;
-            for (Marker marker : positionMarkers) {
-                marker.setVisible(showMarkers);
-            }
-            for (Marker marker : arrowMarkers) {
-                marker.setVisible(showMarkers);
-            }
-            
-            // 切换标记显示，不显示Toast
-            if (showMarkers) {
-                toggleMarkersBtn.setAlpha(1.0f);
-            } else {
-                toggleMarkersBtn.setAlpha(0.5f);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error in toggleMarkers: " + e.getMessage(), e);
-        }
-    }
-
-    private void togglePolyline() {
-        try {
-            showPolyline = !showPolyline;
-            
-            if (isGoogleMapMode) {
-                // Google 地图模式
-                if (googleTrackPolyline != null) {
-                    googleTrackPolyline.setVisible(showPolyline);
-                }
-                // 同时控制箭头标记
-                for (com.google.android.gms.maps.model.Marker marker : googleArrowMarkers) {
-                    marker.setVisible(showPolyline);
-                }
-            } else {
-                // 高德地图模式
-                if (trackPolyline != null) {
-                    trackPolyline.setVisible(showPolyline);
-                }
-                // 同时控制箭头标记
-                for (Marker marker : arrowMarkers) {
-                    marker.setVisible(showPolyline);
-                }
-            }
-            
-            // 切换连线显示，不显示Toast
-            if (showPolyline) {
-                togglePolylineBtn.setAlpha(1.0f);
-            } else {
-                togglePolylineBtn.setAlpha(0.5f);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error in togglePolyline: " + e.getMessage(), e);
-        }
-    }
-
-    private void toggleSatellite() {
-        try {
-            isSatelliteMode = !isSatelliteMode;
-            if (aMap != null) {
-                aMap.setMapType(isSatelliteMode ? AMap.MAP_TYPE_SATELLITE : AMap.MAP_TYPE_NORMAL);
-            }
-                
-            // 切换卫星模式，不显示Toast
-            if (isSatelliteMode) {
-                toggleSatelliteBtn.setAlpha(1.0f);
-            } else {
-                toggleSatelliteBtn.setAlpha(0.5f);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error in toggleSatellite: " + e.getMessage(), e);
-        }
     }
         
     /**
@@ -1756,9 +1601,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             } else {
                 dateBtn.setText(com.RockiotTag.tag.util.TimeFormatter.formatDate(selectedDate.getTimeInMillis()));
             }
-            
-            startTimeBtn.setText(com.RockiotTag.tag.util.TimeFormatter.formatTimeHM(startDate.getTimeInMillis()));
-            endTimeBtn.setText(com.RockiotTag.tag.util.TimeFormatter.formatTimeHM(endDate.getTimeInMillis()));
         } catch (Exception e) {
             Log.e(TAG, "Error in updateDateBtnText: " + e.getMessage(), e);
         }
@@ -2221,9 +2063,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     updatePlaybackInfo(allLocationRecords.size());
                     
                     if (!isFinishing() && !isDestroyed()) {
-                        double totalDistanceKm = calculateTotalDistance();
-                        totalDistanceText.setText(String.format("%.2f km", totalDistanceKm));
-                        Log.d(TAG, "[RENDER_DISTANCE] Total distance: " + String.format("%.2f km", totalDistanceKm));
                         
                         if (!stayPoints.isEmpty()) {
                             StayPoint firstPoint = stayPoints.get(0);
@@ -2439,11 +2278,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             updatePlaybackInfo(allLocationRecords.size());
             
             // 静默完成，不显示Toast（只在高德地图模式显示）
-            
-            // 计算总距离（使用 TrackCalculator）
-            double totalDistanceKm = com.RockiotTag.tag.util.TrackCalculator.calculateTotalDistance(allLocationRecords);
-            totalDistanceText.setText(String.format("%.2f km", totalDistanceKm));
-            Log.d(TAG, "Total distance displayed at bottom: " + String.format("%.2f km", totalDistanceKm));
             
             if (!googleLatLngList.isEmpty()) {
                 LocationData firstRecord = allLocationRecords.get(0);
@@ -3143,7 +2977,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         long dateMillis = selectedDate != null ? selectedDate.getTimeInMillis() : System.currentTimeMillis();
         
         com.RockiotTag.tag.helper.TrackStatisticsHelper.showStatisticsDialog(
-            this, stayPoints, totalDistanceText, deviceNum, deviceName, dateMillis, allLocationRecords);
+            this, stayPoints, null, deviceNum, deviceName, dateMillis, allLocationRecords);
     }
     
     private com.amap.api.maps.model.BitmapDescriptor createArrowMarker(double angle) {
@@ -3750,18 +3584,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         // 标题文字
         TextView titleText = findViewById(R.id.title_text);
         if (titleText != null) titleText.setTextColor(onSurfaceColor);
-        
-        // 时间范围容器
-        View timeRangeContainer = findViewById(R.id.time_range_container);
-        if (timeRangeContainer != null) {
-            timeRangeContainer.setBackgroundColor(isDarkMode ? 
-                getResources().getColor(R.color.dark_surface, null) : 
-                getResources().getColor(R.color.surface, null));
-            // 更新子View文字颜色
-            if (timeRangeContainer instanceof ViewGroup) {
-                updateChildViewsColor((ViewGroup) timeRangeContainer, onSurfaceColor, textSecColor);
-            }
-        }
         
         // 工具栏容器
         View toolbarContainer = findViewById(R.id.toolbar_container);
