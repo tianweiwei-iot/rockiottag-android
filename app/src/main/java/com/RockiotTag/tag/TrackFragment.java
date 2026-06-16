@@ -1,12 +1,10 @@
 package com.RockiotTag.tag;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -27,39 +25,6 @@ public class TrackFragment extends Fragment {
         Log.d(TAG, "=== TrackFragment onViewCreated ===");
     }
 
-    @Override
-    public void onResume() {
-        super.onResume();
-        Log.d(TAG, "=== TrackFragment onResume ===");
-        // 用户点击轨迹Tab时启动TrackActivity（带底部导航栏）
-        openTrackActivity();
-    }
-
-    private void openTrackActivity() {
-        Log.d(TAG, "=== TrackFragment openTrackActivity ===");
-        if (getActivity() == null) {
-            Log.w(TAG, "getActivity is null, skip");
-            return;
-        }
-
-        Device selectedDevice = null;
-        if (getActivity() instanceof MainActivity) {
-            selectedDevice = ((MainActivity) getActivity()).getSelectedDevice();
-        }
-
-        Log.d(TAG, "selectedDevice: " + (selectedDevice != null ? selectedDevice.getName() : "NULL"));
-
-        if (selectedDevice == null) {
-            Log.w(TAG, "No selected device, switching to home tab");
-            Toast.makeText(requireContext(), R.string.please_select_device, Toast.LENGTH_SHORT).show();
-            if (getActivity() instanceof MainActivity) {
-                ((MainActivity) getActivity()).switchToTab(0);
-            }
-            return;
-        }
-
-        Log.d(TAG, "Starting TrackActivity");
-        Intent intent = new Intent(requireContext(), TrackActivity.class);
-        startActivity(intent);
-    }
+    // 注意：不再在onResume中启动TrackActivity，由MainActivity的Tab点击直接启动
+    // 避免从TrackActivity返回后onResume再次触发导致循环启动
 }

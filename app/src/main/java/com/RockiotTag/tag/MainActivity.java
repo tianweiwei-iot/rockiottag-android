@@ -1821,8 +1821,19 @@ public class MainActivity extends AppCompatActivity {
                 // 禁止重复点击同一Tab
                 if (tabIndex == currentTab) return;
 
-                // 轨迹Tab：切换到轨迹Fragment
-                // （不再启动独立Activity，改为Fragment嵌入）
+                // 轨迹Tab：直接启动TrackActivity，避免Fragment onResume循环启动
+                if (tabIndex == 2) {
+                    if (selectedDevice == null) {
+                        Toast.makeText(MainActivity.this, R.string.please_select_device, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    updateTabSelection(2);
+                    currentTab = 2;
+                    updateHomeUIVisibility(false);
+                    Intent intent = new Intent(MainActivity.this, TrackActivity.class);
+                    startActivity(intent);
+                    return;
+                }
 
                 switchToTab(tabIndex);
             }
@@ -2668,7 +2679,13 @@ public class MainActivity extends AppCompatActivity {
         mapView.onResume();
 
         Log.d(TAG, "=== onResume called ===");
-        
+
+        // 从轨迹界面返回时，切回首页Tab
+        if (currentTab == 2) {
+            Log.d(TAG, "Returning from TrackActivity, switching to home tab");
+            switchToTab(0);
+        }
+
         // 修复：从轨迹界面返回时，重置用户定位标志，允许地图自动跟随设备
         isUserLocated = false;
         Log.d(TAG, "Reset isUserLocated flag on resume");
