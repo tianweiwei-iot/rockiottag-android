@@ -594,6 +594,15 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return deletedCount;
     }
     
+    // 删除所有设备
+    public int deleteAllDevices() {
+        SQLiteDatabase db = this.getWritableDatabase();
+        int deletedCount = db.delete(TABLE_DEVICES, null, null);
+        Log.d(TAG, "Deleted " + deletedCount + " all devices");
+        // 注意：SQLiteOpenHelper 内部管理连接池，不应手动关闭
+        return deletedCount;
+    }
+    
     // 删除指定设备的位置记录
     public int deleteLocationRecordsByDevice(String deviceId) {
         SQLiteDatabase db = this.getWritableDatabase();

@@ -238,6 +238,7 @@
     <string name="bluetooth_not_enabled">Bluetooth not enabled</string>
     <string name="no_bound_devices_found">No bound devices found</string>
     <string name="synced_devices">Synced %d devices</string>
+    <string name="devices_synced">Synced %d bound devices</string>
     <string name="all_devices_unbound">All devices unbound, long press add button to restore</string>
     <string name="sync_device_failed">Sync device failed: %s</string>
     <string name="signal_strength">Signal: %ddBm</string>

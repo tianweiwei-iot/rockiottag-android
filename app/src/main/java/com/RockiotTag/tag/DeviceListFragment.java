@@ -78,7 +78,53 @@ public class DeviceListFragment extends Fragment {
     private void loadDevices() {
         if (databaseHelper == null) return;
         deviceList.clear();
-        deviceList.addAll(databaseHelper.getAllDevices());
+        
+        // 检查用户是否已登录
+        android.content.SharedPreferences prefs = requireContext().getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE);
+        String token = prefs.getString("auth_token", null);
+        String boundDevicesJson = prefs.getString("bound_devices", null);
+        
+        if (token != null && !token.isEmpty() && boundDevicesJson != null && !boundDevicesJson.isEmpty()) {
+            // 已登录：只显示绑定设备列表中的设备
+            try {
+                com.google.gson.Gson gson = new com.google.gson.Gson();
+                com.google.gson.reflect.TypeToken<java.util.List<DeviceApiService.BoundDevice>> tokenType = 
+                    new com.google.gson.reflect.TypeToken<java.util.List<DeviceApiService.BoundDevice>>() {};
+                java.util.List<DeviceApiService.BoundDevice> boundDevices = gson.fromJson(boundDevicesJson, tokenType.getType());
+                
+                if (boundDevices != null && !boundDevices.isEmpty()) {
+                    // 获取所有本地设备
+                    java.util.List<Device> allLocalDevices = databaseHelper.getAllDevices();
+                    
+                    // 只保留绑定设备列表中的设备
+                    for (DeviceApiService.BoundDevice boundDevice : boundDevices) {
+                        String deviceNum = boundDevice.getDeviceNum();
+                        for (Device localDevice : allLocalDevices) {
+                            if (deviceNum.equals(localDevice.getDeviceNum()) || deviceNum.equals(localDevice.getDeviceId())) {
+                                // 更新设备别名为服务器返回的别名
+                                if (boundDevice.getAlias() != null && !boundDevice.getAlias().isEmpty()) {
+                                    localDevice.setName(boundDevice.getAlias());
+                                }
+                                deviceList.add(localDevice);
+                                break;
+                            }
+                        }
+                    }
+                    android.util.Log.d(TAG, "Loaded " + deviceList.size() + " bound devices from local database");
+                } else {
+                    android.util.Log.d(TAG, "No bound devices found, showing empty list");
+                }
+            } catch (Exception e) {
+                android.util.Log.e(TAG, "Error parsing bound devices: " + e.getMessage(), e);
+                // 解析失败，显示所有本地设备
+                deviceList.addAll(databaseHelper.getAllDevices());
+            }
+        } else {
+            // 未登录：显示所有本地设备（兼容旧版本）
+            deviceList.addAll(databaseHelper.getAllDevices());
+            android.util.Log.d(TAG, "User not logged in, showing all local devices");
+        }
+        
         adapter.notifyDataSetChanged();
 
         if (deviceList.isEmpty()) {

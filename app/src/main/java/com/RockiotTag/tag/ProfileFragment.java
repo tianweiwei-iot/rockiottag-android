@@ -95,14 +95,18 @@ public class ProfileFragment extends Fragment {
             new AlertDialog.Builder(requireContext())
                 .setMessage(R.string.logout_confirm)
                 .setPositiveButton(R.string.confirm, (dialog, which) -> {
-                    // 清除登录状态
+                    // 清除登录状态和设备数据
                     prefs.edit()
                         .remove("auth_token")
                         .remove("user_username")
                         .remove("user_email")
                         .remove("user_phone")
                         .remove("user_nickname")
+                        .remove("bound_devices")  // 清除绑定设备列表
+                        .remove("selected_device_id")  // 清除选中的设备
                         .apply();
+                    // 清除本地数据库中的设备数据
+                    clearLocalDeviceData();
                     updateLoginUI();
                     Toast.makeText(requireContext(), R.string.logout_success, Toast.LENGTH_SHORT).show();
                 })
@@ -181,6 +185,20 @@ public class ProfileFragment extends Fragment {
     private void showMapSwitchDialog() {
         if (getActivity() instanceof MainActivity) {
             ((MainActivity) getActivity()).showMapSwitchOptions();
+        }
+    }
+
+    /**
+     * 清除本地设备数据
+     */
+    private void clearLocalDeviceData() {
+        try {
+            DatabaseHelper dbHelper = new DatabaseHelper(requireContext());
+            // 清除所有设备数据
+            dbHelper.deleteAllDevices();
+            android.util.Log.d("ProfileFragment", "Cleared all local device data");
+        } catch (Exception e) {
+            android.util.Log.e("ProfileFragment", "Error clearing device data: " + e.getMessage(), e);
         }
     }
 

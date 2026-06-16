@@ -49,6 +49,7 @@ import com.amap.api.maps.model.Polyline;
 import com.amap.api.maps.model.PolylineOptions;
 import com.amap.api.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.gson.Gson;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
@@ -2195,8 +2196,9 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     if (response.isSuccess() && response.getToken() != null) {
                         // 保存登录状态
+                        String token = response.getToken();
                         getSharedPreferences("app_settings", MODE_PRIVATE).edit()
-                            .putString("auth_token", response.getToken())
+                            .putString("auth_token", token)
                             .putString("user_username", username)
                             .apply();
                         Toast.makeText(this, R.string.login_success, Toast.LENGTH_SHORT).show();
@@ -2205,6 +2207,8 @@ public class MainActivity extends AppCompatActivity {
                         if (profileFragment != null) {
                             profileFragment.onResume();
                         }
+                        // 登录成功后获取用户绑定的设备列表
+                        fetchBoundDevicesAfterLogin(token);
                     } else {
                         String msg = response.getMessage();
                         if (msg != null && msg.contains("not found")) {
@@ -2299,14 +2303,17 @@ public class MainActivity extends AppCompatActivity {
                             NewApiService.ApiResponse loginResp = UserApiService.getInstance().login(username, password);
                             runOnUiThread(() -> {
                                 if (loginResp.isSuccess() && loginResp.getToken() != null) {
+                                    String token = loginResp.getToken();
                                     getSharedPreferences("app_settings", MODE_PRIVATE).edit()
-                                        .putString("auth_token", loginResp.getToken())
+                                        .putString("auth_token", token)
                                         .putString("user_username", username)
                                         .apply();
                                     Toast.makeText(this, R.string.login_success, Toast.LENGTH_SHORT).show();
                                     if (profileFragment != null) {
                                         profileFragment.onResume();
                                     }
+                                    // 注册后登录成功，获取绑定设备列表（新用户通常没有设备）
+                                    fetchBoundDevicesAfterLogin(token);
                                 }
                             });
                         }).start();
@@ -2322,6 +2329,79 @@ public class MainActivity extends AppCompatActivity {
                 });
             }).start();
         });
+    }
+
+    /**
+     * 登录成功后获取用户绑定的设备列表
+     * @param token Bearer Token
+     */
+    private void fetchBoundDevicesAfterLogin(String token) {
+        Log.d(TAG, "Fetching bound devices after login...");
+        new Thread(() -> {
+            try {
+                DeviceApiService.DeviceApiResponse response = DeviceApiService.getInstance().getBoundDevices(token);
+                runOnUiThread(() -> {
+                    if (response.isSuccess() && response.getDevices() != null) {
+                        List<DeviceApiService.BoundDevice> boundDevices = response.getDevices();
+                        Log.d(TAG, "Got " + boundDevices.size() + " bound devices from server");
+                        
+                        // 存储绑定设备列表到SharedPreferences（JSON格式）
+                        Gson gson = new Gson();
+                        String devicesJson = gson.toJson(boundDevices);
+                        getSharedPreferences("app_settings", MODE_PRIVATE).edit()
+                            .putString("bound_devices", devicesJson)
+                            .apply();
+                        
+                        // 同步到本地数据库
+                        syncBoundDevicesToLocalDatabase(boundDevices);
+                        
+                        // 更新DeviceListFragment
+                        if (deviceListFragment != null) {
+                            deviceListFragment.onResume();
+                        }
+                        
+                        Toast.makeText(this, getString(R.string.devices_synced, boundDevices.size()), Toast.LENGTH_SHORT).show();
+                    } else {
+                        Log.w(TAG, "Failed to get bound devices: " + response.getMessage());
+                        // 清空本地绑定设备数据
+                        getSharedPreferences("app_settings", MODE_PRIVATE).edit()
+                            .remove("bound_devices")
+                            .apply();
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Error fetching bound devices: " + e.getMessage(), e);
+            }
+        }).start();
+    }
+
+    /**
+     * 同步绑定设备到本地数据库
+     * @param boundDevices 从服务器获取的绑定设备列表
+     */
+    private void syncBoundDevicesToLocalDatabase(List<DeviceApiService.BoundDevice> boundDevices) {
+        if (databaseHelper == null || boundDevices == null) return;
+        
+        for (DeviceApiService.BoundDevice boundDevice : boundDevices) {
+            String deviceNum = boundDevice.getDeviceNum();
+            String alias = boundDevice.getAlias();
+            
+            // 检查本地数据库是否已有此设备
+            Device existingDevice = databaseHelper.getDevice(deviceNum);
+            if (existingDevice != null) {
+                // 更新别名（如果服务器有别名且与本地不同）
+                if (alias != null && !alias.isEmpty() && !alias.equals(existingDevice.getName())) {
+                    databaseHelper.updateDeviceNameAndTag(deviceNum, deviceNum, alias, existingDevice.getTag());
+                    Log.d(TAG, "Updated device alias: " + deviceNum + " -> " + alias);
+                }
+            } else {
+                // 本地没有此设备，添加新设备
+                Device newDevice = new Device(deviceNum, alias);
+                newDevice.setDeviceNum(deviceNum);
+                databaseHelper.addDevice(newDevice);
+                Log.d(TAG, "Added new bound device: " + deviceNum + " (" + alias + ")");
+            }
+        }
     }
 
     private void startRefreshAnimation() {

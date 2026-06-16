@@ -238,6 +238,7 @@
     <string name="bluetooth_not_enabled">蓝牙未开启</string>
     <string name="no_bound_devices_found">没有找到已绑定的设备</string>
     <string name="synced_devices">同步了 %d 个设备</string>
+    <string name="devices_synced">已同步 %d 个绑定设备</string>
     <string name="all_devices_unbound">所有设备已被解绑，长按添加设备按钮可恢复</string>
     <string name="sync_device_failed">同步设备失败: %s</string>
     <string name="signal_strength">信号强度: %ddBm</string>
