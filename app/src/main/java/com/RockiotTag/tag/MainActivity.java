@@ -84,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
     private ImageButton locateBtn;
     private ImageButton mapTypeBtn;
     private ImageButton refreshBtn;
+    private ImageView customCompass;  // 自定义指南针
     private TextView batteryLevelText;
     private TextView deviceAddressText;
     private TextView updateTimeText;
@@ -306,6 +307,7 @@ public class MainActivity extends AppCompatActivity {
             locateBtn = findViewById(R.id.locate_btn);
             mapTypeBtn = findViewById(R.id.map_type_btn);
             refreshBtn = findViewById(R.id.refresh_btn);
+            customCompass = findViewById(R.id.custom_compass);  // 自定义指南针
 
             // 底部导航栏
             tabHome = findViewById(R.id.tab_home);
@@ -962,17 +964,16 @@ public class MainActivity extends AppCompatActivity {
                 // fragment_container已在导航栏上方，所以底部padding只需设备信息栏高度
                 // 设备信息卡片100dp + margin上下各12dp = 124dp
                 int bottomMargin = (int) (124 * getResources().getDisplayMetrics().density);
-                // 顶部padding 50dp，让指南针下移
-                int topMargin = (int) (50 * getResources().getDisplayMetrics().density);
-                mapView.setPadding(0, topMargin, 0, bottomMargin);
+                // 不设置顶部padding，地图全屏显示
+                mapView.setPadding(0, 0, 0, bottomMargin);
                 // logo上移同样的距离
                 aMap.getUiSettings().setLogoBottomMargin(bottomMargin);
-                // 缩放按钮移到右侧中间位置
-                aMap.getUiSettings().setZoomPosition(com.amap.api.maps.AMapOptions.ZOOM_POSITION_RIGHT_CENTER);
-
+                // 缩放按钮移到右下角，紧贴设备信息栏上方
+                aMap.getUiSettings().setZoomPosition(com.amap.api.maps.AMapOptions.ZOOM_POSITION_RIGHT_BOTTOM);
+                // 禁用SDK指南针，使用自定义指南针
+                aMap.getUiSettings().setCompassEnabled(false);
                 aMap.getUiSettings().setMyLocationButtonEnabled(true);
                 aMap.setMyLocationEnabled(false);
-                aMap.getUiSettings().setCompassEnabled(true); // 启用指南针
                 aMap.getUiSettings().setScaleControlsEnabled(true);
                 aMap.getUiSettings().setZoomControlsEnabled(true); // 启用缩放按钮
                 aMap.moveCamera(com.amap.api.maps.CameraUpdateFactory.zoomTo(17));
@@ -989,12 +990,16 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onCameraChange(com.amap.api.maps.model.CameraPosition cameraPosition) {
                         lastUserInteractionTime = System.currentTimeMillis();
+                        // 更新自定义指南针旋转角度（反向旋转）
+                        updateCustomCompassRotation(cameraPosition.bearing);
                     }
 
                     @Override
                     public void onCameraChangeFinish(com.amap.api.maps.model.CameraPosition cameraPosition) {
                         lastUserInteractionTime = System.currentTimeMillis();
                         Log.d(TAG, "Camera change finished at: " + lastUserInteractionTime);
+                        // 更新自定义指南针旋转角度
+                        updateCustomCompassRotation(cameraPosition.bearing);
                     }
                 });
                 
@@ -1934,15 +1939,27 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 控制首页UI元素的可见性（浮动按钮、底部信息卡片）
+     * 控制首页UI元素的可见性（浮动按钮、底部信息卡片、自定义指南针）
      */
     private void updateHomeUIVisibility(boolean visible) {
         int visibility = visible ? View.VISIBLE : View.GONE;
         if (refreshBtn != null) refreshBtn.setVisibility(visibility);
         if (mapTypeBtn != null) mapTypeBtn.setVisibility(visibility);
         if (locateBtn != null) locateBtn.setVisibility(visibility);
+        if (customCompass != null) customCompass.setVisibility(visibility);  // 自定义指南针
         if (bottomInfo != null && selectedDevice != null) {
             bottomInfo.setVisibility(visibility);
+        }
+    }
+
+    /**
+     * 更新自定义指南针旋转角度
+     * @param bearing 地图旋转角度（度）
+     */
+    private void updateCustomCompassRotation(float bearing) {
+        if (customCompass != null) {
+            // 指南针需要反向旋转，以保持指向北方
+            customCompass.setRotation(-bearing);
         }
     }
 

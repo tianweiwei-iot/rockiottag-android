@@ -33,6 +33,17 @@
 
         </FrameLayout>
 
+        <!-- 自定义指南针（替代SDK指南针，位置可自定义） -->
+        <ImageView
+            android:id="@+id/custom_compass"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginTop="50dp"
+            android:layout_marginStart="10dp"
+            android:src="@drawable/ic_compass"
+            android:visibility="gone"
+            android:contentDescription="@string/compass" />
+
     </FrameLayout>
 
     <!-- 首页浮动按钮（仅在首页显示） -->

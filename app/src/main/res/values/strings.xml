@@ -466,4 +466,5 @@
     <string name="edit_profile">编辑资料</string>
     <string name="save_success">保存成功</string>
     <string name="save_failed">保存失败</string>
+    <string name="compass">指南针</string>
 </resources>
