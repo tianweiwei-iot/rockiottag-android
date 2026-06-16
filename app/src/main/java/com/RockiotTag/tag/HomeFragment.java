@@ -30,10 +30,12 @@ public class HomeFragment extends Fragment {
     public void onResume() {
         super.onResume();
         Log.d(TAG, "=== HomeFragment onResume ===");
-        // 通知MainActivity显示首页相关UI（浮动按钮、底部信息卡片）
+        // 只有当前Tab是首页时才显示首页UI，避免从其他Tab返回时误触发
         if (getActivity() instanceof MainActivity) {
-            Log.d(TAG, "=== Calling MainActivity.onHomeFragmentVisible ===");
-            ((MainActivity) getActivity()).onHomeFragmentVisible();
+            if (((MainActivity) getActivity()).isCurrentTabHome()) {
+                Log.d(TAG, "=== Calling MainActivity.onHomeFragmentVisible ===");
+                ((MainActivity) getActivity()).onHomeFragmentVisible();
+            }
         }
     }
 }

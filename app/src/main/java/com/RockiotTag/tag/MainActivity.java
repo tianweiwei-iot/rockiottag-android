@@ -962,7 +962,9 @@ public class MainActivity extends AppCompatActivity {
                 // fragment_container已在导航栏上方，所以底部padding只需设备信息栏高度
                 // 设备信息卡片100dp + margin上下各12dp = 124dp
                 int bottomMargin = (int) (124 * getResources().getDisplayMetrics().density);
-                mapView.setPadding(0, 0, 0, bottomMargin);
+                // 顶部padding 50dp，让指南针下移
+                int topMargin = (int) (50 * getResources().getDisplayMetrics().density);
+                mapView.setPadding(0, topMargin, 0, bottomMargin);
                 // logo上移同样的距离
                 aMap.getUiSettings().setLogoBottomMargin(bottomMargin);
                 // 缩放按钮移到右侧中间位置
@@ -1949,6 +1951,13 @@ public class MainActivity extends AppCompatActivity {
      */
     public void onHomeFragmentVisible() {
         updateHomeUIVisibility(true);
+    }
+
+    /**
+     * 判断当前Tab是否是首页
+     */
+    public boolean isCurrentTabHome() {
+        return currentTab == 0;
     }
 
     /**
