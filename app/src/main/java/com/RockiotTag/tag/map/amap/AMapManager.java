@@ -168,7 +168,7 @@ public class AMapManager {
         if (aMap != null) {
             if (isDarkMode) {
                 // 使用导航地图样式（深色风格，蓝黑配色）
-                aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
+                aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NIGHT);
             } else {
                 // 恢复普通地图样式
                 aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NORMAL);

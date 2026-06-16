@@ -1006,7 +1006,7 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
                     if (isDarkMode && aMap != null) {
-                        aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
+                        aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NIGHT);
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Failed to apply dark map style on init: " + e.getMessage());
@@ -2095,7 +2095,7 @@ public class MainActivity extends AppCompatActivity {
                 if (aMap != null) {
                     if (isDarkMode) {
                         // 使用导航地图样式（深色风格，蓝黑配色）
-                        aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
+                        aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NIGHT);
                     } else {
                         aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NORMAL);
                     }

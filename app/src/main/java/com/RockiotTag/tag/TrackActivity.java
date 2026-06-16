@@ -1235,7 +1235,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         try {
                             boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
                             if (isDarkMode) {
-                                aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
+                                aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NIGHT);
                             }
                         } catch (Exception e) {
                             Log.e(TAG, "Failed to apply dark map style: " + e.getMessage());
@@ -3523,7 +3523,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             } else {
                 if (aMap != null) {
                     if (isDarkMode) {
-                        aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NAVI);
+                        aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NIGHT);
                     } else {
                         aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NORMAL);
                     }
