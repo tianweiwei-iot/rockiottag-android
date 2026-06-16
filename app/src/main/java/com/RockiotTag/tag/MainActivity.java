@@ -279,10 +279,6 @@ public class MainActivity extends AppCompatActivity {
             // 设置状态栏样式（必须在setContentView之后）
             setupStatusBar();
 
-            // 手动应用深色模式（不使用setDefaultNightMode避免Activity重建崩溃）
-            boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
-            applyDarkMode(isDarkMode);
-
             // 初始化高德地图隐私合规设置
             try {
                 com.amap.api.maps.MapsInitializer.updatePrivacyShow(this, true, true);
@@ -354,6 +350,10 @@ public class MainActivity extends AppCompatActivity {
 
             bottomInfo.setVisibility(View.GONE);
             Log.d(TAG, "=== STEP 7: bottomInfo.setVisibility DONE ===");
+
+            // 手动应用深色模式（在所有UI组件初始化之后）
+            boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
+            applyDarkMode(isDarkMode);
 
             initDatabase();  // 先初始化数据库，以便在地图初始化时能够读取设备信息
             Log.d(TAG, "=== STEP 8: initDatabase DONE ===");
