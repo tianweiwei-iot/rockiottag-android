@@ -467,4 +467,6 @@
     <string name="save_success">保存成功</string>
     <string name="save_failed">保存失败</string>
     <string name="compass">指南针</string>
+    <string name="zoom_in">放大</string>
+    <string name="zoom_out">缩小</string>
 </resources>

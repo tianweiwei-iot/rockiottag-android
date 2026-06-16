@@ -15,10 +15,10 @@
     
     <!-- 深色模式颜色 -->
     <color name="dark_background">#121212</color>
-    <color name="dark_surface">#1E1E1E</color>
-    <color name="dark_onSurface">#E0E0E0</color>
-    <color name="dark_top_bar_background">#1E1E1E</color>
-    <color name="dark_card_background">#2C2C2C</color>
+    <color name="dark_surface">#121212</color>
+    <color name="dark_onSurface">#FFFFFF</color>
+    <color name="dark_top_bar_background">#121212</color>
+    <color name="dark_card_background">#1E1E1E</color>
     <color name="dark_text_secondary">#9E9E9E</color>
     <color name="dark_divider">#3C3C3C</color>
     

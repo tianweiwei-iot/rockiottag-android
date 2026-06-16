@@ -85,6 +85,9 @@ public class MainActivity extends AppCompatActivity {
     private ImageButton mapTypeBtn;
     private ImageButton refreshBtn;
     private ImageView customCompass;  // 自定义指南针
+    private LinearLayout customZoomControls;  // 自定义缩放按钮容器
+    private ImageButton zoomInBtn;  // 放大按钮
+    private ImageButton zoomOutBtn;  // 缩小按钮
     private TextView batteryLevelText;
     private TextView deviceAddressText;
     private TextView updateTimeText;
@@ -309,6 +312,25 @@ public class MainActivity extends AppCompatActivity {
             mapTypeBtn = findViewById(R.id.map_type_btn);
             refreshBtn = findViewById(R.id.refresh_btn);
             customCompass = findViewById(R.id.custom_compass);  // 自定义指南针
+            customZoomControls = findViewById(R.id.custom_zoom_controls);  // 自定义缩放按钮
+            zoomInBtn = findViewById(R.id.zoom_in_btn);
+            zoomOutBtn = findViewById(R.id.zoom_out_btn);
+
+            // 设置自定义缩放按钮点击事件
+            if (zoomInBtn != null) {
+                zoomInBtn.setOnClickListener(v -> {
+                    if (aMap != null) {
+                        aMap.animateCamera(com.amap.api.maps.CameraUpdateFactory.zoomIn());
+                    }
+                });
+            }
+            if (zoomOutBtn != null) {
+                zoomOutBtn.setOnClickListener(v -> {
+                    if (aMap != null) {
+                        aMap.animateCamera(com.amap.api.maps.CameraUpdateFactory.zoomOut());
+                    }
+                });
+            }
 
             // 底部导航栏
             bottomNavigation = findViewById(R.id.bottom_navigation);
@@ -962,21 +984,17 @@ public class MainActivity extends AppCompatActivity {
         if (mapManager.isAmap()) {
             aMap = mapManager.getAmap();
             if (aMap != null) {
-                // 地图全屏显示，设置padding让logo和缩放按钮上移到设备信息栏上方
-                // 底部padding为设备信息栏高度+底部导航栏实际高度(56dp)
-                int bottomPadding = (int) (120 * getResources().getDisplayMetrics().density);
-                mapView.setPadding(0, 0, 0, bottomPadding);
-                // logo单独下移到导航栏上方
+                // 地图全屏显示，不设置padding（让地图瓦片不移动）
+                // logo下移到导航栏上方
                 int logoMargin = (int) (56 * getResources().getDisplayMetrics().density);
                 aMap.getUiSettings().setLogoBottomMargin(logoMargin);
-                // 缩放按钮移到右下角
-                aMap.getUiSettings().setZoomPosition(com.amap.api.maps.AMapOptions.ZOOM_POSITION_RIGHT_BOTTOM);
+                // 禁用SDK缩放按钮，使用自定义缩放按钮
+                aMap.getUiSettings().setZoomControlsEnabled(false);
                 // 禁用SDK指南针，使用自定义指南针
                 aMap.getUiSettings().setCompassEnabled(false);
                 aMap.getUiSettings().setMyLocationButtonEnabled(true);
                 aMap.setMyLocationEnabled(false);
                 aMap.getUiSettings().setScaleControlsEnabled(true);
-                aMap.getUiSettings().setZoomControlsEnabled(true); // 启用缩放按钮
                 aMap.moveCamera(com.amap.api.maps.CameraUpdateFactory.zoomTo(17));
                 
                 aMap.setOnMapTouchListener(new com.amap.api.maps.AMap.OnMapTouchListener() {
@@ -1958,6 +1976,7 @@ public class MainActivity extends AppCompatActivity {
         if (mapTypeBtn != null) mapTypeBtn.setVisibility(visibility);
         if (locateBtn != null) locateBtn.setVisibility(visibility);
         if (customCompass != null) customCompass.setVisibility(visibility);  // 自定义指南针
+        if (customZoomControls != null) customZoomControls.setVisibility(visibility);  // 自定义缩放按钮
         if (bottomInfo != null && selectedDevice != null) {
             bottomInfo.setVisibility(visibility);
         }
@@ -2065,6 +2084,17 @@ public class MainActivity extends AppCompatActivity {
         if (batteryLevelText != null) batteryLevelText.setTextColor(onSurfaceColor);
         if (deviceAddressText != null) deviceAddressText.setTextColor(onSurfaceColor);
         if (updateTimeText != null) updateTimeText.setTextColor(onSurfaceColor);
+        
+        // 应用到自定义缩放按钮
+        if (customZoomControls != null) {
+            customZoomControls.setBackgroundColor(surfaceColor);
+        }
+        if (zoomInBtn != null) {
+            zoomInBtn.setColorFilter(isDarkMode ? onSurfaceColor : textSecColor);
+        }
+        if (zoomOutBtn != null) {
+            zoomOutBtn.setColorFilter(isDarkMode ? onSurfaceColor : textSecColor);
+        }
         
         // 更新状态栏
         if (isDarkMode) {

@@ -465,4 +465,7 @@
     <string name="edit_profile">Edit Profile</string>
     <string name="save_success">Saved successfully</string>
     <string name="save_failed">Save failed</string>
+    <string name="compass">Compass</string>
+    <string name="zoom_in">Zoom In</string>
+    <string name="zoom_out">Zoom Out</string>
 </resources>
