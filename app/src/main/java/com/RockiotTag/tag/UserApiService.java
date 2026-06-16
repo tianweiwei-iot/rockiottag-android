@@ -34,7 +34,7 @@ public class UserApiService {
      */
     public NewApiService.ApiResponse register(String username, String password) {
         try {
-            String url = ApiConfig.MY_SERVER_URL + "/api/user/register";
+            String url = ApiConfig.MY_SERVER_URL + "/user/register";
             JsonObject params = new JsonObject();
             params.addProperty("username", username);
             params.addProperty("password", password);
@@ -60,7 +60,7 @@ public class UserApiService {
      */
     public NewApiService.ApiResponse login(String username, String password) {
         try {
-            String url = ApiConfig.MY_SERVER_URL + "/api/user/login";
+            String url = ApiConfig.MY_SERVER_URL + "/user/login";
             JsonObject params = new JsonObject();
             params.addProperty("username", username);
             params.addProperty("password", password);
@@ -85,7 +85,7 @@ public class UserApiService {
      */
     public UserProfile getUserProfile(String token) {
         try {
-            String url = ApiConfig.MY_SERVER_URL + "/api/user/profile";
+            String url = ApiConfig.MY_SERVER_URL + "/user/profile";
             Log.d(TAG, "Get profile request: " + url);
 
             HttpURLConnection conn = (HttpURLConnection) new java.net.URL(url).openConnection();
@@ -153,7 +153,7 @@ public class UserApiService {
      */
     public NewApiService.ApiResponse updatePassword(String token, String oldPassword, String newPassword) {
         try {
-            String url = ApiConfig.MY_SERVER_URL + "/api/user/password";
+            String url = ApiConfig.MY_SERVER_URL + "/user/password";
             JsonObject params = new JsonObject();
             params.addProperty("oldPassword", oldPassword);
             params.addProperty("newPassword", newPassword);
@@ -172,7 +172,7 @@ public class UserApiService {
 
     private NewApiService.ApiResponse putWithToken(String endpoint, String token, String key, String value) {
         try {
-            String url = ApiConfig.MY_SERVER_URL + "/api" + endpoint;
+            String url = ApiConfig.MY_SERVER_URL + endpoint;
             JsonObject params = new JsonObject();
             params.addProperty(key, value);
 
