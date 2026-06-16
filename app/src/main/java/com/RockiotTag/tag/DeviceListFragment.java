@@ -163,6 +163,64 @@ public class DeviceListFragment extends Fragment {
         return result;
     }
 
+    /**
+     * 手动应用深色/浅色主题
+     */
+    public void applyTheme(boolean isDarkMode) {
+        View rootView = getView();
+        if (rootView == null) return;
+        
+        int bgColor = getResources().getColor(isDarkMode ? R.color.dark_background : R.color.background, null);
+        int topBarColor = getResources().getColor(isDarkMode ? R.color.dark_top_bar_background : R.color.top_bar_background, null);
+        int onSurfaceColor = getResources().getColor(isDarkMode ? R.color.dark_onSurface : R.color.onSurface, null);
+        int textSecColor = getResources().getColor(isDarkMode ? R.color.dark_text_secondary : R.color.text_secondary, null);
+        
+        rootView.setBackgroundColor(bgColor);
+        
+        View titleBar = rootView.findViewById(R.id.title_bar);
+        if (titleBar != null) titleBar.setBackgroundColor(topBarColor);
+        
+        // 更新标题文字颜色
+        if (titleBar instanceof ViewGroup) {
+            ViewGroup titleGroup = (ViewGroup) titleBar;
+            for (int i = 0; i < titleGroup.getChildCount(); i++) {
+                View child = titleGroup.getChildAt(i);
+                if (child instanceof TextView) {
+                    ((TextView) child).setTextColor(onSurfaceColor);
+                }
+            }
+        }
+        
+        // 更新空视图文字颜色
+        if (emptyView != null) emptyView.setTextColor(textSecColor);
+        
+        // 更新RecyclerView中的item颜色
+        if (recyclerView != null) {
+            for (int i = 0; i < recyclerView.getChildCount(); i++) {
+                View item = recyclerView.getChildAt(i);
+                applyItemTheme(item, isDarkMode);
+            }
+            if (adapter != null) adapter.notifyDataSetChanged();
+        }
+    }
+    
+    private void applyItemTheme(View itemView, boolean isDarkMode) {
+        int onSurfaceColor = getResources().getColor(isDarkMode ? R.color.dark_onSurface : R.color.onSurface, null);
+        int textSecColor = getResources().getColor(isDarkMode ? R.color.dark_text_secondary : R.color.text_secondary, null);
+        
+        TextView nameText = itemView.findViewById(R.id.device_name);
+        if (nameText != null) nameText.setTextColor(onSurfaceColor);
+        
+        TextView tagText = itemView.findViewById(R.id.device_tag);
+        if (tagText != null) tagText.setTextColor(textSecColor);
+        
+        TextView numText = itemView.findViewById(R.id.device_num);
+        if (numText != null) numText.setTextColor(textSecColor);
+        
+        TextView macText = itemView.findViewById(R.id.device_mac);
+        if (macText != null) macText.setTextColor(textSecColor);
+    }
+
     private static class DeviceListAdapter extends RecyclerView.Adapter<DeviceListAdapter.ViewHolder> {
         private final List<Device> devices;
         private final OnDeviceClickListener clickListener;

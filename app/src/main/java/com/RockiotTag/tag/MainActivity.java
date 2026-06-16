@@ -94,11 +94,11 @@ public class MainActivity extends AppCompatActivity {
     private boolean isSatelliteMap = false;
 
     // 底部导航栏
+    private LinearLayout bottomNavigation;
     private LinearLayout tabHome, tabList, tabTrack, tabProfile;
     private ImageView tabHomeIcon, tabListIcon, tabTrackIcon, tabProfileIcon;
     private TextView tabHomeText, tabListText, tabTrackText, tabProfileText;
     private int currentTab = 0; // 当前选中的Tab索引
-    private Bundle savedState = null; // 保存Activity重建前的状态
     private long lastTabClickTime = 0; // 上次点击Tab的时间，用于防止快速重复点击
     private static final long TAB_CLICK_INTERVAL = 500; // Tab点击间隔（毫秒）
 
@@ -257,20 +257,13 @@ public class MainActivity extends AppCompatActivity {
             
             LanguageUtils.applyLanguage(this, languageCode);
             
-            boolean isDarkMode = prefs.getBoolean("dark_mode", false);
-            if (isDarkMode) {
-                androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES);
-            } else {
-                androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO);
-            }
+            // 深色模式不使用setDefaultNightMode，避免Activity重建导致崩溃
+            // 深色模式通过手动设置颜色实现（在setContentView之后调用applyDarkMode）
             
             super.onCreate(savedInstanceState);
             
             Log.d(TAG, "=== STEP 1: super.onCreate DONE ===");
 
-            // 保存savedInstanceState供后续使用
-            savedState = savedInstanceState;
-            
             setContentView(R.layout.activity_main);
             
             Log.d(TAG, "=== STEP 2: setContentView DONE ===");
@@ -282,6 +275,10 @@ public class MainActivity extends AppCompatActivity {
             
             // 设置状态栏样式（必须在setContentView之后）
             setupStatusBar();
+
+            // 手动应用深色模式（不使用setDefaultNightMode避免Activity重建崩溃）
+            boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
+            applyDarkMode(isDarkMode);
 
             // 初始化高德地图隐私合规设置
             try {
@@ -314,6 +311,7 @@ public class MainActivity extends AppCompatActivity {
             customCompass = findViewById(R.id.custom_compass);  // 自定义指南针
 
             // 底部导航栏
+            bottomNavigation = findViewById(R.id.bottom_navigation);
             tabHome = findViewById(R.id.tab_home);
             tabList = findViewById(R.id.tab_list);
             tabTrack = findViewById(R.id.tab_track);
@@ -1873,55 +1871,26 @@ public class MainActivity extends AppCompatActivity {
     private void initFragments() {
         Log.d(TAG, "=== initFragments START ===");
 
-        // 检查是否有保存的Tab状态（Activity重建时恢复）
-        int savedTab = -1;
-        if (savedState != null) {
-            savedTab = savedState.getInt("current_tab", -1);
-        }
+        homeFragment = new HomeFragment();
+        deviceListFragment = new DeviceListFragment();
+        trackFragment = new TrackFragment();
+        profileFragment = new ProfileFragment();
 
         FragmentManager fm = getSupportFragmentManager();
+        FragmentTransaction ft = fm.beginTransaction();
+        ft.add(R.id.fragment_container, homeFragment, "home");
+        ft.add(R.id.fragment_container, deviceListFragment, "list");
+        ft.add(R.id.fragment_container, trackFragment, "track");
+        ft.add(R.id.fragment_container, profileFragment, "profile");
+        ft.hide(deviceListFragment);
+        ft.hide(trackFragment);
+        ft.hide(profileFragment);
+        ft.commitNowAllowingStateLoss();
         
-        // Activity重建时，系统会自动恢复Fragment，不要重复创建
-        homeFragment = (HomeFragment) fm.findFragmentByTag("home");
-        deviceListFragment = (DeviceListFragment) fm.findFragmentByTag("list");
-        trackFragment = (TrackFragment) fm.findFragmentByTag("track");
-        profileFragment = (ProfileFragment) fm.findFragmentByTag("profile");
-        
-        if (homeFragment != null && deviceListFragment != null && trackFragment != null && profileFragment != null) {
-            // Fragment已由系统恢复，只需更新UI状态
-            Log.d(TAG, "=== initFragments: fragments restored from saved state ===");
-        } else {
-            // 首次创建，添加所有Fragment
-            Log.d(TAG, "=== initFragments: creating new fragments ===");
-            homeFragment = new HomeFragment();
-            deviceListFragment = new DeviceListFragment();
-            trackFragment = new TrackFragment();
-            profileFragment = new ProfileFragment();
-
-            FragmentTransaction ft = fm.beginTransaction();
-            ft.add(R.id.fragment_container, homeFragment, "home");
-            ft.add(R.id.fragment_container, deviceListFragment, "list");
-            ft.add(R.id.fragment_container, trackFragment, "track");
-            ft.add(R.id.fragment_container, profileFragment, "profile");
-            ft.hide(deviceListFragment);
-            ft.hide(trackFragment);
-            ft.hide(profileFragment);
-            ft.commitNowAllowingStateLoss();
-            Log.d(TAG, "=== initFragments: new fragments added ===");
-        }
-        
+        currentTab = 0;
+        updateTabSelection(0);
+        updateHomeUIVisibility(true);
         Log.d(TAG, "=== initFragments END ===");
-
-        // 恢复之前选中的Tab
-        if (savedTab > 0 && savedTab <= 3) {
-            Log.d(TAG, "Restoring saved tab: " + savedTab);
-            switchToTab(savedTab);
-        } else if (savedTab == 0) {
-            // 恢复到首页，更新首页UI
-            currentTab = 0;
-            updateTabSelection(0);
-            updateHomeUIVisibility(true);
-        }
     }
 
     /**
@@ -2028,19 +1997,69 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 切换深色模式
+     * 切换深色模式（不重建Activity，手动应用主题颜色）
      */
     public void toggleDarkMode(boolean isDarkMode) {
         // 保存设置
         getSharedPreferences("app_settings", MODE_PRIVATE)
             .edit().putBoolean("dark_mode", isDarkMode).apply();
         
-        // 使用setDefaultNightMode触发Activity重建
-        if (isDarkMode) {
-            androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES);
-        } else {
-            androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO);
+        // 手动应用深色/浅色模式，不重建Activity
+        applyDarkMode(isDarkMode);
+    }
+    
+    /**
+     * 手动应用深色/浅色模式，不重建Activity
+     */
+    public void applyDarkMode(boolean isDarkMode) {
+        int bgColor = isDarkMode ? 
+            getResources().getColor(R.color.dark_background, null) : 
+            getResources().getColor(R.color.background, null);
+        int surfaceColor = isDarkMode ? 
+            getResources().getColor(R.color.dark_surface, null) : 
+            getResources().getColor(R.color.surface, null);
+        int onSurfaceColor = isDarkMode ? 
+            getResources().getColor(R.color.dark_onSurface, null) : 
+            getResources().getColor(R.color.onSurface, null);
+        int topBarColor = isDarkMode ? 
+            getResources().getColor(R.color.dark_top_bar_background, null) : 
+            getResources().getColor(R.color.top_bar_background, null);
+        int cardColor = isDarkMode ? 
+            getResources().getColor(R.color.dark_card_background, null) : 
+            getResources().getColor(R.color.card_background, null);
+        int textSecColor = isDarkMode ? 
+            getResources().getColor(R.color.dark_text_secondary, null) : 
+            getResources().getColor(R.color.text_secondary, null);
+        
+        // 应用到根视图
+        View rootView = findViewById(android.R.id.content);
+        if (rootView != null) rootView.setBackgroundColor(bgColor);
+        
+        // 应用到底部导航栏
+        if (bottomNavigation != null) bottomNavigation.setBackgroundColor(topBarColor);
+        
+        // 应用到底部信息卡片
+        if (bottomInfo != null) {
+            try {
+                ((androidx.cardview.widget.CardView) bottomInfo).setCardBackgroundColor(cardColor);
+            } catch (Exception e) {}
         }
+        
+        // 应用到信息卡片内的文字
+        if (batteryLevelText != null) batteryLevelText.setTextColor(onSurfaceColor);
+        if (deviceAddressText != null) deviceAddressText.setTextColor(onSurfaceColor);
+        if (updateTimeText != null) updateTimeText.setTextColor(onSurfaceColor);
+        
+        // 更新状态栏
+        if (isDarkMode) {
+            getWindow().setStatusBarColor(getResources().getColor(R.color.dark_surface, null));
+        } else {
+            getWindow().setStatusBarColor(getResources().getColor(R.color.top_bar_background, null));
+        }
+        
+        // 通知Fragment更新
+        if (deviceListFragment != null) deviceListFragment.applyTheme(isDarkMode);
+        if (profileFragment != null) profileFragment.applyTheme(isDarkMode);
     }
 
     /**
@@ -3320,9 +3339,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        mapView.onSaveInstanceState(outState);
-        // 保存当前Tab索引，Activity重建时恢复
-        outState.putInt("current_tab", currentTab);
+        if (mapView != null) {
+            mapView.onSaveInstanceState(outState);
+        }
     }
 
     /**

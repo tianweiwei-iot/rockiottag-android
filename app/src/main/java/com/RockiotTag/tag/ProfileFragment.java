@@ -178,4 +178,63 @@ public class ProfileFragment extends Fragment {
             ((MainActivity) getActivity()).showMapSwitchOptions();
         }
     }
+
+    /**
+     * 手动应用深色/浅色主题
+     */
+    public void applyTheme(boolean isDarkMode) {
+        View rootView = getView();
+        if (rootView == null) return;
+        
+        int bgColor = getResources().getColor(isDarkMode ? R.color.dark_background : R.color.background, null);
+        int topBarColor = getResources().getColor(isDarkMode ? R.color.dark_top_bar_background : R.color.top_bar_background, null);
+        int onSurfaceColor = getResources().getColor(isDarkMode ? R.color.dark_onSurface : R.color.onSurface, null);
+        int textSecColor = getResources().getColor(isDarkMode ? R.color.dark_text_secondary : R.color.text_secondary, null);
+        int dividerColor = getResources().getColor(isDarkMode ? R.color.dark_divider : R.color.text_secondary, null);
+        
+        rootView.setBackgroundColor(bgColor);
+        
+        // 标题栏
+        View titleBar = rootView.findViewById(R.id.title_bar);
+        if (titleBar != null) titleBar.setBackgroundColor(topBarColor);
+        
+        // 用户信息区域
+        View userInfoArea = rootView.findViewById(R.id.user_info_area);
+        if (userInfoArea != null) userInfoArea.setBackgroundColor(topBarColor);
+        
+        // 登录按钮区域
+        View loginButtonsArea = rootView.findViewById(R.id.login_buttons_area);
+        if (loginButtonsArea != null) loginButtonsArea.setBackgroundColor(topBarColor);
+        
+        // 文字颜色
+        if (userNameText != null) userNameText.setTextColor(onSurfaceColor);
+        if (userEmailText != null) userEmailText.setTextColor(textSecColor);
+        if (darkModeText != null) darkModeText.setTextColor(onSurfaceColor);
+        if (versionText != null) versionText.setTextColor(textSecColor);
+        
+        // 菜单项文字颜色
+        updateMenuItemColors(rootView, onSurfaceColor, textSecColor, dividerColor, isDarkMode);
+    }
+    
+    private void updateMenuItemColors(View rootView, int onSurfaceColor, int textSecColor, int dividerColor, boolean isDarkMode) {
+        // 遍历菜单项，更新文字和图标颜色
+        int[] menuItemIds = {R.id.language_item, R.id.map_switch_item, R.id.dark_mode_item, R.id.version_item};
+        for (int id : menuItemIds) {
+            View menuItem = rootView.findViewById(id);
+            if (menuItem instanceof LinearLayout) {
+                LinearLayout layout = (LinearLayout) menuItem;
+                for (int i = 0; i < layout.getChildCount(); i++) {
+                    View child = layout.getChildAt(i);
+                    if (child instanceof TextView) {
+                        ((TextView) child).setTextColor(
+                            child.getId() == R.id.version_text || child.getId() == R.id.dark_mode_text ? 
+                            textSecColor : onSurfaceColor);
+                    }
+                    if (child instanceof ImageView) {
+                        ((ImageView) child).setColorFilter(textSecColor);
+                    }
+                }
+            }
+        }
+    }
 }

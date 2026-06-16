@@ -13,6 +13,15 @@
     <color name="card_background">#FFFFFF</color>
     <color name="text_secondary">#757575</color>
     
+    <!-- 深色模式颜色 -->
+    <color name="dark_background">#121212</color>
+    <color name="dark_surface">#1E1E1E</color>
+    <color name="dark_onSurface">#E0E0E0</color>
+    <color name="dark_top_bar_background">#1E1E1E</color>
+    <color name="dark_card_background">#2C2C2C</color>
+    <color name="dark_text_secondary">#9E9E9E</color>
+    <color name="dark_divider">#3C3C3C</color>
+    
     <!-- ZXing colors -->
     <color name="zxing_possible_result_points">#00000000</color>
     <color name="zxing_result_view">#60000000</color>
