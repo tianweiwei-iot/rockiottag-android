@@ -29,7 +29,7 @@
         android:id="@+id/top_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#FFFFFF"
+        android:background="@color/top_bar_background"
         android:elevation="4dp"
         android:paddingTop="0dp"
         android:paddingBottom="4dp"
@@ -44,7 +44,7 @@
             android:text="@string/track"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="#000000"
+            android:textColor="@color/onSurface"
             android:gravity="center"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toStartOf="@id/prev_day_btn"
@@ -111,7 +111,7 @@
         android:orientation="vertical"
         android:layout_marginEnd="8dp"
         android:layout_marginTop="8dp"
-        android:background="#FFFFFF"
+        android:background="@color/surface"
         android:elevation="3dp"
         android:padding="3dp"
         app:layout_constraintEnd_toEndOf="parent"
@@ -138,7 +138,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/statistics"
                 android:textSize="9sp"
-                android:textColor="#333333" />
+                android:textColor="@color/text_secondary" />
 
         </LinearLayout>
 
@@ -164,11 +164,160 @@
                 android:layout_height="wrap_content"
                 android:text="@string/refresh"
                 android:textSize="9sp"
-                android:textColor="#333333" />
+                android:textColor="@color/text_secondary" />
 
         </LinearLayout>
 
     </LinearLayout>
+
+    <!-- 轨迹信息栏（浮在地图上方，类似首页设备信息栏） -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/track_info_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="12dp"
+        app:cardBackgroundColor="@color/card_background"
+        app:cardCornerRadius="10dp"
+        app:cardElevation="3dp"
+        app:layout_constraintBottom_toTopOf="@id/bottom_navigation">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="10dp">
+
+            <!-- 精度调节 -->
+            <LinearLayout
+                android:id="@+id/accuracy_control_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="6dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/accuracy_adjustment"
+                        android:textSize="11sp"
+                        android:textColor="@color/onSurface"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/accuracy_value_text"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/accuracy_default_value"
+                        android:textSize="10sp"
+                        android:textColor="#2196F3"
+                        android:textStyle="bold"
+                        android:gravity="end" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="2dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/high_accuracy"
+                        android:textSize="10sp"
+                        android:textColor="@color/text_secondary" />
+
+                    <SeekBar
+                        android:id="@+id/accuracy_seekbar"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:layout_marginEnd="6dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/low_accuracy"
+                        android:textSize="10sp"
+                        android:textColor="@color/text_secondary" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- 分隔线 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/text_secondary"
+                android:layout_marginBottom="6dp" />
+
+            <!-- 时间和位置信息 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@android:drawable/ic_menu_recent_history" />
+
+                <TextView
+                    android:id="@+id/track_point_time"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/time_placeholder"
+                    android:textSize="13sp"
+                    android:textColor="@color/onSurface"
+                    android:textStyle="bold" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="4dp">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@android:drawable/ic_dialog_map" />
+
+                <TextView
+                    android:id="@+id/track_point_address"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/loading"
+                    android:textSize="13sp"
+                    android:textColor="@color/onSurface"
+                    android:maxLines="2"
+                    android:ellipsize="end" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </androidx.cardview.widget.CardView>
 
     <!-- 底部导航栏（浮在地图上方） -->
     <LinearLayout
@@ -176,7 +325,7 @@
         android:layout_width="match_parent"
         android:layout_height="86dp"
         android:orientation="horizontal"
-        android:background="#FFFFFF"
+        android:background="@color/top_bar_background"
         android:paddingBottom="30dp"
         app:layout_constraintBottom_toBottomOf="parent">
 
@@ -286,182 +435,6 @@
                 android:textColor="@drawable/tab_color_selector"
                 android:layout_marginTop="2dp"
                 android:includeFontPadding="false" />
-        </LinearLayout>
-
-    </LinearLayout>
-
-    <!-- 播放控制栏（浮在地图上方，导航栏上方） -->
-    <LinearLayout
-        android:id="@+id/playback_control_bar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:background="#FFFFFF"
-        android:elevation="4dp"
-        android:paddingStart="4dp"
-        android:paddingEnd="4dp"
-        android:paddingTop="3dp"
-        android:paddingBottom="4dp"
-        android:layout_marginBottom="8dp"
-        app:layout_constraintBottom_toTopOf="@id/bottom_navigation">
-
-        <!-- 精度调节控件 -->
-        <LinearLayout
-            android:id="@+id/accuracy_control_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#F5F5F5"
-            android:padding="6dp"
-            android:layout_marginBottom="4dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/accuracy_adjustment"
-                android:textSize="11sp"
-                android:textColor="#333333"
-                android:textStyle="bold"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginBottom="4dp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/high_accuracy"
-                    android:textSize="10sp"
-                    android:textColor="#666666" />
-
-                <SeekBar
-                    android:id="@+id/accuracy_seekbar"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="6dp"
-                    android:layout_marginEnd="6dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/low_accuracy"
-                    android:textSize="10sp"
-                    android:textColor="#666666" />
-
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/accuracy_value_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/accuracy_default_value"
-                android:textSize="10sp"
-                android:textColor="#2196F3"
-                android:textStyle="bold"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="2dp" />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <ImageButton
-                android:id="@+id/play_btn"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:src="@android:drawable/ic_media_play"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:scaleType="centerInside" />
-
-            <TextView
-                android:id="@+id/current_time_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/time_format_hh_mm_ss"
-                android:textSize="10sp"
-                android:textColor="#333333"
-                android:layout_marginStart="3dp" />
-
-            <SeekBar
-                android:id="@+id/playback_seekbar"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="3dp"
-                android:layout_marginEnd="3dp" />
-
-            <TextView
-                android:id="@+id/total_time_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/time_format_hh_mm_ss"
-                android:textSize="10sp"
-                android:textColor="#333333"
-                android:layout_marginEnd="3dp" />
-
-            <TextView
-                android:id="@+id/speed_btn"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/speed_1x"
-                android:textSize="12sp"
-                android:textColor="#2196F3"
-                android:padding="3dp"
-                android:background="?attr/selectableItemBackgroundBorderless" />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/track_point_time"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/time_placeholder"
-                        android:textSize="11sp"
-                        android:textColor="#333333"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/track_point_address"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/loading"
-                        android:textSize="9sp"
-                        android:textColor="#666666"
-                        android:ellipsize="end"
-                        android:maxLines="2"
-                        android:layout_marginTop="0dp" />
-
-                </LinearLayout>
-
-            </LinearLayout>
-
         </LinearLayout>
 
     </LinearLayout>

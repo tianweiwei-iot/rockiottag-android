@@ -96,12 +96,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     private TextView trackPointTime;
     private TextView trackPointAddress;
     
-    private ImageButton playBtn;
-    private SeekBar playbackSeekbar;
-    private TextView currentTimeText;
-    private TextView totalTimeText;
-    private TextView speedBtn;
-    
     private List<LocationData> allLocationRecords = new CopyOnWriteArrayList<>();
     private List<StayPoint> stayPoints = new CopyOnWriteArrayList<>();
     private static final double STAY_DISTANCE_THRESHOLD = 30.0; // 30 米，平衡 GPS 精度和停留点识别
@@ -109,36 +103,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     
     // MVVM - 播放状态由 ViewModel 管理，这里只保留 UI 控制需要的引用
     // isPlaying, currentPlayIndex, playSpeed 都从 viewModel 获取
-    // 修复：使用静态 Handler 防止内存泄漏
-    private static class PlaybackHandler extends Handler {
-        private final WeakReference<TrackActivity> activityRef;
-        
-        PlaybackHandler(TrackActivity activity) {
-            activityRef = new WeakReference<>(activity);
-        }
-        
-        @Override
-        public void handleMessage(Message msg) {
-            TrackActivity activity = activityRef.get();
-            if (activity != null) {
-                // MVVM - 从 ViewModel 获取播放状态
-                Boolean playing = activity.viewModel.getIsPlaying().getValue();
-                if (playing != null && playing) {
-                    try {
-                        if (activity.isGoogleMapMode) {
-                            activity.moveToNextPointOnGoogleMap();
-                        } else {
-                            activity.moveToNextPoint();
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error in playback handler: " + e.getMessage(), e);
-                        activity.viewModel.pausePlayback();
-                    }
-                }
-            }
-        }
-    }
-    private PlaybackHandler playHandler;
     
     // 高德地图播放相关
     private Marker playMarker = null;
@@ -364,11 +328,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 Log.e(TAG, "trackPointAddress is null after findViewById!");
             }
             
-            // 初始化 Handler
-            playHandler = new PlaybackHandler(this);
-
-            initPlaybackControls();
-            
             initToolbar();
             
             // 初始化加载进度条
@@ -474,20 +433,14 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             // 1. 停止播放并清理状态
             stopPlayback();
             
-            // 2. 移除所有 Handler 消息
-            if (playHandler != null) {
-                playHandler.removeCallbacksAndMessages(null);
-                playHandler = null;
-            }
-            
-            // 3. 停止并清理动画
+            // 2. 停止并清理动画
             if (moveAnimator != null) {
                 moveAnimator.cancel();
                 moveAnimator.removeAllListeners();
                 moveAnimator = null;
             }
             
-            // 4. 清理地图资源（根据当前模式）
+            // 3. 清理地图资源（根据当前模式）
             if (isGoogleMapMode) {
                 for (com.google.android.gms.maps.model.Marker marker : googlePositionMarkers) {
                     marker.remove();
@@ -523,16 +476,16 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 currentPlayPosition = null;
             }
             
-            // 5. 清理数据集合
+            // 4. 清理数据集合
             allLocationRecords.clear();
             stayPoints.clear();
             
-            // 6. 清理 MapView
+            // 5. 清理 MapView
             if (mapView != null) {
                 mapView.onDestroy();
             }
             
-            // 7. 关闭数据库
+            // 6. 关闭数据库
             if (databaseHelper != null) {
                 databaseHelper.close();
             }
@@ -547,74 +500,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         // 停止播放，释放资源
         if (isPlaying) {
             stopPlayback();
-        }
-        
-        // 移除 Handler 消息
-        if (playHandler != null) {
-            playHandler.removeCallbacksAndMessages(null);
-        }
-    }
-
-    private void initPlaybackControls() {
-        playBtn = findViewById(R.id.play_btn);
-        playbackSeekbar = findViewById(R.id.playback_seekbar);
-        currentTimeText = findViewById(R.id.current_time_text);
-        totalTimeText = findViewById(R.id.total_time_text);
-        speedBtn = findViewById(R.id.speed_btn);
-
-        // 关键修复：添加空指针检查
-        if (playBtn != null) {
-            playBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (isPlaying) {
-                        pausePlayback();
-                    } else {
-                        startPlayback();
-                    }
-                }
-            });
-        } else {
-            Log.e(TAG, "playBtn is null after findViewById!");
-        }
-
-        if (playbackSeekbar != null) {
-            playbackSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override
-                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                    if (fromUser && !allLocationRecords.isEmpty()) {
-                        // MVVM - 通过 ViewModel 跳转播放位置
-                        viewModel.seekTo(progress);
-                    }
-                }
-
-                @Override
-                public void onStartTrackingTouch(SeekBar seekBar) {
-                    // 用户拖动时暂停播放
-                    if (viewModel.getIsPlaying().getValue() != null && viewModel.getIsPlaying().getValue()) {
-                        viewModel.pausePlayback();
-                    }
-                }
-
-                @Override
-                public void onStopTrackingTouch(SeekBar seekBar) {
-                    // 拖动结束后更新UI位置
-                    updatePlayPosition();
-                }
-            });
-        } else {
-            Log.e(TAG, "playbackSeekbar is null after findViewById!");
-        }
-
-        if (speedBtn != null) {
-            speedBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    cycleSpeed();
-                }
-            });
-        } else {
-            Log.e(TAG, "speedBtn is null after findViewById!");
         }
     }
 
@@ -759,12 +644,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     allLocationRecords.addAll(newRecords);
                 }
                 Log.d(TAG, "[OBSERVER] allLocationRecords updated, size=" + allLocationRecords.size());
-                
-                if (playbackSeekbar != null && !newRecords.isEmpty()) {
-                    playbackSeekbar.setMax(newRecords.size() - 1);
-                } else if (playbackSeekbar == null) {
-                    Log.w(TAG, "[OBSERVER] playbackSeekbar is null");
-                }
             }
         });
         
@@ -844,23 +723,14 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         
         viewModel.getIsPlaying().observe(this, playing -> {
             isPlaying = playing;
-            if (playBtn != null) {
-                playBtn.setImageResource(playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play);
-            }
         });
         
         viewModel.getCurrentPlayIndex().observe(this, index -> {
             currentPlayIndex = index;
-            if (playbackSeekbar != null) {
-                playbackSeekbar.setProgress(index);
-            }
         });
         
         viewModel.getPlaySpeed().observe(this, speed -> {
             playSpeed = speed;
-            if (speedBtn != null) {
-                speedBtn.setText(speed + "x");
-            }
         });
     }
         
@@ -1020,7 +890,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             if (moveAnimator != null && moveAnimator.isRunning()) {
                 moveAnimator.cancel();
             }
-            playHandler.removeCallbacksAndMessages(null);
         } catch (Exception e) {
             Log.e(TAG, "Error in pausePlayback: " + e.getMessage(), e);
         }
@@ -1039,11 +908,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 moveAnimator.removeAllUpdateListeners();
                 moveAnimator.removeAllListeners();
                 moveAnimator = null;
-            }
-            
-            // 移除所有 Handler 消息
-            if (playHandler != null) {
-                playHandler.removeCallbacksAndMessages(null);
             }
             
             if (isGoogleMapMode) {
@@ -1070,9 +934,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 playedPoints.clear();
                 currentPlayPosition = null;
             }
-            
-            playbackSeekbar.setProgress(0);
-            currentTimeText.setText("00:00:00");
         } catch (Exception e) {
             Log.e(TAG, "Error in stopPlayback: " + e.getMessage(), e);
         }
@@ -1149,8 +1010,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         playedPoints.add(finalToPos);
                         updatePlayedPolyline();
                         
-                        // MVVM - 从 ViewModel 获取时间信息
-                        currentTimeText.setText(viewModel.getCurrentPlayTimeString());
                         trackPointTime.setText(viewModel.getCurrentPlayFullTimeString());
                         
                         // MVVM - 根据 ViewModel 判断是否需要更新地址
@@ -1158,8 +1017,8 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                             getAddressForLocation(finalToPos);
                         }
                         
-                        // 继续播放
-                        playHandler.sendEmptyMessageDelayed(0, 50);
+                        // 继续播放下一帧
+                        moveToNextPoint();
                     }
                 }
                 
@@ -1276,7 +1135,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             }
 
             // MVVM - 使用 ViewModel 获取时间信息
-            currentTimeText.setText(viewModel.getCurrentPlayTimeString());
             trackPointTime.setText(viewModel.getCurrentPlayFullTimeString());
         } catch (Exception e) {
             Log.e(TAG, "Error in updatePlayPosition: " + e.getMessage(), e);
@@ -1370,6 +1228,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     aMap = mapView.getMap();
                     if (aMap != null) {
                         aMap.getUiSettings().setScaleControlsEnabled(true);
+                        aMap.getUiSettings().setZoomControlsEnabled(false);
                         aMap.moveCamera(com.amap.api.maps.CameraUpdateFactory.zoomTo(17));
                         aMap.setOnMarkerClickListener(this);
                         
@@ -2566,18 +2425,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     }
 
     private void updatePlaybackInfo(int count) {
-        // 使用 stayPoints 的数量设置播放进度条
-        int playCount = stayPoints.size();
-        playbackSeekbar.setMax(Math.max(0, playCount - 1));
-        
-        if (playCount > 0 && !stayPoints.isEmpty()) {
-            String timeStr = com.RockiotTag.tag.util.TimeFormatter.formatFullTime(stayPoints.get(playCount - 1).getArriveTime());
-            totalTimeText.setText(timeStr.substring(timeStr.indexOf(" ") + 1));
-        } else {
-            totalTimeText.setText("00:00:00");
-        }
-        currentTimeText.setText("00:00:00");
-        playbackSeekbar.setProgress(0);
+        // 播放控件已移除，此方法保留为空以兼容现有调用
     }
     
     // filterAbnormalPoints 和 processStayPoints 已迁移到 TrackViewModel
@@ -3190,9 +3038,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             googlePlayedPoints.add(toPos);
             updatePlayedPolylineOnGoogleMap();
             
-            playbackSeekbar.setProgress(currentPlayIndex);
             String timeStr = com.RockiotTag.tag.util.TimeFormatter.formatFullTime(toStayPoint.getArriveTime());
-            currentTimeText.setText(timeStr.substring(timeStr.indexOf(" ") + 1));
             trackPointTime.setText(timeStr);
             
             // 完全禁用谷歌地图的相机移动
@@ -3203,9 +3049,9 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 getAddressForLocationOnGoogleMap(toPos);
             }
             
-            // 继续播放
+            // 继续播放下一帧
             if (isPlaying) {
-                playHandler.sendEmptyMessageDelayed(0, 1000 / playSpeed);
+                moveToNextPointOnGoogleMap();
             }
         } catch (Exception e) {
             Log.e(TAG, "Error in moveToNextPointOnGoogleMap: " + e.getMessage(), e);
@@ -3592,12 +3438,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             }
         }
         
-        // 播放控制栏
-        View playbackBar = findViewById(R.id.playback_control_bar);
-        if (playbackBar != null) {
-            playbackBar.setBackgroundColor(topBarColor);
-            if (playbackBar instanceof ViewGroup) {
-                updateChildViewsColor((ViewGroup) playbackBar, onSurfaceColor, textSecColor);
+        // 轨迹信息卡片
+        androidx.cardview.widget.CardView trackInfoCard = findViewById(R.id.track_info_card);
+        if (trackInfoCard != null) {
+            trackInfoCard.setCardBackgroundColor(cardColor);
+            if (trackInfoCard instanceof ViewGroup) {
+                updateChildViewsColor((ViewGroup) trackInfoCard, onSurfaceColor, textSecColor);
             }
         }
         
