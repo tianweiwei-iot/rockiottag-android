@@ -18,6 +18,7 @@ import android.view.View;
 import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
@@ -156,6 +157,10 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     
     private ImageButton toggleMarkersBtn;
     private ImageButton togglePolylineBtn;
+
+    // 底部导航栏
+    private LinearLayout tabHome, tabList, tabTrack, tabProfile;
+    private ImageView tabHomeIcon, tabListIcon, tabTrackIcon, tabProfileIcon;
     private ImageButton toggleSatelliteBtn;
     private ImageButton statisticsBtn; // 统计按钮
     private boolean showMarkers = true;
@@ -410,6 +415,40 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             
             // 初始化自动刷新
             initAutoRefresh();
+
+            // 底部导航栏
+            tabHome = findViewById(R.id.tab_home);
+            tabList = findViewById(R.id.tab_list);
+            tabTrack = findViewById(R.id.tab_track);
+            tabProfile = findViewById(R.id.tab_profile);
+            tabHomeIcon = findViewById(R.id.tab_home_icon);
+            tabListIcon = findViewById(R.id.tab_list_icon);
+            tabTrackIcon = findViewById(R.id.tab_track_icon);
+            tabProfileIcon = findViewById(R.id.tab_profile_icon);
+
+            // 默认选中轨迹Tab
+            updateTabSelection(2);
+
+            // Tab点击事件
+            View.OnClickListener tabClickListener = v -> {
+                int tabIndex;
+                if (v.getId() == R.id.tab_home) tabIndex = 0;
+                else if (v.getId() == R.id.tab_list) tabIndex = 1;
+                else if (v.getId() == R.id.tab_track) tabIndex = 2;
+                else if (v.getId() == R.id.tab_profile) tabIndex = 3;
+                else return;
+
+                if (tabIndex == 2) return; // 已在轨迹页面
+
+                // 通知MainActivity切换Tab
+                MainActivity.pendingTabSwitch = tabIndex;
+                finish();
+            };
+
+            tabHome.setOnClickListener(tabClickListener);
+            tabList.setOnClickListener(tabClickListener);
+            tabTrack.setOnClickListener(tabClickListener);
+            tabProfile.setOnClickListener(tabClickListener);
             
             // MVVM - 初始化 ViewModel（关键修复：确保在设置观察者之前初始化）
             try {
@@ -3693,5 +3732,20 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
 
     private int dpToPx(int dp) {
         return (int) (dp * getResources().getDisplayMetrics().density);
+    }
+
+    private void updateTabSelection(int tabIndex) {
+        tabHome.setSelected(tabIndex == 0);
+        tabList.setSelected(tabIndex == 1);
+        tabTrack.setSelected(tabIndex == 2);
+        tabProfile.setSelected(tabIndex == 3);
+
+        int selectedColor = getResources().getColor(R.color.purple_500, null);
+        int unselectedColor = getResources().getColor(R.color.text_secondary, null);
+
+        tabHomeIcon.setColorFilter(tabIndex == 0 ? selectedColor : unselectedColor);
+        tabListIcon.setColorFilter(tabIndex == 1 ? selectedColor : unselectedColor);
+        tabTrackIcon.setColorFilter(tabIndex == 2 ? selectedColor : unselectedColor);
+        tabProfileIcon.setColorFilter(tabIndex == 3 ? selectedColor : unselectedColor);
     }
 }

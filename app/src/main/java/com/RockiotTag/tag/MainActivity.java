@@ -55,6 +55,8 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_PERMISSIONS = 100;
     private static final int REQUEST_DEVICE_LIST = 101;
 
+    public static int pendingTabSwitch = -1;
+
     private MapView mapView;
     private AMap aMap;
     private MapManager mapManager;
@@ -292,11 +294,7 @@ public class MainActivity extends AppCompatActivity {
             }
             mapView.onCreate(savedInstanceState);
             Log.d(TAG, "=== STEP 4: mapView.onCreate DONE ===");
-            // 设置地图内边距，让标尺、logo、缩放按钮上移到设备信息栏上方
-            // 底部需要留出空间给设备信息卡片(100dp) + 底部导航栏(86dp)
-            int mapPaddingBottom = (int) (186 * getResources().getDisplayMetrics().density);
-            int mapPaddingTop = (int) (8 * getResources().getDisplayMetrics().density);
-            mapView.setPadding(0, mapPaddingTop, 0, mapPaddingBottom);
+            // 地图内边距通过 aMap.setPadding() 设置，避免 mapView.setPadding() 裁剪地图显示区域
             googleMapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.google_map_fragment);
 
             batteryLevelText = findViewById(R.id.battery_level);
@@ -960,6 +958,17 @@ public class MainActivity extends AppCompatActivity {
         if (mapManager.isAmap()) {
             aMap = mapManager.getAmap();
             if (aMap != null) {
+                // 设置地图内边距，让标尺上移到设备信息栏上方
+                // 注意：高德SDK的标尺位置只能通过mapView.setPadding间接调整
+                // logo和缩放按钮通过UiSettings单独控制位置
+                int bottomMargin = (int) (186 * getResources().getDisplayMetrics().density);
+                int topMargin = (int) (8 * getResources().getDisplayMetrics().density);
+                mapView.setPadding(0, topMargin, 0, bottomMargin);
+                // 将 logo 上移，避免被设备信息卡片遮挡
+                aMap.getUiSettings().setLogoBottomMargin(bottomMargin);
+                // 缩放按钮移到右侧中间位置，远离底部
+                aMap.getUiSettings().setZoomPosition(com.amap.api.maps.AMapOptions.ZOOM_POSITION_RIGHT_CENTER);
+
                 aMap.getUiSettings().setMyLocationButtonEnabled(true);
                 aMap.setMyLocationEnabled(false);
                 aMap.getUiSettings().setCompassEnabled(true); // 启用指南针
@@ -2680,8 +2689,13 @@ public class MainActivity extends AppCompatActivity {
 
         Log.d(TAG, "=== onResume called ===");
 
-        // 从轨迹界面返回时，切回首页Tab
-        if (currentTab == 2) {
+        // 从轨迹界面返回时，切换到指定Tab
+        if (pendingTabSwitch >= 0) {
+            Log.d(TAG, "Returning from TrackActivity, switching to tab " + pendingTabSwitch);
+            int targetTab = pendingTabSwitch;
+            pendingTabSwitch = -1;
+            switchToTab(targetTab);
+        } else if (currentTab == 2) {
             Log.d(TAG, "Returning from TrackActivity, switching to home tab");
             switchToTab(0);
         }

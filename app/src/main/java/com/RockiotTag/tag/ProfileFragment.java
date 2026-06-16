@@ -38,6 +38,16 @@ public class ProfileFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        // 添加状态栏高度的顶部内边距，避免标题栏与状态栏重叠
+        View titleBar = view.findViewById(R.id.title_bar);
+        if (titleBar != null) {
+            int statusBarHeight = getStatusBarHeight();
+            titleBar.setPadding(titleBar.getPaddingLeft(),
+                titleBar.getPaddingTop() + statusBarHeight,
+                titleBar.getPaddingRight(),
+                titleBar.getPaddingBottom());
+        }
+
         userAvatar = view.findViewById(R.id.user_avatar);
         userNameText = view.findViewById(R.id.user_name_text);
         userEmailText = view.findViewById(R.id.user_email_text);
@@ -134,6 +144,15 @@ public class ProfileFragment extends Fragment {
             loginButtonsArea.setVisibility(View.VISIBLE);
             logoutBtn.setVisibility(View.GONE);
         }
+    }
+
+    private int getStatusBarHeight() {
+        int result = 0;
+        int resourceId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (resourceId > 0) {
+            result = getResources().getDimensionPixelSize(resourceId);
+        }
+        return result;
     }
 
     private void showLoginDialog() {

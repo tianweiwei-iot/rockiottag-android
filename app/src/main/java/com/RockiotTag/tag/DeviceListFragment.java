@@ -40,6 +40,16 @@ public class DeviceListFragment extends Fragment {
         emptyView = view.findViewById(R.id.empty_view);
         addDeviceBtn = view.findViewById(R.id.add_device_btn);
 
+        // 添加状态栏高度的顶部内边距，避免标题栏与状态栏重叠
+        View titleBar = view.findViewById(R.id.title_bar);
+        if (titleBar != null) {
+            int statusBarHeight = getStatusBarHeight();
+            titleBar.setPadding(titleBar.getPaddingLeft(),
+                titleBar.getPaddingTop() + statusBarHeight,
+                titleBar.getPaddingRight(),
+                titleBar.getPaddingBottom());
+        }
+
         databaseHelper = new DatabaseHelper(requireContext());
         adapter = new DeviceListAdapter(deviceList, this::onDeviceClick, this::onEditDevice);
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
@@ -142,6 +152,15 @@ public class DeviceListFragment extends Fragment {
 
         builder.setNegativeButton(R.string.cancel, null);
         builder.show();
+    }
+
+    private int getStatusBarHeight() {
+        int result = 0;
+        int resourceId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (resourceId > 0) {
+            result = getResources().getDimensionPixelSize(resourceId);
+        }
+        return result;
     }
 
     private static class DeviceListAdapter extends RecyclerView.Adapter<DeviceListAdapter.ViewHolder> {
