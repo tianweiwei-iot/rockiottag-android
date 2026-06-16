@@ -313,13 +313,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 initMap();
             }
 
-            ImageButton backBtn = findViewById(R.id.back_btn);
-            backBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    finish();
-                }
-            });
+            // 返回按钮已移除，通过底部导航栏切换
 
             dateBtn = findViewById(R.id.date_btn);
             startDate = (Calendar) selectedDate.clone();

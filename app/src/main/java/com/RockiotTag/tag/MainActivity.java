@@ -958,15 +958,14 @@ public class MainActivity extends AppCompatActivity {
         if (mapManager.isAmap()) {
             aMap = mapManager.getAmap();
             if (aMap != null) {
-                // 设置地图内边距，让标尺上移到设备信息栏上方
-                // 注意：高德SDK的标尺位置只能通过mapView.setPadding间接调整
-                // logo和缩放按钮通过UiSettings单独控制位置
-                int bottomMargin = (int) (186 * getResources().getDisplayMetrics().density);
-                int topMargin = (int) (8 * getResources().getDisplayMetrics().density);
-                mapView.setPadding(0, topMargin, 0, bottomMargin);
-                // 将 logo 上移，避免被设备信息卡片遮挡
+                // 设置地图内边距，让标尺和logo上移到设备信息栏上方
+                // fragment_container已在导航栏上方，所以底部padding只需设备信息栏高度
+                // 设备信息卡片100dp + margin上下各12dp = 124dp
+                int bottomMargin = (int) (124 * getResources().getDisplayMetrics().density);
+                mapView.setPadding(0, 0, 0, bottomMargin);
+                // logo上移同样的距离
                 aMap.getUiSettings().setLogoBottomMargin(bottomMargin);
-                // 缩放按钮移到右侧中间位置，远离底部
+                // 缩放按钮移到右侧中间位置
                 aMap.getUiSettings().setZoomPosition(com.amap.api.maps.AMapOptions.ZOOM_POSITION_RIGHT_CENTER);
 
                 aMap.getUiSettings().setMyLocationButtonEnabled(true);
