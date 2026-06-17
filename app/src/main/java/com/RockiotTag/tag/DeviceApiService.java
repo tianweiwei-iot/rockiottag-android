@@ -37,12 +37,26 @@ public class DeviceApiService {
      * @return DeviceApiResponse
      */
     public DeviceApiResponse bindDevice(String token, String deviceNum) {
+        return bindDevice(token, deviceNum, null);
+    }
+
+    /**
+     * 绑定设备到用户账号（带昵称）
+     * @param token Bearer Token
+     * @param deviceNum 设备号
+     * @param nickName 设备昵称（可选）
+     * @return DeviceApiResponse
+     */
+    public DeviceApiResponse bindDevice(String token, String deviceNum, String nickName) {
         try {
             String url = ApiConfig.MY_SERVER_URL + "/device/bind";
             JsonObject params = new JsonObject();
             params.addProperty("deviceNum", deviceNum);
+            if (nickName != null && !nickName.isEmpty()) {
+                params.addProperty("nickName", nickName);
+            }
 
-            Log.d(TAG, "Bind device request: " + url + ", deviceNum: " + deviceNum);
+            Log.d(TAG, "Bind device request: " + url + ", deviceNum: " + deviceNum + ", nickName: " + nickName);
             HttpHelper.HttpResponse response = postWithAuth(url, params.toString(), token);
 
             return parseResponse(response);
@@ -99,26 +113,46 @@ public class DeviceApiService {
                     JsonParser parser = new JsonParser();
                     JsonObject json = parser.parse(responseString).getAsJsonObject();
 
-                    if (json.has("code")) apiResponse.setCode(json.get("code").getAsString());
-                    if (json.has("message")) apiResponse.setMessage(json.get("message").getAsString());
+                    if (json.has("code") && !json.get("code").isJsonNull()) {
+                        apiResponse.setCode(json.get("code").getAsString());
+                    }
+                    if (json.has("message") && !json.get("message").isJsonNull()) {
+                        apiResponse.setMessage(json.get("message").getAsString());
+                    }
 
-                    // 解析设备列表
-                    if (json.has("data") && json.get("data").isJsonArray()) {
-                        JsonArray dataArray = json.getAsJsonArray("data");
+                    // 解析设备列表（后端返回字段名为 "devices"）
+                    String arrayKey = null;
+                    if (json.has("devices") && json.get("devices").isJsonArray()) {
+                        arrayKey = "devices";
+                    } else if (json.has("data") && json.get("data").isJsonArray()) {
+                        arrayKey = "data";
+                    }
+                    if (arrayKey != null) {
+                        JsonArray dataArray = json.getAsJsonArray(arrayKey);
                         List<BoundDevice> devices = new ArrayList<>();
-                        Gson gson = new Gson();
 
                         for (int i = 0; i < dataArray.size(); i++) {
                             JsonObject deviceObj = dataArray.get(i).getAsJsonObject();
                             BoundDevice device = new BoundDevice();
-                            if (deviceObj.has("deviceNum")) {
+                            if (deviceObj.has("deviceNum") && !deviceObj.get("deviceNum").isJsonNull()) {
                                 device.deviceNum = deviceObj.get("deviceNum").getAsString();
                             }
-                            if (deviceObj.has("alias")) {
+                            if (deviceObj.has("alias") && !deviceObj.get("alias").isJsonNull()) {
                                 device.alias = deviceObj.get("alias").getAsString();
                             }
-                            if (deviceObj.has("bindTime")) {
-                                device.bindTime = deviceObj.get("bindTime").getAsLong();
+                            // 服务器返回的昵称字段名为 nickName，优先使用 nickName
+                            if (deviceObj.has("nickName") && !deviceObj.get("nickName").isJsonNull()) {
+                                String nickName = deviceObj.get("nickName").getAsString();
+                                if (nickName != null && !nickName.isEmpty()) {
+                                    device.nickName = nickName;
+                                    device.alias = nickName;  // 同时赋值给 alias 以兼容旧逻辑
+                                }
+                            }
+                            if (deviceObj.has("bindTime") && !deviceObj.get("bindTime").isJsonNull()) {
+                                try { device.bindTime = deviceObj.get("bindTime").getAsLong(); } catch (Exception ignored) {}
+                            }
+                            if (deviceObj.has("createdAt") && !deviceObj.get("createdAt").isJsonNull()) {
+                                try { device.bindTime = deviceObj.get("createdAt").getAsLong(); } catch (Exception ignored) {}
                             }
                             devices.add(device);
                         }
@@ -386,6 +420,8 @@ public class DeviceApiService {
     public static class BoundDevice {
         public String deviceNum;
         public String alias;
+        @com.google.gson.annotations.SerializedName("nickName")
+        public String nickName;  // 服务器返回的昵称字段
         public long bindTime;
 
         public BoundDevice() {}
@@ -393,6 +429,7 @@ public class DeviceApiService {
         public BoundDevice(String deviceNum, String alias, long bindTime) {
             this.deviceNum = deviceNum;
             this.alias = alias;
+            this.nickName = alias;  // 兼容旧逻辑
             this.bindTime = bindTime;
         }
 
@@ -400,8 +437,17 @@ public class DeviceApiService {
             return deviceNum;
         }
 
+        /**
+         * 获取别名，优先返回 nickName，其次 alias，最后 deviceNum
+         */
         public String getAlias() {
-            return alias != null && !alias.isEmpty() ? alias : deviceNum;
+            if (nickName != null && !nickName.isEmpty()) {
+                return nickName;
+            }
+            if (alias != null && !alias.isEmpty()) {
+                return alias;
+            }
+            return deviceNum;
         }
 
         public long getBindTime() {
@@ -413,6 +459,7 @@ public class DeviceApiService {
             return "BoundDevice{" +
                     "deviceNum='" + deviceNum + '\'' +
                     ", alias='" + alias + '\'' +
+                    ", nickName='" + nickName + '\'' +
                     ", bindTime=" + bindTime +
                     '}';
         }

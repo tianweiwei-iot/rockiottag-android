@@ -11,6 +11,7 @@
     <color name="onSurface">#000000</color>
     <color name="top_bar_background">#FFFFFF</color>
     <color name="card_background">#FFFFFF</color>
+    <color name="card_background_selected">#E8D5F0</color> <!-- 浅紫色选中背景 -->
     <color name="text_secondary">#757575</color>
     
     <!-- 深色模式颜色 -->
@@ -19,6 +20,7 @@
     <color name="dark_onSurface">#FFFFFF</color>
     <color name="dark_top_bar_background">#121212</color>
     <color name="dark_card_background">#1E1E1E</color>
+    <color name="dark_card_background_selected">#3D2E4D</color> <!-- 深色模式选中背景 -->
     <color name="dark_text_secondary">#9E9E9E</color>
     <color name="dark_divider">#3C3C3C</color>
     

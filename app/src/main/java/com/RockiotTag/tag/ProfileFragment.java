@@ -27,6 +27,7 @@ public class ProfileFragment extends Fragment {
     private TextView versionText;
     private TextView darkModeText;
     private com.google.android.material.button.MaterialButton logoutBtn;
+    private com.google.android.material.button.MaterialButton switchAccountBtn;
 
     @Nullable
     @Override
@@ -57,6 +58,7 @@ public class ProfileFragment extends Fragment {
         versionText = view.findViewById(R.id.version_text);
         darkModeText = view.findViewById(R.id.dark_mode_text);
         logoutBtn = view.findViewById(R.id.logout_btn);
+        switchAccountBtn = view.findViewById(R.id.switch_account_btn);
 
         // 登录按钮
         view.findViewById(R.id.login_btn).setOnClickListener(v -> showLoginDialog());
@@ -95,7 +97,15 @@ public class ProfileFragment extends Fragment {
             new AlertDialog.Builder(requireContext())
                 .setMessage(R.string.logout_confirm)
                 .setPositiveButton(R.string.confirm, (dialog, which) -> {
-                    // 清除登录状态和设备数据
+                    // 1. 调用后端登出接口作废Token
+                    String token = prefs.getString("auth_token", null);
+                    if (token != null && !token.isEmpty()) {
+                        new Thread(() -> {
+                            UserApiService.getInstance().logout(token);
+                        }).start();
+                    }
+                    
+                    // 2. 清空本地所有身份凭证
                     prefs.edit()
                         .remove("auth_token")
                         .remove("user_username")
@@ -105,12 +115,36 @@ public class ProfileFragment extends Fragment {
                         .remove("bound_devices")  // 清除绑定设备列表
                         .remove("selected_device_id")  // 清除选中的设备
                         .apply();
-                    // 清除本地数据库中的设备数据
+                    
+                    // 3. 清空本地数据库中的设备数据和轨迹记录
                     clearLocalDeviceData();
+                    
+                    // 4. 更新UI
                     updateLoginUI();
+                    
+                    // 5. 通知MainActivity清空内存缓存并刷新
+                    if (getActivity() instanceof MainActivity) {
+                        ((MainActivity) getActivity()).refreshDeviceListAfterLogout();
+                    }
                     Toast.makeText(requireContext(), R.string.logout_success, Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton(R.string.cancel, null)
+                .show();
+        });
+
+        // 切换账号
+        switchAccountBtn.setOnClickListener(v -> {
+            // 显示登录/注册选择对话框
+            String[] items = {getString(R.string.login), getString(R.string.register)};
+            new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.switch_account)
+                .setItems(items, (dialog, which) -> {
+                    if (which == 0) {
+                        showLoginDialog();
+                    } else {
+                        showRegisterDialog();
+                    }
+                })
                 .show();
         });
 
@@ -145,12 +179,14 @@ public class ProfileFragment extends Fragment {
                 userEmailText.setVisibility(View.GONE);
             }
             loginButtonsArea.setVisibility(View.GONE);
+            switchAccountBtn.setVisibility(View.VISIBLE);
             logoutBtn.setVisibility(View.VISIBLE);
         } else {
             // 未登录
             userNameText.setText(R.string.not_logged_in);
             userEmailText.setVisibility(View.GONE);
             loginButtonsArea.setVisibility(View.VISIBLE);
+            switchAccountBtn.setVisibility(View.GONE);
             logoutBtn.setVisibility(View.GONE);
         }
     }
@@ -196,7 +232,9 @@ public class ProfileFragment extends Fragment {
             DatabaseHelper dbHelper = new DatabaseHelper(requireContext());
             // 清除所有设备数据
             dbHelper.deleteAllDevices();
-            android.util.Log.d("ProfileFragment", "Cleared all local device data");
+            // 清除所有轨迹/定位记录
+            dbHelper.deleteAllLocationRecords();
+            android.util.Log.d("ProfileFragment", "Cleared all local device data and location records");
         } catch (Exception e) {
             android.util.Log.e("ProfileFragment", "Error clearing device data: " + e.getMessage(), e);
         }

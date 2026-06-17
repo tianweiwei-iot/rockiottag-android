@@ -18,6 +18,7 @@ public class BoundDeviceAdapter extends ArrayAdapter<Device> {
     private OnDeviceEditListener editListener;
     private OnCheckedChangeListener checkedChangeListener;
     private boolean isMultiSelectMode = false;
+    private boolean isDarkMode = false;
     private java.util.Set<Integer> selectedPositions = new java.util.HashSet<>();
 
     public interface OnDeviceEditListener {
@@ -38,6 +39,10 @@ public class BoundDeviceAdapter extends ArrayAdapter<Device> {
 
     public BoundDeviceAdapter(Context context, List<Device> devices) {
         super(context, 0, devices);
+    }
+
+    public void setDarkMode(boolean darkMode) {
+        this.isDarkMode = darkMode;
     }
 
     public void setMultiSelectMode(boolean mode) {
@@ -114,6 +119,18 @@ public class BoundDeviceAdapter extends ArrayAdapter<Device> {
             } else {
                 holder.deviceTagText.setVisibility(View.GONE);
             }
+
+            int onSurfaceColor = getContext().getResources().getColor(
+                    isDarkMode ? R.color.dark_onSurface : R.color.onSurface, null);
+            int textSecColor = getContext().getResources().getColor(
+                    isDarkMode ? R.color.dark_text_secondary : R.color.text_secondary, null);
+            int itemBgColor = getContext().getResources().getColor(
+                    isDarkMode ? R.color.dark_card_background : R.color.white, null);
+
+            holder.deviceNameText.setTextColor(onSurfaceColor);
+            holder.deviceAddressText.setTextColor(textSecColor);
+            holder.deviceTagText.setTextColor(textSecColor);
+            convertView.setBackgroundColor(itemBgColor);
             
             if (isMultiSelectMode) {
                 holder.checkBox.setVisibility(View.VISIBLE);

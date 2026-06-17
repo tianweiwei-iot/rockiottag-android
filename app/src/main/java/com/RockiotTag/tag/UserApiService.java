@@ -79,6 +79,36 @@ public class UserApiService {
     }
 
     /**
+     * 用户登出（作废当前Token）
+     * @param token Bearer Token
+     * @return 是否成功
+     */
+    public boolean logout(String token) {
+        try {
+            String url = ApiConfig.MY_SERVER_URL + "/user/logout";
+            Log.d(TAG, "Logout request: " + url);
+
+            HttpURLConnection conn = (HttpURLConnection) new java.net.URL(url).openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + token);
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(15000);
+            conn.setDoOutput(true);
+            conn.getOutputStream().write("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+            int responseCode = conn.getResponseCode();
+            Log.d(TAG, "Logout response code: " + responseCode);
+            conn.disconnect();
+
+            return responseCode >= 200 && responseCode < 300;
+        } catch (Exception e) {
+            Log.e(TAG, "Logout failed: " + e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
      * 获取用户资料
      * @param token Bearer Token
      * @return UserProfile

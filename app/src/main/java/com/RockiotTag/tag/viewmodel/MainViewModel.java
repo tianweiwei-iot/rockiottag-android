@@ -50,8 +50,8 @@ public class MainViewModel extends AndroidViewModel {
     private final MutableLiveData<Device> selectedDevice = new MutableLiveData<>();
     private final MutableLiveData<String> deviceName = new MutableLiveData<>();
     private final MutableLiveData<String> batteryLevel = new MutableLiveData<>("-1");  // 初始值-1表示未知
-    private final MutableLiveData<String> deviceAddress = new MutableLiveData<>();
-    private final MutableLiveData<String> updateTime = new MutableLiveData<>();
+    private final MutableLiveData<String> deviceAddress = new MutableLiveData<>("not_reported");
+    private final MutableLiveData<String> updateTime = new MutableLiveData<>("not_reported");
     private final MutableLiveData<Boolean> isLoading = new MutableLiveData<>(false);
     private final MutableLiveData<String> errorMessage = new MutableLiveData<>();
     
@@ -97,6 +97,19 @@ public class MainViewModel extends AndroidViewModel {
         if (device != null) {
             deviceName.setValue(device.getName());
         }
+    }
+    
+    /**
+     * 清除选中设备（退出登录时调用）
+     * 使正在进行的请求失效，防止退出后仍更新UI
+     */
+    public void clearSelectedDevice() {
+        fetchSequence++; // 使正在进行的fetchDeviceInfo请求失效
+        selectedDevice.setValue(null);
+        deviceName.setValue(null);
+        batteryLevel.setValue("-1");
+        deviceAddress.setValue("not_reported");
+        updateTime.setValue("not_reported");
     }
     
     /**
@@ -261,6 +274,14 @@ public class MainViewModel extends AndroidViewModel {
                     localDevice.setBattery(deviceInfo.battery);
                 }
 
+                // 本地无有效坐标时，合并服务器坐标（避免蓝牙更新时间戳后丢失位置）
+                if ((localDevice.getLatitude() == 0 || localDevice.getLongitude() == 0)
+                        && deviceInfo.latitude != 0 && deviceInfo.longitude != 0) {
+                    localDevice.setLatitude(deviceInfo.latitude);
+                    localDevice.setLongitude(deviceInfo.longitude);
+                    Log.d(TAG, "Merged server coordinates into local device (local had no coords)");
+                }
+
                 deviceRepository.saveDevice(localDevice);
                 selectedDevice.setValue(localDevice);
 
@@ -371,6 +392,14 @@ public class MainViewModel extends AndroidViewModel {
                 Log.e(TAG, "Failed to select device: " + resource.message);
             }
         });
+    }
+    
+    /**
+     * 使进行中的逆地理编码请求失效（切换设备时调用）
+     */
+    public void invalidateAddressRequests() {
+        addressRequestSequence++;
+        Log.d(TAG, "Address requests invalidated, sequence=" + addressRequestSequence);
     }
     
     /**

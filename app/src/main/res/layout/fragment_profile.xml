@@ -285,13 +285,29 @@
 
         </LinearLayout>
 
+        <!-- 切换账号按钮 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/switch_account_btn"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp"
+            android:layout_marginTop="24dp"
+            android:text="@string/switch_account"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
         <!-- 退出登录按钮 -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/logout_btn"
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="44dp"
-            android:layout_margin="24dp"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="24dp"
             android:text="@string/logout"
             android:textColor="#F44336"
             android:visibility="gone" />

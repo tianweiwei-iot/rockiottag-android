@@ -52,6 +52,18 @@ public class TagAdapter extends ArrayAdapter<String> {
             }
         }
 
+        boolean darkMode = context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                .getBoolean("dark_mode", false);
+        if (darkMode) {
+            int bgColor = context.getResources().getColor(R.color.dark_surface, null);
+            int textColor = context.getResources().getColor(R.color.dark_onSurface, null);
+            textView.setTextColor(textColor);
+            view.setBackgroundColor(bgColor);
+        } else {
+            textView.setTextColor(context.getResources().getColor(R.color.onSurface, null));
+            view.setBackgroundColor(context.getResources().getColor(R.color.white, null));
+        }
+
         if (isDropDown) {
             textView.setPadding(32, 24, 32, 24);
         }

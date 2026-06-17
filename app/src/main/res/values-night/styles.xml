@@ -19,6 +19,8 @@
         <item name="android:windowAnimationStyle">@style/WindowAnimationTransition</item>
         <!-- 自定义标题栏样式 -->
         <item name="actionBarStyle">@style/CustomActionBar</item>
+        <!-- 确保 AlertDialog 跟随深色主题 -->
+        <item name="alertDialogTheme">@style/AlertDialogTheme</item>
     </style>
 
     <!-- 自定义标题栏样式（白底黑字） -->
@@ -58,5 +60,12 @@
         <item name="android:colorBackground">@color/background</item>
         <item name="colorSurface">@color/surface</item>
         <item name="colorOnSurface">@color/onSurface</item>
+    </style>
+
+    <!-- 深色模式对话框主题，确保地图切换、语言选择等弹窗为深色背景 -->
+    <style name="AlertDialogTheme" parent="ThemeOverlay.MaterialComponents.Dialog.Alert">
+        <item name="android:background">@color/surface</item>
+        <item name="android:textColor">@color/onSurface</item>
+        <item name="android:textColorPrimary">@color/onSurface</item>
     </style>
 </resources>

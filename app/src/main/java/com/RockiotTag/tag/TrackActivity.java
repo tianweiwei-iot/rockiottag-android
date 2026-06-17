@@ -37,6 +37,9 @@ import com.RockiotTag.tag.util.MapMarkerHelper;
 import com.RockiotTag.tag.util.GoogleMapMarkerHelper;
 import com.RockiotTag.tag.util.GeocodeHelper;
 import com.RockiotTag.tag.util.SafeExecutor;
+import com.RockiotTag.tag.helper.TrackDateHelper;
+import com.RockiotTag.tag.helper.TrackThemeHelper;
+import com.RockiotTag.tag.helper.TrackLoadingHelper;
 
 import java.lang.ref.WeakReference;
 
@@ -154,7 +157,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     
     // MVVM - ViewModel
     private TrackViewModel viewModel;
-    
+
+    // Helper 类（MVVM 重构：将业务逻辑从 Activity 中分离）
+    private TrackDateHelper dateHelper;
+    private TrackThemeHelper themeHelper;
+    private TrackLoadingHelper loadingHelper;
+
     // 兼容性字段（从 ViewModel 同步，用于遗留代码）
     private boolean isPlaying = false;
     private int currentPlayIndex = 0;
@@ -225,8 +233,10 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             databaseHelper = new DatabaseHelper(this);
             selectedDate = Calendar.getInstance();
 
+            // 未登录时不加载设备
+            String authToken = prefs.getString("auth_token", null);
             String selectedDeviceId = prefs.getString("selected_device_id", "");
-            if (!selectedDeviceId.isEmpty()) {
+            if (authToken != null && !authToken.isEmpty() && !selectedDeviceId.isEmpty()) {
                 selectedDevice = databaseHelper.getDevice(selectedDeviceId);
                 if (selectedDevice == null) {
                     Log.e(TAG, "Selected device not found in database: " + selectedDeviceId);
@@ -383,6 +393,9 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 Log.e(TAG, "Error initializing ViewModel: " + e.getMessage(), e);
             }
 
+            // MVVM 重构 - 初始化 Helper 类
+            initHelpers();
+
             checkAndCleanOldTrackData();
             
             // 关键修复：延迟加载数据，确保地图完全初始化后再加载
@@ -394,7 +407,8 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     Log.d(TAG, "AMap ready, loading track data immediately");
                     // 关键修复：增加安全检查，确保有选中的设备
                     if (selectedDevice != null) {
-                        loadTrackData();
+                        // 首次进入轨迹界面，强制从服务器同步，确保显示最新正确轨迹
+                        loadTrackData(true);
                     } else {
                         Log.w(TAG, "No device selected, skip initial loadTrackData");
                         // 静默处理，不显示Toast
@@ -406,7 +420,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         if (aMap != null && !isFinishing() && !isDestroyed()) {
                             Log.d(TAG, "Retrying loadTrackData after delay");
                             if (selectedDevice != null) {
-                                loadTrackData();
+                                loadTrackData(true);
                             } else {
                                 Log.w(TAG, "No device selected during retry, skip loadTrackData");
                             }
@@ -500,6 +514,70 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         if (isPlaying) {
             stopPlayback();
         }
+    }
+
+    /**
+     * MVVM 重构 - 初始化所有 Helper 类
+     * 将业务逻辑委托给专门的 Helper 类，减少 Activity 代码量
+     */
+    private void initHelpers() {
+        // 初始化加载 Helper
+        loadingHelper = new TrackLoadingHelper(this);
+        if (loadingProgress != null) {
+            loadingHelper.setLoadingProgress(loadingProgress);
+        }
+
+        // 初始化日期 Helper
+        dateHelper = new TrackDateHelper(this, new TrackDateHelper.DateCallbacks() {
+            @Override
+            public Calendar getSelectedDate() { return selectedDate; }
+            @Override
+            public void setSelectedDate(Calendar date) { selectedDate = date; }
+            @Override
+            public Calendar getStartDate() { return startDate; }
+            @Override
+            public void setStartDate(Calendar date) { startDate = date; }
+            @Override
+            public Calendar getEndDate() { return endDate; }
+            @Override
+            public void setEndDate(Calendar date) { endDate = date; }
+            @Override
+            public boolean isLoadingTrackData() { return isLoadingTrackData; }
+            @Override
+            public void setLoadingTrackData(boolean loading) { isLoadingTrackData = loading; }
+            @Override
+            public void updateDateBtnText() { TrackActivity.this.updateDateBtnText(); }
+            @Override
+            public void loadTrackData() { TrackActivity.this.loadTrackData(); }
+            @Override
+            public void stopPlayback() { TrackActivity.this.stopPlayback(); }
+        });
+
+        // 初始化主题 Helper
+        themeHelper = new TrackThemeHelper(this, new TrackThemeHelper.ThemeCallbacks() {
+            @Override
+            public boolean isGoogleMapMode() { return TrackActivity.this.isGoogleMapMode; }
+            @Override
+            public GoogleMap getGoogleMap() { return googleMap; }
+            @Override
+            public AMap getAMap() { return aMap; }
+            @Override
+            public LinearLayout getTabHome() { return tabHome; }
+            @Override
+            public LinearLayout getTabList() { return tabList; }
+            @Override
+            public LinearLayout getTabTrack() { return tabTrack; }
+            @Override
+            public LinearLayout getTabProfile() { return tabProfile; }
+            @Override
+            public ImageView getTabHomeIcon() { return tabHomeIcon; }
+            @Override
+            public ImageView getTabListIcon() { return tabListIcon; }
+            @Override
+            public ImageView getTabTrackIcon() { return tabTrackIcon; }
+            @Override
+            public ImageView getTabProfileIcon() { return tabProfileIcon; }
+        });
     }
 
     private void initToolbar() {
@@ -1340,7 +1418,8 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 
                 // 关键修复：加载轨迹数据前检查是否有选中的设备
                 if (selectedDevice != null) {
-                    loadTrackData();
+                    // 首次进入轨迹界面（Google地图），强制同步确保轨迹正确
+                    loadTrackData(true);
                 } else {
                     Log.w(TAG, "No device selected in onMapReady, skip loadTrackData");
                     // 静默处理，不显示Toast
@@ -1418,56 +1497,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     }
 
     private void showDatePicker() {
-        try {
-            DatePickerDialog datePickerDialog = new DatePickerDialog(
-                this,
-                (view, year, month, dayOfMonth) -> {
-                    // 关键修复：选择日期前先停止播放
-                    stopPlayback();
-                    
-                    // 关键修复：防止快速切换日期导致并发加载
-                    if (isLoadingTrackData) {
-                        Log.d(TAG, "Already loading track data, ignore date picker selection");
-                        return;
-                    }
-                    
-                    selectedDate.set(Calendar.YEAR, year);
-                    selectedDate.set(Calendar.MONTH, month);
-                    selectedDate.set(Calendar.DAY_OF_MONTH, dayOfMonth);
-                    
-                    startDate = (Calendar) selectedDate.clone();
-                    startDate.set(Calendar.HOUR_OF_DAY, 0);
-                    startDate.set(Calendar.MINUTE, 0);
-                    startDate.set(Calendar.SECOND, 0);
-                    startDate.set(Calendar.MILLISECOND, 0);
-                    
-                    endDate = (Calendar) selectedDate.clone();
-                    endDate.set(Calendar.HOUR_OF_DAY, 23);
-                    endDate.set(Calendar.MINUTE, 59);
-                    endDate.set(Calendar.SECOND, 59);
-                    endDate.set(Calendar.MILLISECOND, 999);
-                    
-                    updateDateBtnText();
-                    loadTrackData();
-                },
-                selectedDate.get(Calendar.YEAR),
-                selectedDate.get(Calendar.MONTH),
-                selectedDate.get(Calendar.DAY_OF_MONTH)
-            );
-
-            Calendar minDate = Calendar.getInstance();
-            minDate.add(Calendar.MONTH, -1);
-            datePickerDialog.getDatePicker().setMinDate(minDate.getTimeInMillis());
-
-            Calendar maxDate = Calendar.getInstance();
-            datePickerDialog.getDatePicker().setMaxDate(maxDate.getTimeInMillis());
-
-            datePickerDialog.show();
-        } catch (Exception e) {
-            Log.e(TAG, "Error in showDatePicker: " + e.getMessage(), e);
-            // 确保在异常情况下也释放加载锁
-            isLoadingTrackData = false;
-        }
+        dateHelper.showDatePicker();
     }
 
     private void updateDateBtnText() {
@@ -1486,245 +1516,23 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     }
 
     private void showStartTimePicker() {
-        try {
-            androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
-            builder.setTitle(getString(R.string.select_start_time));
-
-            LinearLayout layout = new LinearLayout(this);
-            layout.setOrientation(LinearLayout.HORIZONTAL);
-            layout.setGravity(android.view.Gravity.CENTER);
-            layout.setPadding(50, 40, 50, 10);
-
-            final android.widget.NumberPicker hourPicker = new android.widget.NumberPicker(this);
-            hourPicker.setMinValue(0);
-            hourPicker.setMaxValue(23);
-            hourPicker.setValue(startDate.get(Calendar.HOUR_OF_DAY));
-            hourPicker.setWrapSelectorWheel(true);
-            hourPicker.setDescendantFocusability(android.widget.NumberPicker.FOCUS_BLOCK_DESCENDANTS);
-            LinearLayout.LayoutParams hourParams = new LinearLayout.LayoutParams(120, LinearLayout.LayoutParams.WRAP_CONTENT);
-            hourPicker.setLayoutParams(hourParams);
-
-            TextView colonText = new TextView(this);
-            colonText.setText(":");
-            colonText.setTextSize(24);
-            colonText.setPadding(16, 0, 16, 0);
-
-            final android.widget.NumberPicker minutePicker = new android.widget.NumberPicker(this);
-            minutePicker.setMinValue(0);
-            minutePicker.setMaxValue(59);
-            minutePicker.setValue(startDate.get(Calendar.MINUTE));
-            minutePicker.setWrapSelectorWheel(true);
-            minutePicker.setDescendantFocusability(android.widget.NumberPicker.FOCUS_BLOCK_DESCENDANTS);
-            LinearLayout.LayoutParams minuteParams = new LinearLayout.LayoutParams(120, LinearLayout.LayoutParams.WRAP_CONTENT);
-            minutePicker.setLayoutParams(minuteParams);
-
-            layout.addView(hourPicker);
-            layout.addView(colonText);
-            layout.addView(minutePicker);
-
-            builder.setView(layout);
-
-            builder.setPositiveButton(getString(R.string.confirm), new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    try {
-                        startDate.set(Calendar.HOUR_OF_DAY, hourPicker.getValue());
-                        startDate.set(Calendar.MINUTE, minutePicker.getValue());
-                        startDate.set(Calendar.SECOND, 0);
-                        startDate.set(Calendar.MILLISECOND, 0);
-                        updateDateBtnText();
-                        loadTrackData();
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error in start time picker: " + e.getMessage(), e);
-                        // 确保在异常情况下也释放加载锁
-                        isLoadingTrackData = false;
-                    }
-                }
-            });
-
-            builder.setNegativeButton(getString(R.string.cancel), null);
-            builder.show();
-        } catch (Exception e) {
-            Log.e(TAG, "Error in showStartTimePicker: " + e.getMessage(), e);
-        }
+        dateHelper.showStartTimePicker();
     }
 
     private void showEndTimePicker() {
-        try {
-            androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(this);
-            builder.setTitle(getString(R.string.select_end_time));
-
-            LinearLayout layout = new LinearLayout(this);
-            layout.setOrientation(LinearLayout.HORIZONTAL);
-            layout.setGravity(android.view.Gravity.CENTER);
-            layout.setPadding(50, 40, 50, 10);
-
-            final android.widget.NumberPicker hourPicker = new android.widget.NumberPicker(this);
-            hourPicker.setMinValue(0);
-            hourPicker.setMaxValue(23);
-            hourPicker.setValue(endDate.get(Calendar.HOUR_OF_DAY));
-            hourPicker.setWrapSelectorWheel(true);
-            hourPicker.setDescendantFocusability(android.widget.NumberPicker.FOCUS_BLOCK_DESCENDANTS);
-            LinearLayout.LayoutParams hourParams = new LinearLayout.LayoutParams(120, LinearLayout.LayoutParams.WRAP_CONTENT);
-            hourPicker.setLayoutParams(hourParams);
-
-            TextView colonText = new TextView(this);
-            colonText.setText(":");
-            colonText.setTextSize(24);
-            colonText.setPadding(16, 0, 16, 0);
-
-            final android.widget.NumberPicker minutePicker = new android.widget.NumberPicker(this);
-            minutePicker.setMinValue(0);
-            minutePicker.setMaxValue(59);
-            minutePicker.setValue(endDate.get(Calendar.MINUTE));
-            minutePicker.setWrapSelectorWheel(true);
-            minutePicker.setDescendantFocusability(android.widget.NumberPicker.FOCUS_BLOCK_DESCENDANTS);
-            LinearLayout.LayoutParams minuteParams = new LinearLayout.LayoutParams(120, LinearLayout.LayoutParams.WRAP_CONTENT);
-            minutePicker.setLayoutParams(minuteParams);
-
-            layout.addView(hourPicker);
-            layout.addView(colonText);
-            layout.addView(minutePicker);
-
-            builder.setView(layout);
-
-            builder.setPositiveButton(getString(R.string.confirm), new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    try {
-                        endDate.set(Calendar.HOUR_OF_DAY, hourPicker.getValue());
-                        endDate.set(Calendar.MINUTE, minutePicker.getValue());
-                        endDate.set(Calendar.SECOND, 59);
-                        endDate.set(Calendar.MILLISECOND, 999);
-                        updateDateBtnText();
-                        loadTrackData();
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error in end time picker: " + e.getMessage(), e);
-                        // 确保在异常情况下也释放加载锁
-                        isLoadingTrackData = false;
-                    }
-                }
-            });
-
-            builder.setNegativeButton(getString(R.string.cancel), null);
-            builder.show();
-        } catch (Exception e) {
-            Log.e(TAG, "Error in showEndTimePicker: " + e.getMessage(), e);
-        }
+        dateHelper.showEndTimePicker();
     }
 
     private void resetTimeRange() {
-        try {
-            // 关键修复：重置日期前先停止播放
-            stopPlayback();
-            
-            selectedDate = Calendar.getInstance();
-            
-            startDate = (Calendar) selectedDate.clone();
-            startDate.set(Calendar.HOUR_OF_DAY, 0);
-            startDate.set(Calendar.MINUTE, 0);
-            startDate.set(Calendar.SECOND, 0);
-            startDate.set(Calendar.MILLISECOND, 0);
-            
-            endDate = (Calendar) selectedDate.clone();
-            endDate.set(Calendar.HOUR_OF_DAY, 23);
-            endDate.set(Calendar.MINUTE, 59);
-            endDate.set(Calendar.SECOND, 59);
-            endDate.set(Calendar.MILLISECOND, 999);
-            
-            updateDateBtnText();
-            loadTrackData();
-        } catch (Exception e) {
-            Log.e(TAG, "Error in resetTimeRange: " + e.getMessage(), e);
-            // 确保在异常情况下也释放加载锁
-            isLoadingTrackData = false;
-        }
+        dateHelper.resetTimeRange();
     }
 
     private void goToPreviousDay() {
-        Log.d(TAG, "=== goToPreviousDay START === isLoadingTrackData=" + isLoadingTrackData);
-        try {
-            stopPlayback();
-            
-            if (isLoadingTrackData) {
-                Log.w(TAG, "[LOADING_BLOCK] Already loading track data, ignore previous day request");
-                return;
-            }
-            
-            selectedDate.add(Calendar.DAY_OF_MONTH, -1);
-            Calendar minDate = Calendar.getInstance();
-            minDate.add(Calendar.MONTH, -1);
-            
-            if (selectedDate.before(minDate)) {
-                Log.d(TAG, "[DATE_LIMIT] Selected date before min date, reverting");
-                selectedDate.add(Calendar.DAY_OF_MONTH, 1);
-                return;
-            }
-            
-            startDate = (Calendar) selectedDate.clone();
-            startDate.set(Calendar.HOUR_OF_DAY, 0);
-            startDate.set(Calendar.MINUTE, 0);
-            startDate.set(Calendar.SECOND, 0);
-            startDate.set(Calendar.MILLISECOND, 0);
-            
-            endDate = (Calendar) selectedDate.clone();
-            endDate.set(Calendar.HOUR_OF_DAY, 23);
-            endDate.set(Calendar.MINUTE, 59);
-            endDate.set(Calendar.SECOND, 59);
-            endDate.set(Calendar.MILLISECOND, 999);
-            
-            Log.d(TAG, "[DATE_CHANGE] Previous day: " + com.RockiotTag.tag.util.TimeFormatter.formatDate(selectedDate.getTimeInMillis()));
-            updateDateBtnText();
-            loadTrackData();
-            Log.d(TAG, "=== goToPreviousDay END ===");
-        } catch (Exception e) {
-            Log.e(TAG, "[EXCEPTION] goToPreviousDay: " + e.getMessage(), e);
-            isLoadingTrackData = false;
-        }
+        dateHelper.goToPreviousDay();
     }
 
     private void goToNextDay() {
-        Log.d(TAG, "=== goToNextDay START === isLoadingTrackData=" + isLoadingTrackData);
-        try {
-            stopPlayback();
-            
-            if (isLoadingTrackData) {
-                Log.w(TAG, "[LOADING_BLOCK] Already loading track data, ignore next day request");
-                return;
-            }
-            
-            selectedDate.add(Calendar.DAY_OF_MONTH, 1);
-            Calendar today = Calendar.getInstance();
-            today.set(Calendar.HOUR_OF_DAY, 23);
-            today.set(Calendar.MINUTE, 59);
-            today.set(Calendar.SECOND, 59);
-            
-            if (selectedDate.after(today)) {
-                Log.d(TAG, "[DATE_LIMIT] Selected date after today, reverting");
-                selectedDate.add(Calendar.DAY_OF_MONTH, -1);
-                return;
-            }
-            
-            startDate = (Calendar) selectedDate.clone();
-            startDate.set(Calendar.HOUR_OF_DAY, 0);
-            startDate.set(Calendar.MINUTE, 0);
-            startDate.set(Calendar.SECOND, 0);
-            startDate.set(Calendar.MILLISECOND, 0);
-            
-            endDate = (Calendar) selectedDate.clone();
-            endDate.set(Calendar.HOUR_OF_DAY, 23);
-            endDate.set(Calendar.MINUTE, 59);
-            endDate.set(Calendar.SECOND, 59);
-            endDate.set(Calendar.MILLISECOND, 999);
-            
-            Log.d(TAG, "[DATE_CHANGE] Next day: " + com.RockiotTag.tag.util.TimeFormatter.formatDate(selectedDate.getTimeInMillis()));
-            updateDateBtnText();
-            loadTrackData();
-            Log.d(TAG, "=== goToNextDay END ===");
-        } catch (Exception e) {
-            Log.e(TAG, "[EXCEPTION] goToNextDay: " + e.getMessage(), e);
-            isLoadingTrackData = false;
-        }
+        dateHelper.goToNextDay();
     }
 
     private void loadTrackData() {
@@ -2530,72 +2338,22 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
      * 显示加载进度条
      */
     private void showLoading() {
-        if (loadingProgress != null) {
-            loadingProgress.setVisibility(View.VISIBLE);
-        }
+        loadingHelper.showLoading();
     }
-    
+
     /**
      * 显示加载提示对话框
      */
     private void showLoadingDialog() {
-        Log.d(TAG, "=== showLoadingDialog() called ===");
-        if (isFinishing() || isDestroyed()) {
-            Log.w(TAG, "[DIALOG_SKIP] Activity is finishing/destroyed, skip showing dialog");
-            return;
-        }
-        
-        if (loadingDialog != null && loadingDialog.isShowing()) {
-            Log.d(TAG, "[DIALOG_EXISTS] Loading dialog already showing, skip");
-            return;
-        }
-        
-        Log.d(TAG, "[DIALOG_CREATE] Creating and showing loading dialog");
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
-        builder.setTitle(getString(R.string.loading_track_title));
-        builder.setMessage(getString(R.string.loading_track_message));
-        builder.setCancelable(false);
-        
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.HORIZONTAL);
-        layout.setPadding(50, 50, 50, 50);
-        
-        ProgressBar progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        params.setMargins(20, 0, 40, 0);
-        progressBar.setLayoutParams(params);
-        layout.addView(progressBar);
-        
-        TextView textView = new TextView(this);
-        textView.setText(getString(R.string.loading_track_message));
-        textView.setTextSize(14);
-        layout.addView(textView);
-        
-        builder.setView(layout);
-        loadingDialog = builder.create();
-        loadingDialog.show();
-        Log.d(TAG, "[DIALOG_SHOWN] Loading dialog is now visible");
+        loadingHelper.showLoadingDialog();
     }
-    
+
     private void hideLoadingDialog() {
-        Log.d(TAG, "=== hideLoadingDialog() called === loadingDialog=" + (loadingDialog != null) + ", isShowing=" + (loadingDialog != null && loadingDialog.isShowing()));
-        if (loadingDialog != null && loadingDialog.isShowing()) {
-            loadingDialog.dismiss();
-            Log.d(TAG, "[DIALOG_DISMISSED] Loading dialog dismissed");
-        }
-        loadingDialog = null;
+        loadingHelper.hideLoadingDialog();
     }
-    
+
     private void hideLoading() {
-        Log.d(TAG, "=== hideLoading() called ===");
-        if (loadingProgress != null) {
-            loadingProgress.setVisibility(View.GONE);
-            Log.d(TAG, "[PROGRESS_HIDDEN] Loading progress bar hidden");
-        }
-        hideLoadingDialog();
+        loadingHelper.hideLoading();
     }
     
     /**
@@ -3483,7 +3241,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             {R.id.tab_profile_icon, R.id.tab_profile_text}
         };
         for (int i = 0; i < tabPairs.length; i++) {
-            android.widget.ImageView icon = findViewById(tabPairs[i][0]);
+            ImageView icon = findViewById(tabPairs[i][0]);
             TextView text = findViewById(tabPairs[i][1]);
             if (icon != null) icon.setColorFilter(unselectedColor);
             if (text != null) text.setTextColor(unselectedColor);
@@ -3495,14 +3253,14 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 getWindow().getDecorView().setSystemUiVisibility(
                     getWindow().getDecorView().getSystemUiVisibility() 
-                    & ~android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+                    & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
             }
         } else {
             getWindow().setStatusBarColor(getResources().getColor(R.color.top_bar_background, null));
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 getWindow().getDecorView().setSystemUiVisibility(
                     getWindow().getDecorView().getSystemUiVisibility() 
-                    | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+                    | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
             }
         }
         
@@ -3514,7 +3272,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         try {
                             googleMap.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style_night));
                         } catch (Exception e) {
-                            android.util.Log.e("TrackActivity", "Failed to apply dark map style: " + e.getMessage());
+                            Log.e("TrackActivity", "Failed to apply dark map style: " + e.getMessage());
                         }
                     } else {
                         googleMap.setMapStyle(null);
@@ -3530,7 +3288,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 }
             }
         } catch (Exception e) {
-            android.util.Log.e("TrackActivity", "Error applying dark map style: " + e.getMessage());
+            Log.e("TrackActivity", "Error applying dark map style: " + e.getMessage());
         }
     }
     
@@ -3556,17 +3314,17 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     }
 
     private void updateTabSelection(int tabIndex) {
-        tabHome.setSelected(tabIndex == 0);
-        tabList.setSelected(tabIndex == 1);
-        tabTrack.setSelected(tabIndex == 2);
-        tabProfile.setSelected(tabIndex == 3);
+        if (tabHome != null) tabHome.setSelected(tabIndex == 0);
+        if (tabList != null) tabList.setSelected(tabIndex == 1);
+        if (tabTrack != null) tabTrack.setSelected(tabIndex == 2);
+        if (tabProfile != null) tabProfile.setSelected(tabIndex == 3);
 
         int selectedColor = getResources().getColor(R.color.purple_500, null);
         int unselectedColor = getResources().getColor(R.color.text_secondary, null);
 
-        tabHomeIcon.setColorFilter(tabIndex == 0 ? selectedColor : unselectedColor);
-        tabListIcon.setColorFilter(tabIndex == 1 ? selectedColor : unselectedColor);
-        tabTrackIcon.setColorFilter(tabIndex == 2 ? selectedColor : unselectedColor);
-        tabProfileIcon.setColorFilter(tabIndex == 3 ? selectedColor : unselectedColor);
+        if (tabHomeIcon != null) tabHomeIcon.setColorFilter(tabIndex == 0 ? selectedColor : unselectedColor);
+        if (tabListIcon != null) tabListIcon.setColorFilter(tabIndex == 1 ? selectedColor : unselectedColor);
+        if (tabTrackIcon != null) tabTrackIcon.setColorFilter(tabIndex == 2 ? selectedColor : unselectedColor);
+        if (tabProfileIcon != null) tabProfileIcon.setColorFilter(tabIndex == 3 ? selectedColor : unselectedColor);
     }
 }

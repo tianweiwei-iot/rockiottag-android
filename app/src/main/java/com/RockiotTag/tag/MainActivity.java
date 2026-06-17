@@ -40,6 +40,11 @@ import com.RockiotTag.tag.viewmodel.MainViewModel;
 import com.RockiotTag.tag.viewmodel.BleViewModel;
 import com.RockiotTag.tag.viewmodel.MapViewModel;
 import com.RockiotTag.tag.model.DeviceTag;
+import com.RockiotTag.tag.helper.MainDialogHelper;
+import com.RockiotTag.tag.helper.MainThemeHelper;
+import com.RockiotTag.tag.helper.MainBleHelper;
+import com.RockiotTag.tag.helper.MainAuthHelper;
+import com.RockiotTag.tag.integration.LocationOptimizationManager;
 import com.amap.api.maps.AMap;
 import com.amap.api.maps.MapView;
 import com.amap.api.maps.model.LatLng;
@@ -82,6 +87,12 @@ public class MainActivity extends AppCompatActivity {
     private BleViewModel bleViewModel;
     private MapViewModel mapViewModel;
 
+    // Helper 类（MVVM 重构：将业务逻辑从 Activity 中分离）
+    private MainDialogHelper dialogHelper;
+    private MainThemeHelper themeHelper;
+    private MainBleHelper bleHelper;
+    private MainAuthHelper authHelper;
+
     private ImageButton locateBtn;
     private ImageButton mapTypeBtn;
     private ImageButton refreshBtn;
@@ -122,6 +133,7 @@ public class MainActivity extends AppCompatActivity {
     private static final long AUTO_RETURN_DELAY = 10000; // 10秒延迟
     private boolean isFirstLocation = true; // 标记是否是第一次定位
     private boolean isUserLocated = false; // 标记用户是否手动点击了定位按钮
+    private boolean pendingDeviceSelection = false; // 标记是否刚切换了设备，需要等待服务器数据后移动相机
     private Device selectedDevice = null; // 当前选中的设备
     private com.RockiotTag.tag.util.SafeHandler trackRefreshHandler;
     private Runnable trackRefreshRunnable;
@@ -163,30 +175,30 @@ public class MainActivity extends AppCompatActivity {
         try {
             android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
             boolean isDarkMode = prefs.getBoolean("dark_mode", false);
-            
+
             Log.d(TAG, "setupStatusBar called, isDarkMode: " + isDarkMode);
-            
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 android.view.Window window = getWindow();
                 if (window == null) {
                     Log.e(TAG, "Window is null!");
                     return;
                 }
-                
+
                 // 使用 WindowInsetsControllerCompat 兼容库来设置状态栏
-                androidx.core.view.WindowInsetsControllerCompat controller = 
+                androidx.core.view.WindowInsetsControllerCompat controller =
                     androidx.core.view.ViewCompat.getWindowInsetsController(window.getDecorView());
-                
+
                 if (controller != null) {
                     if (isDarkMode) {
                         // 夜间模式：黑色背景
-                        window.setStatusBarColor(Color.parseColor("#000000"));
+                        window.setStatusBarColor(android.graphics.Color.parseColor("#000000"));
                         // 设置浅色图标（白色）
                         controller.setAppearanceLightStatusBars(false);
                         Log.d(TAG, "Night mode: black background with white icons");
                     } else {
                         // 日间模式：白色背景
-                        window.setStatusBarColor(Color.parseColor("#FFFFFF"));
+                        window.setStatusBarColor(android.graphics.Color.parseColor("#FFFFFF"));
                         // 设置深色图标（黑色）
                         controller.setAppearanceLightStatusBars(true);
                         Log.d(TAG, "Day mode: white background with dark icons");
@@ -195,20 +207,14 @@ public class MainActivity extends AppCompatActivity {
                     Log.w(TAG, "WindowInsetsControllerCompat is null, using fallback method");
                     // Fallback: 直接设置颜色
                     if (isDarkMode) {
-                        window.setStatusBarColor(Color.parseColor("#000000"));
+                        window.setStatusBarColor(android.graphics.Color.parseColor("#000000"));
                     } else {
-                        window.setStatusBarColor(Color.parseColor("#FFFFFF"));
-                    }
-                    // Fallback: 使用 SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                    if (!isDarkMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        getWindow().getDecorView().setSystemUiVisibility(
-                            getWindow().getDecorView().getSystemUiVisibility() 
-                            | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+                        window.setStatusBarColor(android.graphics.Color.parseColor("#FFFFFF"));
                     }
                 }
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error in setupStatusBar", e);
+            Log.e(TAG, "Error setting up status bar: " + e.getMessage());
         }
     }
     
@@ -327,8 +333,13 @@ public class MainActivity extends AppCompatActivity {
             initFragments();
             Log.d(TAG, "=== STEP 6: initFragments DONE ===");
 
-            bottomInfo.setVisibility(View.GONE);
-            Log.d(TAG, "=== STEP 7: bottomInfo.setVisibility DONE ===");
+            // 设备信息栏始终保留，未登录或无设备时显示"--"
+            showBottomInfo();
+            batteryLevelText.setText(getString(R.string.battery_level_empty));
+            deviceAddressText.setText(getString(R.string.position_empty));
+            updateTimeText.setText(getString(R.string.last_update_empty));
+            updateDeviceNameWithTag(getString(R.string.no_device_selected), null);
+            Log.d(TAG, "=== STEP 7: bottomInfo initialized with defaults ===");
 
             // 手动应用深色模式（在所有UI组件初始化之后）
             boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
@@ -342,7 +353,7 @@ public class MainActivity extends AppCompatActivity {
             bleViewModel = new ViewModelProvider(this).get(BleViewModel.class);
             mapViewModel = new ViewModelProvider(this).get(MapViewModel.class);
             setupViewModelObservers();
-            
+
             // 初始化定位优化管理器（新增）
             try {
                 locationOptimizationManager = new com.RockiotTag.tag.integration.LocationOptimizationManager(
@@ -515,20 +526,25 @@ public class MainActivity extends AppCompatActivity {
             if (locationOptimizationManager != null && locationOptimizationManager.isOptimizationEnabled()) {
                 Log.d(TAG, "=== Starting Location Optimization ===");
                 
-                // 【关键优化】先自动选择第一个设备
-                locationOptimizationManager.autoSelectFirstDevice();
-                
-                // 如果有自动选中的设备，立即更新UI
-                String autoSelectedMac = locationOptimizationManager.getCurrentSelectedDeviceId();
-                if (autoSelectedMac != null && !autoSelectedMac.isEmpty()) {
-                    Device firstDevice = databaseHelper.getDevice(autoSelectedMac);
-                    if (firstDevice != null) {
-                        Log.d(TAG, "Auto-selected first device on startup: " + firstDevice.getName());
-                        selectDevice(firstDevice);
+                // 检查是否已登录，未登录不自动选择设备
+                String authToken = getSharedPreferences("app_settings", MODE_PRIVATE).getString("auth_token", null);
+                if (authToken != null && !authToken.isEmpty()) {
+                    // 【关键优化】先自动选择第一个设备
+                    locationOptimizationManager.autoSelectFirstDevice();
+                    
+                    // 如果有自动选中的设备，立即更新UI
+                    String autoSelectedMac = locationOptimizationManager.getCurrentSelectedDeviceId();
+                    if (autoSelectedMac != null && !autoSelectedMac.isEmpty()) {
+                        Device firstDevice = databaseHelper.getDevice(autoSelectedMac);
+                        if (firstDevice != null) {
+                            Log.d(TAG, "Auto-selected first device on startup: " + firstDevice.getName());
+                            selectDevice(firstDevice);
+                        }
+                    } else {
+                        Log.w(TAG, "No device auto-selected");
                     }
                 } else {
-                    Log.w(TAG, "No device auto-selected");
-                    Toast.makeText(this, "⚠️ 未选中设备", Toast.LENGTH_SHORT).show();
+                    Log.d(TAG, "User not logged in, skip auto-selecting device");
                 }
                 
                 // 不自动启动蓝牙扫描，由扫描开关按钮控制
@@ -543,8 +559,10 @@ public class MainActivity extends AppCompatActivity {
             
             
             initApiService();
-            
-            
+
+            // MVVM 重构 - 初始化 Helper 类（必须在所有依赖变量初始化之后）
+            initHelpers();
+
             // 清理旧的轨迹数据（使用10米阈值之前的数据）
             cleanOldTrackData(false);
 
@@ -660,10 +678,11 @@ public class MainActivity extends AppCompatActivity {
     
     private void updateBottomInfo() {
         if (bleManager != null && bleManager.isConnected()) {
+            // 蓝牙已连接，不覆盖当前显示
         } else {
-            batteryLevelText.setText(R.string.battery_level);
-            deviceAddressText.setText(R.string.address);
-            updateTimeText.setText(R.string.last_update);
+            batteryLevelText.setText(getString(R.string.battery_level_empty));
+            deviceAddressText.setText(getString(R.string.position_empty));
+            updateTimeText.setText(getString(R.string.last_update_empty));
         }
     }
     
@@ -787,23 +806,7 @@ public class MainActivity extends AppCompatActivity {
             }
             
             // 3. 移动地图相机到设备位置（关键：高德和谷歌地图都移动）
-            if (mapManager != null && mapManager.isGoogleMap()) {
-                if (mapManager.getGoogleMap() != null) {
-                    com.google.android.gms.maps.model.LatLng latLng = 
-                        new com.google.android.gms.maps.model.LatLng(selectedDevice.getLatitude(), selectedDevice.getLongitude());
-                    mapManager.getGoogleMap().animateCamera(
-                        com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(latLng, 17));
-                    Log.d(TAG, "Map camera moved to device position (Google Map)");
-                }
-            } else if (aMap != null) {
-                // 高德地图模式：直接使用aMap移动相机，更可靠
-                LatLng deviceLatLng = CoordinateUtils.wgs84ToGcj02(selectedDevice.getLatitude(), selectedDevice.getLongitude());
-                Log.d(TAG, "Moving AMap camera to: lat=" + deviceLatLng.latitude + ", lng=" + deviceLatLng.longitude + ", zoom=17");
-                aMap.animateCamera(com.amap.api.maps.CameraUpdateFactory.newLatLngZoom(deviceLatLng, 17));
-                Log.d(TAG, "Map camera moved to device position (AMap): lat=" + selectedDevice.getLatitude() + ", lng=" + selectedDevice.getLongitude());
-            } else {
-                Log.w(TAG, "Cannot move camera: aMap is null");
-            }
+            moveCameraToDevicePosition(selectedDevice.getLatitude(), selectedDevice.getLongitude());
             
             // 关键修复：更新MapViewModel，防止后续refreshMapWithCurrentDevice移回旧设备
             com.RockiotTag.tag.model.TagDevice tagDevice = new com.RockiotTag.tag.model.TagDevice(
@@ -815,13 +818,10 @@ public class MainActivity extends AppCompatActivity {
             mapViewModel.updateDeviceLocation(tagDevice);
             Log.d(TAG, "MapViewModel updated with new device location: " + selectedDevice.getName());
             
-            // 4. 更新底部位置信息
-            bottomInfo.setVisibility(View.VISIBLE);
-            deviceAddressText.setText(getString(R.string.position_getting_address));
-            // 关键修复：定位按钮必须强制刷新地址，不使用可能过时的缓存
-            // 同时确保Google地图模式下使用正确的地理编码服务
-            Log.d(TAG, "locateToDevicePosition: forcing address refresh for device location");
-            getAddressFromLocation(selectedDevice.getLatitude(), selectedDevice.getLongitude(), true);
+            // 4. 更新底部位置信息 - 先显示经纬度坐标，再进行逆地理编码
+            showBottomInfo();
+            showCoordinatesAndGeocode(selectedDevice.getLatitude(), selectedDevice.getLongitude(), true);
+            Log.d(TAG, "Showing coordinates first: " + selectedDevice.getLatitude() + ", " + selectedDevice.getLongitude());
             
             // 5. 更新时间信息 - 使用 TimeFormatter 智能格式化
             if (selectedDevice.getLastSeen() > 0) {
@@ -899,26 +899,14 @@ public class MainActivity extends AppCompatActivity {
             // 1. 渲染 Marker（updateDeviceMarkerOnMap内部会判断地图模式）
             updateDeviceMarkerOnMap(tagDevice);
             
-            // 2. 获取地址（根据参数决定是否强制刷新）
-            deviceAddressText.setText(getString(R.string.position_getting_address));
-            getAddressFromLocation(tagDevice.getLatitude(), tagDevice.getLongitude(), forceRefreshAddress);
+            // 2. 先显示经纬度坐标，再进行逆地理编码
+            showCoordinatesAndGeocode(tagDevice.getLatitude(), tagDevice.getLongitude(), forceRefreshAddress);
             
             // 3. 移动相机
-            boolean isGoogleMapMode = mapManager.isGoogleMap();
-            Log.d(TAG, "Checking camera move condition: isGoogleMap=" + isGoogleMapMode + ", isUserLocated=" + isUserLocated);
-            
-            if (!isGoogleMapMode) {
-                // 高德地图模式：只有当用户未手动定位时才移动相机
-                if (!isUserLocated && aMap != null) {
-                    Log.d(TAG, "Moving camera to device position (AMap): lat=" + tagDevice.getLatitude() + ", lng=" + tagDevice.getLongitude());
-                    mapManager.moveCamera(tagDevice.getLatitude(), tagDevice.getLongitude(), 17);
-                    Log.d(TAG, "Camera move command executed");
-                } else {
-                    Log.d(TAG, "User manually located or aMap is null, skipping camera move in refreshMapWithCurrentDevice");
-                }
+            if (!isUserLocated) {
+                moveCameraToDevicePosition(tagDevice.getLatitude(), tagDevice.getLongitude());
             } else {
-                // 谷歌地图模式：由用户完全控制
-                Log.d(TAG, "Google Map mode, camera movement controlled by user");
+                Log.d(TAG, "User manually located, skipping camera move in refreshMapWithCurrentDevice");
             }
         } else {
             Log.w(TAG, "Cannot refresh map: tagDevice is null");
@@ -1162,6 +1150,206 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferencesManager.loadAuth(this);
     }
 
+    /**
+     * MVVM 重构 - 初始化所有 Helper 类
+     * 将业务逻辑委托给专门的 Helper 类，减少 Activity 代码量
+     */
+    private void initHelpers() {
+        // 初始化对话框 Helper
+        dialogHelper = new MainDialogHelper(this, new MainDialogHelper.DialogCallbacks() {
+            @Override
+            public MapManager getMapManager() { return mapManager; }
+            @Override
+            public DatabaseHelper getDatabaseHelper() { return databaseHelper; }
+            @Override
+            public void onLanguageChanged(String languageCode) {
+                if (languageCode != null) {
+                    changeLanguage(languageCode);
+                }
+            }
+            @Override
+            public LocationOptimizationManager getLocationOptimizationManager() { return locationOptimizationManager; }
+            @Override
+            public View getScanningIndicator() { return scanningIndicator; }
+            @Override
+            public int getScanIntensityLevel() { return scanIntensityLevel; }
+            @Override
+            public void onScanIntensitySelected(int level) {
+                scanIntensityLevel = level;
+                switch (level) {
+                    case 1:
+                        if (bleHelper != null) bleHelper.startSingleScanWithCheck();
+                        break;
+                    case 2:
+                        if (bleHelper != null) bleHelper.startContinuousScanWithCheck();
+                        break;
+                }
+            }
+            @Override
+            public void onLoginSuccess(String token, String username, String nickname, String email) {
+                if (authHelper != null) authHelper.fetchBoundDevicesAfterLogin(token);
+            }
+            @Override
+            public void refreshProfileFragment() {
+                if (profileFragment != null) {
+                    profileFragment.onResume();
+                }
+            }
+            @Override
+            public void requestPermissions(String[] permissions, int requestCode) {
+                ActivityCompat.requestPermissions(MainActivity.this, permissions, requestCode);
+            }
+            @Override
+            public String getVersionName() {
+                try {
+                    return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+                } catch (Exception e) {
+                    return "unknown";
+                }
+            }
+            @Override
+            public int getVersionCode() {
+                try {
+                    return getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+                } catch (Exception e) {
+                    return 0;
+                }
+            }
+        });
+
+        // 初始化主题 Helper
+        themeHelper = new MainThemeHelper(this, new MainThemeHelper.ThemeCallbacks() {
+            @Override
+            public View getBottomNavigation() { return bottomNavigation; }
+            @Override
+            public View getBottomInfo() { return bottomInfo; }
+            @Override
+            public TextView getBatteryLevelText() { return batteryLevelText; }
+            @Override
+            public TextView getDeviceAddressText() { return deviceAddressText; }
+            @Override
+            public TextView getUpdateTimeText() { return updateTimeText; }
+            @Override
+            public int getCurrentTab() { return currentTab; }
+            @Override
+            public MapManager getMapManager() { return mapManager; }
+            @Override
+            public AMap getAMap() { return aMap; }
+            @Override
+            public void notifyFragmentsThemeChanged(boolean isDarkMode) {
+                if (deviceListFragment != null) deviceListFragment.applyTheme(isDarkMode);
+                if (profileFragment != null) profileFragment.applyTheme(isDarkMode);
+            }
+        });
+
+        // 初始化 BLE Helper
+        bleHelper = new MainBleHelper(this, new MainBleHelper.BleCallbacks() {
+            @Override
+            public LocationOptimizationManager getLocationOptimizationManager() { return locationOptimizationManager; }
+            @Override
+            public View getScanningIndicator() { return scanningIndicator; }
+            @Override
+            public BLEManager getBleManager() { return bleManager; }
+            @Override
+            public DatabaseHelper getDatabaseHelper() { return databaseHelper; }
+            @Override
+            public CrowdSourcingManager getCrowdSourcingManager() { return crowdSourcingManager; }
+            @Override
+            public void onUpdateMapMarker(Device device) {
+                MainActivity.this.updateMapMarker(device);
+            }
+        });
+
+        // 初始化认证 Helper
+        authHelper = new MainAuthHelper(this, new MainAuthHelper.AuthCallbacks() {
+            @Override
+            public DatabaseHelper getDatabaseHelper() { return databaseHelper; }
+            @Override
+            public MainViewModel getViewModel() { return viewModel; }
+            @Override
+            public MapViewModel getMapViewModel() { return mapViewModel; }
+            @Override
+            public Device getSelectedDevice() { return selectedDevice; }
+            @Override
+            public void setSelectedDevice(Device device) { selectedDevice = device; }
+            @Override
+            public void refreshDeviceListFragment() {
+                if (deviceListFragment != null) {
+                    deviceListFragment.onResume();
+                }
+            }
+            @Override
+            public void refreshProfileFragment() {
+                if (profileFragment != null) {
+                    profileFragment.onResume();
+                }
+            }
+            @Override
+            public void clearMapMarkers() {
+                if (deviceLocationMarker != null) {
+                    deviceLocationMarker.remove();
+                    deviceLocationMarker = null;
+                }
+                if (googleDeviceLocationMarker != null) {
+                    googleDeviceLocationMarker.remove();
+                    googleDeviceLocationMarker = null;
+                }
+            }
+            @Override
+            public void resetDeviceUIToDefault() {
+                updateDeviceNameWithTag(getString(R.string.no_device_selected), null);
+                showBottomInfo();
+                batteryLevelText.setText(getString(R.string.battery_level_empty));
+                deviceAddressText.setText(getString(R.string.position_empty));
+                updateTimeText.setText(getString(R.string.last_update_empty));
+            }
+            @Override
+            public void selectFirstDeviceAndRefresh() {
+                // 自动选中第一个绑定设备并刷新首页
+                if (databaseHelper != null) {
+                    // 获取绑定设备列表
+                    android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
+                    String boundDevicesJson = prefs.getString("bound_devices", null);
+                    
+                    if (boundDevicesJson != null && !boundDevicesJson.isEmpty()) {
+                        try {
+                            com.google.gson.Gson gson = new com.google.gson.Gson();
+                            com.google.gson.reflect.TypeToken<java.util.List<DeviceApiService.BoundDevice>> tokenType = 
+                                new com.google.gson.reflect.TypeToken<java.util.List<DeviceApiService.BoundDevice>>() {};
+                            java.util.List<DeviceApiService.BoundDevice> boundDevices = gson.fromJson(boundDevicesJson, tokenType.getType());
+                            
+                            if (boundDevices != null && !boundDevices.isEmpty()) {
+                                // 获取第一个绑定设备的 deviceNum
+                                String firstDeviceNum = boundDevices.get(0).getDeviceNum();
+                                Log.d(TAG, "First bound device deviceNum: " + firstDeviceNum);
+                                
+                                // 从数据库中查找对应的设备
+                                Device firstDevice = databaseHelper.getDeviceByDeviceNum(firstDeviceNum);
+                                if (firstDevice != null) {
+                                    Log.d(TAG, "Auto-selecting first bound device: " + firstDevice.getName());
+                                    selectDevice(firstDevice);
+                                } else {
+                                    Log.w(TAG, "First bound device not found in database: " + firstDeviceNum);
+                                }
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error parsing bound devices: " + e.getMessage(), e);
+                        }
+                    } else {
+                        Log.d(TAG, "No bound devices found in SharedPreferences");
+                    }
+                }
+            }
+            @Override
+            public void invalidateRefreshRequests() {
+                // 递增序列号，使正在进行的刷新请求失效
+                deviceRefreshSequence++;
+                isRefreshInProgress = false;
+                Log.d(TAG, "Invalidated all refresh requests, new seq: " + deviceRefreshSequence);
+            }
+        });
+    }
+
     private void openDeviceList() {
         Intent intent = new Intent(this, DeviceListActivity.class);
         startActivityForResult(intent, REQUEST_DEVICE_LIST);
@@ -1173,89 +1361,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showMenuOptions() {
-        final List<String> menuItems = new ArrayList<>();
-        menuItems.add(getString(R.string.geofence_settings));
-        menuItems.add(getString(R.string.bluetooth_enhance));
-        menuItems.add(getString(R.string.version_info));
-
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.menu_title)
-                .setItems(menuItems.toArray(new CharSequence[0]), new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        switch (which) {
-                            case 0:
-                                openGeofenceSettings();
-                                break;
-                            case 1:
-                                showBluetoothEnhanceOptions();
-                                break;
-                            case 2:
-                                showVersionInfo();
-                                break;
-                        }
-                    }
-                })
-                .setNegativeButton(R.string.cancel, null)
-                .show();
+        dialogHelper.showMenuOptions(
+            () -> openGeofenceSettings(),
+            () -> showBluetoothEnhanceOptions(),
+            () -> showVersionInfo()
+        );
     }
-    
+
     public void showMapSwitchOptions() {
-        android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-        String currentMap = prefs.getString("map_provider", "amap");
-        
-        String[] mapOptions = {getString(R.string.amap), getString(R.string.google_map)};
-        int checkedItem = 0;
-        if (currentMap.equals("google")) {
-            checkedItem = 1;
-        }
-        
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.select_map)
-                .setSingleChoiceItems(mapOptions, checkedItem, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        String newMapProvider = "amap";
-                        if (which == 1) {
-                            newMapProvider = "google";
-                        }
-                        
-                        // 如果选择原生谷歌地图，先检查 Google Play Services
-                        if (which == 1 && mapManager != null) {
-                            if (!mapManager.isGooglePlayServicesAvailable()) {
-                                Toast.makeText(MainActivity.this, 
-                                    "Google Play Services 不可用，无法使用谷歌地图", 
-                                    Toast.LENGTH_LONG).show();
-                                dialog.dismiss();
-                                return;
-                            }
-                        }
-                        
-                        android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-                        android.content.SharedPreferences.Editor editor = prefs.edit();
-                        editor.putString("map_provider", newMapProvider);
-                        editor.apply();
-                        
-                        // 关键修复：切换地图时清除目标地图模式的旧缓存，防止地址污染
-                        if (databaseHelper != null) {
-                            databaseHelper.cleanMapModeAddressCache(newMapProvider);
-                            Log.d(TAG, "Cleared address cache for map mode: " + newMapProvider);
-                        }
-                        
-                        int toastMessage = R.string.switched_to_amap;
-                        if (which == 1) {
-                            toastMessage = R.string.switched_to_google_map;
-                        }
-                        
-                        Toast.makeText(MainActivity.this, toastMessage, Toast.LENGTH_SHORT).show();
-                        
-                        dialog.dismiss();
-                        
-                        recreate();
-                    }
-                })
-                .setNegativeButton(R.string.cancel, null)
-                .show();
+        dialogHelper.showMapSwitchOptions();
     }
 
     public void selectDevice(Device device) {
@@ -1287,11 +1401,16 @@ public class MainActivity extends AppCompatActivity {
         
         // 关键修复：切换设备时，先清除 MapViewModel 中的旧位置数据
         mapViewModel.clearDeviceLocation();
+        resetAddressCache();
+        viewModel.invalidateAddressRequests();
         Log.d(TAG, "Cleared old device location from MapViewModel");
         
         // MVVM - 通过 ViewModel 选择设备（使用UseCase）
         viewModel.selectDevice(device.getDeviceId());
         selectedDevice = device; // 保持兼容性
+        
+        // 标记刚切换了设备，等待服务器数据返回后移动相机
+        pendingDeviceSelection = true;
         
         // 选择设备时重置手动定位标志，允许地图跟随设备
         isUserLocated = false;
@@ -1304,14 +1423,19 @@ public class MainActivity extends AppCompatActivity {
         }
         
         updateDeviceNameWithTag(device.getName(), device.getTag());
-        if (bottomInfo != null) bottomInfo.setVisibility(View.VISIBLE);
+        showBottomInfo();
 
-        // 【关键修复】切换设备时，如果新设备没有有效经纬度，立即将电量、地址、时间显示为 "--"
+        // 【关键修复】切换设备时，如果新设备没有有效经纬度，显示"等待服务器数据..."
+        // 因为 fetchDeviceInfo 会从服务器获取最新数据，地址和时间会在服务器返回后更新
         if (device.getLatitude() == 0 || device.getLongitude() == 0) {
-            Log.d(TAG, "Device has no valid coordinates, clearing battery/address/time UI");
+            Log.d(TAG, "Device has no valid coordinates, showing loading state");
             batteryLevelText.setText(getString(R.string.battery_level_empty));
-            deviceAddressText.setText(getString(R.string.position_empty));
+            deviceAddressText.setText(getString(R.string.position_getting_address));
             updateTimeText.setText(getString(R.string.last_update_empty));
+        } else {
+            // 设备有本地坐标，先显示经纬度，然后逆地理编码
+            Log.d(TAG, "Device has local coordinates: " + device.getLatitude() + ", " + device.getLongitude());
+            showCoordinatesAndGeocode(device.getLatitude(), device.getLongitude(), true);
         }
 
         // 选择设备时，立即更新地图标记并移动到设备位置（如果本地有坐标）
@@ -1337,8 +1461,8 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "Fetching device info from server: " + deviceNumToFetch);
         viewModel.fetchDeviceInfo(deviceNumToFetch);
         
-        // 切换设备后自动刷新，获取供应商最新数据
-        performDeviceRefresh(true);
+        // 切换设备后自动刷新，获取供应商最新数据（不显示Toast，因为selectDevice是内部调用）
+        performDeviceRefresh(false);
     }
     
 
@@ -1346,7 +1470,23 @@ public class MainActivity extends AppCompatActivity {
      * 在地图上更新设备标记（供 MapViewModel 观察者调用）
      */
     private void updateDeviceMarkerOnMap(com.RockiotTag.tag.model.TagDevice device) {
-        if (device == null || aMap == null) return;
+        if (device == null || mapManager == null) return;
+
+        if (mapManager.isGoogleMap() && mapManager.getGoogleMap() != null) {
+            if (googleDeviceLocationMarker != null) {
+                googleDeviceLocationMarker.remove();
+            }
+            com.google.android.gms.maps.model.MarkerOptions markerOptions =
+                new com.google.android.gms.maps.model.MarkerOptions()
+                    .position(new com.google.android.gms.maps.model.LatLng(device.getLatitude(), device.getLongitude()))
+                    .title(device.getName())
+                    .snippet(getString(R.string.device_location));
+            googleDeviceLocationMarker = mapManager.getGoogleMap().addMarker(markerOptions);
+            Log.d(TAG, "Device marker updated on Google Map via MapViewModel");
+            return;
+        }
+
+        if (aMap == null) return;
 
         // 坐标转换：WGS84 -> GCJ02
         LatLng deviceLatLng = CoordinateUtils.wgs84ToGcj02(device.getLatitude(), device.getLongitude());
@@ -1360,7 +1500,7 @@ public class MainActivity extends AppCompatActivity {
         MarkerOptions markerOptions = new MarkerOptions()
                 .position(deviceLatLng)
                 .title(device.getName())
-                .snippet("设备位置")
+                .snippet(getString(R.string.device_location))
                 .icon(com.RockiotTag.tag.util.MapMarkerHelper.createCustomMarkerWithR());
         deviceLocationMarker = aMap.addMarker(markerOptions);
         
@@ -1418,7 +1558,7 @@ public class MainActivity extends AppCompatActivity {
     private void updateDeviceUIWithLatest(NewApiService.DeviceInfo deviceInfo, boolean moveCamera) {
         Log.d(TAG, "Updating device UI: " + deviceInfo.deviceNum + ", moveCamera=" + moveCamera);
         
-        if (bottomInfo != null) bottomInfo.setVisibility(View.VISIBLE);
+        showBottomInfo();
 
         // 1. 更新设备名称 - 保留本地昵称，不使用服务器昵称覆盖
         // 因为本地昵称可能是用户刚修改但尚未同步到服务器的
@@ -1442,14 +1582,9 @@ public class MainActivity extends AppCompatActivity {
             // 更新地图标记（使用统一方法）
             updateMapMarker(deviceInfo);
             
-            // 移动相机 - 修复：切换设备后必须移动相机到新位置
-            // 高德地图模式：总是移动相机到设备位置（尊重用户的设备选择）
-            // 谷歌地图模式：由用户控制
-            if (moveCamera && mapManager != null && !mapManager.isGoogleMap()) {
-                mapManager.moveCamera(deviceInfo.latitude, deviceInfo.longitude, 17);
-                Log.d(TAG, "Camera moved to new device position: lat=" + deviceInfo.latitude + ", lng=" + deviceInfo.longitude);
-            } else if (moveCamera && mapManager != null && mapManager.isGoogleMap()) {
-                Log.d(TAG, "Google Map mode - camera movement controlled by user (not auto-moving)");
+            // 移动相机 - 切换/登录后自动移动到设备位置
+            if (moveCamera) {
+                moveCameraToDevicePosition(deviceInfo.latitude, deviceInfo.longitude);
             }
             
             // 关键修复：同时更新 MapViewModel，确保数据一致性
@@ -1552,11 +1687,13 @@ public class MainActivity extends AppCompatActivity {
                 boolean needUpdateByTime = timeSinceLastUpdate >= ADDRESS_UPDATE_INTERVAL;
                 
                 if (!needUpdateByDistance && !needUpdateByTime) {
-                    // 不满足任何更新条件，保持当前地址不变
+                    // 不满足任何更新条件，保持当前地址不变，但仍显示坐标
                     Log.d(TAG, String.format("Skip address update: distance=%.1fm (<%dm), time=%ds (<%ds)",
                         distanceToLastAddress, (int)ADDRESS_UPDATE_THRESHOLD,
                         timeSinceLastUpdate/1000, ADDRESS_UPDATE_INTERVAL/1000));
-                    // 不调用 getAddressFromLocation()，也不设置任何文本
+                    if (deviceAddressText != null) {
+                        deviceAddressText.setText(getString(R.string.position_with_coordinates, addressLat, addressLng));
+                    }
                 } else {
                     // 满足更新条件
                     if (needUpdateByDistance) {
@@ -1567,24 +1704,19 @@ public class MainActivity extends AppCompatActivity {
                             timeSinceLastUpdate/1000, ADDRESS_UPDATE_INTERVAL/1000));
                     }
                     
-                    // 【优化】不显示"正在获取地址..."，等新地址获取成功后直接覆盖
-                    // deviceAddressText.setText(getString(R.string.position_getting_address)); // 删除这行
-                    
-                    // 保存新坐标和更新时间
+                    // 先显示坐标，逆地理编码完成后自动更新为具体地址
                     lastAddressLatitude = addressLat;
                     lastAddressLongitude = addressLng;
                     lastAddressUpdateTime = currentTime;
-                    getAddressFromLocation(addressLat, addressLng, true);
+                    showCoordinatesAndGeocode(addressLat, addressLng, true);
                 }
             } else {
-                // 第一次获取地址
+                // 第一次获取地址：先显示坐标，再异步逆地理编码
                 Log.d(TAG, "First time fetching address");
-                deviceAddressText.setText(getString(R.string.position_getting_address));
-                // 保存坐标和更新时间
                 lastAddressLatitude = addressLat;
                 lastAddressLongitude = addressLng;
                 lastAddressUpdateTime = currentTime;
-                getAddressFromLocation(addressLat, addressLng, true);
+                showCoordinatesAndGeocode(addressLat, addressLng, true);
             }
         } else {
             deviceAddressText.setText(getString(R.string.position_not_reported));
@@ -1613,7 +1745,53 @@ public class MainActivity extends AppCompatActivity {
     private void updateDeviceUIDefault() {
         com.RockiotTag.tag.util.DeviceInfoUpdater.resetToDefault(batteryLevelText, deviceAddressText, updateTimeText, this);
     }
-    
+
+    /**
+     * 切换设备时重置地址缓存，避免新设备误用旧设备的地址更新阈值
+     */
+    private void resetAddressCache() {
+        lastAddressLatitude = 0;
+        lastAddressLongitude = 0;
+        lastAddressUpdateTime = 0;
+    }
+
+    /**
+     * 立即显示经纬度坐标，并异步启动逆地理编码
+     */
+    private void showCoordinatesAndGeocode(double latitude, double longitude, boolean forceRefresh) {
+        if (latitude == 0 || longitude == 0) {
+            return;
+        }
+        if (deviceAddressText != null) {
+            deviceAddressText.setText(getString(R.string.position_with_coordinates, latitude, longitude));
+        }
+        getAddressFromLocation(latitude, longitude, forceRefresh);
+    }
+
+    /**
+     * 移动地图相机到设备位置（高德/谷歌均支持，尊重 isUserLocated 标志）
+     */
+    private void moveCameraToDevicePosition(double latitude, double longitude) {
+        if (latitude == 0 || longitude == 0 || mapManager == null || isUserLocated) {
+            return;
+        }
+
+        if (mapManager.isGoogleMap()) {
+            if (mapManager.getGoogleMap() != null) {
+                com.google.android.gms.maps.model.LatLng latLng =
+                    new com.google.android.gms.maps.model.LatLng(latitude, longitude);
+                mapManager.getGoogleMap().animateCamera(
+                    com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(latLng, 17));
+                Log.d(TAG, "Camera moved to device position (Google Map)");
+            }
+        } else if (aMap != null) {
+            LatLng deviceLatLng = CoordinateUtils.wgs84ToGcj02(latitude, longitude);
+            aMap.animateCamera(com.amap.api.maps.CameraUpdateFactory.newLatLngZoom(deviceLatLng, 17));
+            Log.d(TAG, "Camera moved to device position (AMap)");
+        } else {
+            mapManager.moveCamera(latitude, longitude, 17);
+        }
+    }
 
     /**
      * 根据经纬度进行逆地理编码，获取具体地址
@@ -1643,92 +1821,12 @@ public class MainActivity extends AppCompatActivity {
         viewModel.getAddress(latitude, longitude, languageCode, forceRefresh, useAMapGeocoder, mapMode);
     }
 
-    private static class LanguageItem {
-        String flag;
-        String name;
-        String code;
-
-        LanguageItem(String flag, String name, String code) {
-            this.flag = flag;
-            this.name = name;
-            this.code = code;
-        }
-    }
-
     public void showLanguageOptions() {
-        final List<LanguageItem> languages = new ArrayList<>();
-        languages.add(new LanguageItem("\uD83C\uDDE8\uD83C\uDDF3", "中文", "zh"));
-        languages.add(new LanguageItem("\uD83C\uDDEC\uD83C\uDDE7", "English", "en"));
-        languages.add(new LanguageItem("\uD83C\uDDE7\uD83C\uDDF7", "Português", "pt-rBR"));
-        languages.add(new LanguageItem("\uD83C\uDDF7\uD83C\uDDFA", "Русский", "ru"));
-        languages.add(new LanguageItem("\uD83C\uDDEE\uD83C\uDDF3", "हिंदी", "hi"));
-        languages.add(new LanguageItem("\uD83C\uDDF9\uD83C\uDDF7", "Türkçe", "tr"));
-
-        // 获取当前选中的语言代码
-        android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-        String currentLanguageCode = prefs.getString("language", LanguageUtils.getSystemLanguage());
-
-        ArrayAdapter<LanguageItem> adapter = new ArrayAdapter<LanguageItem>(this, R.layout.item_language, R.id.language_name, languages) {
-            @Override
-            public View getView(int position, View convertView, ViewGroup parent) {
-                View view = convertView;
-                if (view == null) {
-                    view = LayoutInflater.from(getContext()).inflate(R.layout.item_language, parent, false);
-                }
-                LanguageItem item = getItem(position);
-                TextView flagText = view.findViewById(R.id.language_flag);
-                TextView nameText = view.findViewById(R.id.language_name);
-                flagText.setText(item.flag);
-                nameText.setText(item.name);
-                
-                // 高亮当前选中的语言
-                if (item.code.equals(currentLanguageCode)) {
-                    view.setBackgroundColor(getResources().getColor(R.color.purple_500, null));
-                    flagText.setTextColor(getResources().getColor(android.R.color.white, null));
-                    nameText.setTextColor(getResources().getColor(android.R.color.white, null));
-                } else {
-                    view.setBackgroundColor(getResources().getColor(android.R.color.transparent, null));
-                    // 根据深色模式设置文字颜色
-                    int currentNightMode = getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
-                    if (currentNightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
-                        flagText.setTextColor(getResources().getColor(android.R.color.white, null));
-                        nameText.setTextColor(getResources().getColor(android.R.color.white, null));
-                    } else {
-                        flagText.setTextColor(getResources().getColor(android.R.color.black, null));
-                        nameText.setTextColor(getResources().getColor(android.R.color.black, null));
-                    }
-                }
-                
-                return view;
-            }
-        };
-
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.language_title)
-                .setAdapter(adapter, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        changeLanguage(languages.get(which).code);
-                    }
-                })
-                .setNegativeButton(R.string.cancel, null)
-                .show();
+        dialogHelper.showLanguageOptions();
     }
-    
+
     private void showVersionInfo() {
-        try {
-            String versionName = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-            int versionCode = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
-            
-            new androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle(R.string.version_info)
-                    .setMessage(getString(R.string.version_format, versionName, versionCode))
-                    .setPositiveButton(R.string.confirm, null)
-                    .show();
-        } catch (Exception e) {
-            Log.e(TAG, "Error getting version info: " + e.getMessage());
-            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
+        dialogHelper.showVersionInfo();
     }
 
     private void changeLanguage(String languageCode) {
@@ -1791,27 +1889,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void toggleDarkMode() {
-        int currentMode = getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
-        boolean isDarkMode = currentMode == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-        
-        android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-        android.content.SharedPreferences.Editor editor = prefs.edit();
-        
-        if (isDarkMode) {
-            androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO);
-            editor.putBoolean("dark_mode", false);
-            Toast.makeText(this, R.string.light_mode, Toast.LENGTH_SHORT).show();
-        } else {
-            androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES);
-            editor.putBoolean("dark_mode", true);
-            Toast.makeText(this, R.string.dark_mode, Toast.LENGTH_SHORT).show();
-        }
-        editor.apply();
-        
-        // 重新启动Activity以应用新的主题
-        Intent intent = getIntent();
-        finish();
-        startActivity(intent);
+        themeHelper.toggleDarkMode();
     }
 
     private void triggerBuzzer() {
@@ -1965,8 +2043,20 @@ public class MainActivity extends AppCompatActivity {
         if (mapTypeBtn != null) mapTypeBtn.setVisibility(visibility);
         if (locateBtn != null) locateBtn.setVisibility(visibility);
         if (customCompass != null) customCompass.setVisibility(visibility);  // 自定义指南针
-        if (bottomInfo != null && selectedDevice != null) {
-            bottomInfo.setVisibility(visibility);
+        // bottomInfo 始终在首页显示（由 showBottomInfo 控制）
+        if (visible) {
+            showBottomInfo();
+        } else if (bottomInfo != null) {
+            bottomInfo.setVisibility(View.GONE);
+        }
+    }
+    
+    /**
+     * 显示设备信息栏（仅在首页Tab时显示）
+     */
+    private void showBottomInfo() {
+        if (bottomInfo != null && currentTab == 0) {
+            bottomInfo.setVisibility(View.VISIBLE);
         }
     }
 
@@ -2011,85 +2101,105 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * 设备昵称在列表中编辑成功后，同步更新首页显示。
+     */
+    public void onDeviceNicknameUpdated(String deviceId, String nickname, String tag) {
+        if (deviceId == null || nickname == null) {
+            return;
+        }
+        String selectedId = getSharedPreferences("app_settings", MODE_PRIVATE)
+                .getString("selected_device_id", "");
+        if (!deviceId.equals(selectedId)) {
+            return;
+        }
+        if (selectedDevice != null) {
+            selectedDevice.setName(nickname);
+            if (tag != null) {
+                selectedDevice.setTag(tag);
+            }
+        }
+        updateDeviceNameWithTag(nickname, tag);
+    }
+
+    /**
      * 切换深色模式（不重建Activity，手动应用主题颜色）
      */
     public void toggleDarkMode(boolean isDarkMode) {
-        // 保存设置
-        getSharedPreferences("app_settings", MODE_PRIVATE)
-            .edit().putBoolean("dark_mode", isDarkMode).apply();
-        
-        // 手动应用深色/浅色模式，不重建Activity
-        applyDarkMode(isDarkMode);
+        themeHelper.toggleDarkMode(isDarkMode);
     }
-    
+
     /**
      * 手动应用深色/浅色模式，不重建Activity
      */
     public void applyDarkMode(boolean isDarkMode) {
-        int bgColor = isDarkMode ? 
-            getResources().getColor(R.color.dark_background, null) : 
+        int bgColor = isDarkMode ?
+            getResources().getColor(R.color.dark_background, null) :
             getResources().getColor(R.color.background, null);
-        int surfaceColor = isDarkMode ? 
-            getResources().getColor(R.color.dark_surface, null) : 
+        int surfaceColor = isDarkMode ?
+            getResources().getColor(R.color.dark_surface, null) :
             getResources().getColor(R.color.surface, null);
-        int onSurfaceColor = isDarkMode ? 
-            getResources().getColor(R.color.dark_onSurface, null) : 
+        int onSurfaceColor = isDarkMode ?
+            getResources().getColor(R.color.dark_onSurface, null) :
             getResources().getColor(R.color.onSurface, null);
-        int topBarColor = isDarkMode ? 
-            getResources().getColor(R.color.dark_top_bar_background, null) : 
+        int topBarColor = isDarkMode ?
+            getResources().getColor(R.color.dark_top_bar_background, null) :
             getResources().getColor(R.color.top_bar_background, null);
-        int cardColor = isDarkMode ? 
-            getResources().getColor(R.color.dark_card_background, null) : 
+        int cardColor = isDarkMode ?
+            getResources().getColor(R.color.dark_card_background, null) :
             getResources().getColor(R.color.card_background, null);
-        int textSecColor = isDarkMode ? 
-            getResources().getColor(R.color.dark_text_secondary, null) : 
+        int textSecColor = isDarkMode ?
+            getResources().getColor(R.color.dark_text_secondary, null) :
             getResources().getColor(R.color.text_secondary, null);
-        
+
         // 选中/未选中Tab颜色
         int selectedColor = getResources().getColor(R.color.purple_500, null);
-        int unselectedColor = isDarkMode ? 
-            getResources().getColor(R.color.dark_text_secondary, null) : 
+        int unselectedColor = isDarkMode ?
+            getResources().getColor(R.color.dark_text_secondary, null) :
             getResources().getColor(R.color.text_secondary, null);
-        
+
         // 应用到根视图
         View rootView = findViewById(android.R.id.content);
         if (rootView != null) rootView.setBackgroundColor(bgColor);
-        
+
         // 应用到底部导航栏背景
-        if (bottomNavigation != null) bottomNavigation.setBackgroundColor(topBarColor);
-        
+        if (bottomNavigation != null) {
+            bottomNavigation.setBackgroundColor(topBarColor);
+        }
+
         // 应用到导航栏Tab文字和图标颜色
         updateTabColors(selectedColor, unselectedColor);
-        
+
         // 应用到底部信息卡片
         if (bottomInfo != null) {
             try {
                 ((androidx.cardview.widget.CardView) bottomInfo).setCardBackgroundColor(cardColor);
-            } catch (Exception e) {}
+            } catch (Exception e) {
+                // 忽略类型转换异常
+            }
         }
-        
+
         // 应用到信息卡片内的文字
         if (batteryLevelText != null) batteryLevelText.setTextColor(onSurfaceColor);
         if (deviceAddressText != null) deviceAddressText.setTextColor(onSurfaceColor);
         if (updateTimeText != null) updateTimeText.setTextColor(onSurfaceColor);
-        
+
         // 更新状态栏
         if (isDarkMode) {
             getWindow().setStatusBarColor(getResources().getColor(R.color.dark_surface, null));
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                getWindow().getDecorView().setSystemUiVisibility(
-                    getWindow().getDecorView().getSystemUiVisibility() 
-                    & ~android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            androidx.core.view.WindowInsetsControllerCompat controller =
+                androidx.core.view.ViewCompat.getWindowInsetsController(getWindow().getDecorView());
+            if (controller != null) {
+                controller.setAppearanceLightStatusBars(false); // 白色图标
             }
         } else {
             getWindow().setStatusBarColor(getResources().getColor(R.color.top_bar_background, null));
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                getWindow().getDecorView().setSystemUiVisibility(
-                    getWindow().getDecorView().getSystemUiVisibility() 
-                    | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            androidx.core.view.WindowInsetsControllerCompat controller =
+                androidx.core.view.ViewCompat.getWindowInsetsController(getWindow().getDecorView());
+            if (controller != null) {
+                controller.setAppearanceLightStatusBars(true); // 黑色图标
             }
         }
-        
+
         // 深色模式：设置地图样式（添加完善的异常处理）
         try {
             if (mapManager != null && mapManager.isAmap()) {
@@ -2116,12 +2226,12 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.e(TAG, "Error applying dark map style: " + e.getMessage());
         }
-        
+
         // 通知Fragment更新
         if (deviceListFragment != null) deviceListFragment.applyTheme(isDarkMode);
         if (profileFragment != null) profileFragment.applyTheme(isDarkMode);
     }
-    
+
     /**
      * 更新导航栏Tab文字和图标颜色
      */
@@ -2133,7 +2243,7 @@ public class MainActivity extends AppCompatActivity {
             {R.id.tab_track_icon, R.id.tab_track_text},
             {R.id.tab_profile_icon, R.id.tab_profile_text}
         };
-        
+
         for (int i = 0; i < tabPairs.length; i++) {
             ImageView icon = findViewById(tabPairs[i][0]);
             TextView text = findViewById(tabPairs[i][1]);
@@ -2151,184 +2261,14 @@ public class MainActivity extends AppCompatActivity {
      * 显示登录对话框
      */
     public void showLoginDialog() {
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
-        builder.setTitle(R.string.login);
-
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(50, 40, 50, 10);
-
-        final EditText usernameInput = new EditText(this);
-        usernameInput.setHint(R.string.username);
-        usernameInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
-        layout.addView(usernameInput);
-
-        final EditText passwordInput = new EditText(this);
-        passwordInput.setHint(R.string.password);
-        passwordInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        layout.addView(passwordInput);
-
-        builder.setView(layout);
-
-        builder.setPositiveButton(R.string.login, null);
-        builder.setNegativeButton(R.string.cancel, null);
-        builder.setNeutralButton(R.string.forgot_password, null);
-
-        android.app.AlertDialog dialog = builder.create();
-        dialog.show();
-
-        // 重写按钮点击，防止自动关闭
-        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            String username = usernameInput.getText().toString().trim();
-            String password = passwordInput.getText().toString().trim();
-
-            if (!UserApiService.isValidUsername(username)) {
-                Toast.makeText(this, R.string.username_invalid, Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (!UserApiService.isValidPassword(password)) {
-                Toast.makeText(this, R.string.password_invalid, Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            new Thread(() -> {
-                NewApiService.ApiResponse response = UserApiService.getInstance().login(username, password);
-                runOnUiThread(() -> {
-                    if (response.isSuccess() && response.getToken() != null) {
-                        // 保存登录状态
-                        String token = response.getToken();
-                        getSharedPreferences("app_settings", MODE_PRIVATE).edit()
-                            .putString("auth_token", token)
-                            .putString("user_username", username)
-                            .apply();
-                        Toast.makeText(this, R.string.login_success, Toast.LENGTH_SHORT).show();
-                        dialog.dismiss();
-                        // 更新ProfileFragment
-                        if (profileFragment != null) {
-                            profileFragment.onResume();
-                        }
-                        // 登录成功后获取用户绑定的设备列表
-                        fetchBoundDevicesAfterLogin(token);
-                    } else {
-                        String msg = response.getMessage();
-                        if (msg != null && msg.contains("not found")) {
-                            Toast.makeText(this, R.string.user_not_found, Toast.LENGTH_SHORT).show();
-                        } else if (msg != null && msg.contains("password")) {
-                            Toast.makeText(this, R.string.wrong_password, Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(this, R.string.login_failed, Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                });
-            }).start();
-        });
-
-        // 忘记密码
-        dialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
-            Toast.makeText(this, R.string.reset_password_contact_admin, Toast.LENGTH_LONG).show();
-        });
+        dialogHelper.showLoginDialog();
     }
 
     /**
      * 显示注册对话框
      */
     public void showRegisterDialog() {
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
-        builder.setTitle(R.string.register);
-
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(50, 40, 50, 10);
-
-        final EditText usernameInput = new EditText(this);
-        usernameInput.setHint(R.string.username);
-        usernameInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
-        layout.addView(usernameInput);
-
-        TextView usernameHint = new TextView(this);
-        usernameHint.setText(getString(R.string.username_rule));
-        usernameHint.setTextSize(12);
-        usernameHint.setTextColor(getResources().getColor(R.color.text_secondary, null));
-        layout.addView(usernameHint);
-
-        final EditText passwordInput = new EditText(this);
-        passwordInput.setHint(R.string.password);
-        passwordInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        layout.addView(passwordInput);
-
-        TextView passwordHint = new TextView(this);
-        passwordHint.setText(getString(R.string.password_rule));
-        passwordHint.setTextSize(12);
-        passwordHint.setTextColor(getResources().getColor(R.color.text_secondary, null));
-        layout.addView(passwordHint);
-
-        final EditText confirmPasswordInput = new EditText(this);
-        confirmPasswordInput.setHint(R.string.confirm_password);
-        confirmPasswordInput.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        layout.addView(confirmPasswordInput);
-
-        builder.setView(layout);
-
-        builder.setPositiveButton(R.string.register, null);
-        builder.setNegativeButton(R.string.cancel, null);
-
-        android.app.AlertDialog dialog = builder.create();
-        dialog.show();
-
-        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            String username = usernameInput.getText().toString().trim();
-            String password = passwordInput.getText().toString().trim();
-            String confirmPassword = confirmPasswordInput.getText().toString().trim();
-
-            if (!UserApiService.isValidUsername(username)) {
-                Toast.makeText(this, R.string.username_invalid, Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (!UserApiService.isValidPassword(password)) {
-                Toast.makeText(this, R.string.password_invalid, Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (!password.equals(confirmPassword)) {
-                Toast.makeText(this, R.string.password_not_match, Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            new Thread(() -> {
-                NewApiService.ApiResponse response = UserApiService.getInstance().register(username, password);
-                runOnUiThread(() -> {
-                    if (response.isSuccess()) {
-                        Toast.makeText(this, R.string.register_success, Toast.LENGTH_SHORT).show();
-                        // 注册成功后自动登录
-                        new Thread(() -> {
-                            NewApiService.ApiResponse loginResp = UserApiService.getInstance().login(username, password);
-                            runOnUiThread(() -> {
-                                if (loginResp.isSuccess() && loginResp.getToken() != null) {
-                                    String token = loginResp.getToken();
-                                    getSharedPreferences("app_settings", MODE_PRIVATE).edit()
-                                        .putString("auth_token", token)
-                                        .putString("user_username", username)
-                                        .apply();
-                                    Toast.makeText(this, R.string.login_success, Toast.LENGTH_SHORT).show();
-                                    if (profileFragment != null) {
-                                        profileFragment.onResume();
-                                    }
-                                    // 注册后登录成功，获取绑定设备列表（新用户通常没有设备）
-                                    fetchBoundDevicesAfterLogin(token);
-                                }
-                            });
-                        }).start();
-                        dialog.dismiss();
-                    } else {
-                        String msg = response.getMessage();
-                        if (msg != null && (msg.contains("exist") || msg.contains("already"))) {
-                            Toast.makeText(this, R.string.username_exists, Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(this, R.string.register_failed, Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                });
-            }).start();
-        });
+        dialogHelper.showRegisterDialog();
     }
 
     /**
@@ -2336,43 +2276,7 @@ public class MainActivity extends AppCompatActivity {
      * @param token Bearer Token
      */
     private void fetchBoundDevicesAfterLogin(String token) {
-        Log.d(TAG, "Fetching bound devices after login...");
-        new Thread(() -> {
-            try {
-                DeviceApiService.DeviceApiResponse response = DeviceApiService.getInstance().getBoundDevices(token);
-                runOnUiThread(() -> {
-                    if (response.isSuccess() && response.getDevices() != null) {
-                        List<DeviceApiService.BoundDevice> boundDevices = response.getDevices();
-                        Log.d(TAG, "Got " + boundDevices.size() + " bound devices from server");
-                        
-                        // 存储绑定设备列表到SharedPreferences（JSON格式）
-                        Gson gson = new Gson();
-                        String devicesJson = gson.toJson(boundDevices);
-                        getSharedPreferences("app_settings", MODE_PRIVATE).edit()
-                            .putString("bound_devices", devicesJson)
-                            .apply();
-                        
-                        // 同步到本地数据库
-                        syncBoundDevicesToLocalDatabase(boundDevices);
-                        
-                        // 更新DeviceListFragment
-                        if (deviceListFragment != null) {
-                            deviceListFragment.onResume();
-                        }
-                        
-                        Toast.makeText(this, getString(R.string.devices_synced, boundDevices.size()), Toast.LENGTH_SHORT).show();
-                    } else {
-                        Log.w(TAG, "Failed to get bound devices: " + response.getMessage());
-                        // 清空本地绑定设备数据
-                        getSharedPreferences("app_settings", MODE_PRIVATE).edit()
-                            .remove("bound_devices")
-                            .apply();
-                    }
-                });
-            } catch (Exception e) {
-                Log.e(TAG, "Error fetching bound devices: " + e.getMessage(), e);
-            }
-        }).start();
+        authHelper.fetchBoundDevicesAfterLogin(token);
     }
 
     /**
@@ -2380,28 +2284,15 @@ public class MainActivity extends AppCompatActivity {
      * @param boundDevices 从服务器获取的绑定设备列表
      */
     private void syncBoundDevicesToLocalDatabase(List<DeviceApiService.BoundDevice> boundDevices) {
-        if (databaseHelper == null || boundDevices == null) return;
-        
-        for (DeviceApiService.BoundDevice boundDevice : boundDevices) {
-            String deviceNum = boundDevice.getDeviceNum();
-            String alias = boundDevice.getAlias();
-            
-            // 检查本地数据库是否已有此设备
-            Device existingDevice = databaseHelper.getDevice(deviceNum);
-            if (existingDevice != null) {
-                // 更新别名（如果服务器有别名且与本地不同）
-                if (alias != null && !alias.isEmpty() && !alias.equals(existingDevice.getName())) {
-                    databaseHelper.updateDeviceNameAndTag(deviceNum, deviceNum, alias, existingDevice.getTag());
-                    Log.d(TAG, "Updated device alias: " + deviceNum + " -> " + alias);
-                }
-            } else {
-                // 本地没有此设备，添加新设备
-                Device newDevice = new Device(deviceNum, alias);
-                newDevice.setDeviceNum(deviceNum);
-                databaseHelper.addDevice(newDevice);
-                Log.d(TAG, "Added new bound device: " + deviceNum + " (" + alias + ")");
-            }
-        }
+        authHelper.syncBoundDevicesToLocalDatabase(boundDevices);
+    }
+
+    /**
+     * 退出登录后刷新设备列表
+     * 清除选中设备，刷新DeviceListFragment显示空列表
+     */
+    public void refreshDeviceListAfterLogout() {
+        authHelper.refreshDeviceListAfterLogout();
     }
 
     private void startRefreshAnimation() {
@@ -2534,11 +2425,9 @@ public class MainActivity extends AppCompatActivity {
                     isRefreshInProgress = false;
 
                     if (serverTimestamp > currentTimestamp) {
-                        // 服务器时间更新，更新UI
-                        Log.d(TAG, "Server data is newer, updating UI");
-                        updateDeviceUIWithoutCameraMove(finalLatestInfo);
+                        // 服务器时间更新，同步本地数据；UI 由 LiveData 观察者统一更新
+                        Log.d(TAG, "Server data is newer, syncing device data");
 
-                        // 更新本地设备数据
                         if (selectedDevice != null) {
                             selectedDevice.setLatitude(finalLatestInfo.latitude);
                             selectedDevice.setLongitude(finalLatestInfo.longitude);
@@ -2550,14 +2439,12 @@ public class MainActivity extends AppCompatActivity {
                             databaseHelper.addDevice(selectedDevice);
                         }
 
-                        // 更新ViewModel中的LiveData
                         viewModel.setSelectedDevice(selectedDevice);
                         if (finalLatestInfo.battery > 0) {
                             viewModel.updateBatteryLevel(String.valueOf(finalLatestInfo.battery));
                         }
                         viewModel.updateUpdateTime(String.valueOf(serverTimestamp));
 
-                        // 显示刷新成功提示
                         if (finalShowToast) {
                             Toast.makeText(MainActivity.this, R.string.refresh_success, Toast.LENGTH_SHORT).show();
                         }
@@ -2634,150 +2521,39 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showPermissionRationale(final String[] permissions) {
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.permission_request)
-                .setMessage(R.string.permission_explanation)
-                .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        ActivityCompat.requestPermissions(MainActivity.this, permissions, REQUEST_PERMISSIONS);
-                    }
-                })
-                .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        dialog.dismiss();
-                        Toast.makeText(MainActivity.this, R.string.permission_denied, Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .show();
+        dialogHelper.showPermissionRationale(permissions, REQUEST_PERMISSIONS);
     }
 
     /**
      * 显示蓝牙增强扫描强度选择对话框
      */
     private void showBluetoothEnhanceOptions() {
-        String[] options = {
-            getString(R.string.scan_intensity_off),
-            getString(R.string.scan_intensity_low),
-            getString(R.string.scan_intensity_high)
-        };
-
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.bluetooth_enhance)
-                .setSingleChoiceItems(options, scanIntensityLevel, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        int oldLevel = scanIntensityLevel;
-                        scanIntensityLevel = which;
-                        Log.d(TAG, "Scan intensity changed: " + oldLevel + " -> " + which);
-
-                        // 先停止当前扫描
-                        if (locationOptimizationManager != null) {
-                            locationOptimizationManager.stopBluetoothScanning();
-                        }
-                        if (scanningIndicator != null) {
-                            scanningIndicator.setVisibility(View.GONE);
-                        }
-
-                        // 根据新强度启动扫描
-                        switch (which) {
-                            case 0: // 关闭
-                                Log.d(TAG, "Scan intensity: OFF");
-                                break;
-                            case 1: // 低 - 单次扫描
-                                Log.d(TAG, "Scan intensity: LOW (single scan)");
-                                startSingleScanWithCheck();
-                                break;
-                            case 2: // 高 - 持续循环扫描
-                                Log.d(TAG, "Scan intensity: HIGH (continuous)");
-                                startContinuousScanWithCheck();
-                                break;
-                        }
-
-                        dialog.dismiss();
-                    }
-                })
-                .setNegativeButton(R.string.cancel, null)
-                .show();
+        dialogHelper.showBluetoothEnhanceOptions(scanIntensityLevel);
     }
 
     /**
      * 启动单次扫描（低强度）：扫描成功更新UI后自动停止
      */
     private void startSingleScanWithCheck() {
-        if (locationOptimizationManager == null || !locationOptimizationManager.isOptimizationEnabled()) {
-            Log.w(TAG, "Cannot start scanning: LocationOptimizationManager not available");
-            scanIntensityLevel = 0;
-            Toast.makeText(this, "蓝牙扫描不可用", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        locationOptimizationManager.autoSelectFirstDevice();
-        locationOptimizationManager.startSingleBluetoothScan();
-        Log.d(TAG, "Single scan started (low intensity)");
+        bleHelper.startSingleScanWithCheck();
     }
 
     /**
      * 启动持续循环扫描（高强度）：扫描10秒，停止10秒，循环
      */
     private void startContinuousScanWithCheck() {
-        if (locationOptimizationManager == null || !locationOptimizationManager.isOptimizationEnabled()) {
-            Log.w(TAG, "Cannot start scanning: LocationOptimizationManager not available");
-            scanIntensityLevel = 0;
-            Toast.makeText(this, "蓝牙扫描不可用", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        locationOptimizationManager.autoSelectFirstDevice();
-        locationOptimizationManager.startBluetoothScanning();
-        Log.d(TAG, "Continuous scan started (high intensity)");
+        bleHelper.startContinuousScanWithCheck();
     }
 
     /**
      * 根据当前扫描强度级别应用扫描行为
      */
     private void applyScanIntensity() {
-        // 先停止当前扫描
-        if (locationOptimizationManager != null) {
-            locationOptimizationManager.stopBluetoothScanning();
-        }
-        if (scanningIndicator != null) {
-            scanningIndicator.setVisibility(View.GONE);
-        }
-
-        switch (scanIntensityLevel) {
-            case 0: // 关闭
-                Log.d(TAG, "Scan intensity: OFF");
-                break;
-            case 1: // 低
-                startSingleScanWithCheck();
-                break;
-            case 2: // 高
-                startContinuousScanWithCheck();
-                break;
-        }
+        bleHelper.applyScanIntensity(scanIntensityLevel);
     }
 
     private void startBLEScanning() {
-        if (bleManager.isBluetoothEnabled()) {
-            bleManager.startScanning(new BLEManager.DeviceScanCallback() {
-                @Override
-                public void onDeviceFound(Device device) {
-                    Log.d(TAG, "Found device: " + device.getName() + " - " + device.getDeviceId());
-                    databaseHelper.addDevice(device);
-                    crowdSourcingManager.sendDeviceData(device);
-                    // 更新地图标记
-                    updateMapMarker(device);
-                }
-
-                @Override
-                public void onScanComplete() {
-                    Log.d(TAG, "BLE scanning completed");
-                    Toast.makeText(MainActivity.this, R.string.scan_complete, Toast.LENGTH_SHORT).show();
-                }
-            });
-        } else {
-            Toast.makeText(this, R.string.bluetooth_not_enabled, Toast.LENGTH_SHORT).show();
-        }
+        bleHelper.startBLEScanning();
     }
 
     private Map<String, Marker> deviceMarkers = new HashMap<>();
@@ -3217,6 +2993,14 @@ public class MainActivity extends AppCompatActivity {
         }
         
         android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
+        
+        // 未登录时不恢复设备
+        String token = prefs.getString("auth_token", null);
+        if (token == null || token.isEmpty()) {
+            Log.d(TAG, "User not logged in, skip restoring device for map init");
+            return;
+        }
+        
         String selectedDeviceId = prefs.getString("selected_device_id", "");
         Log.d(TAG, "Saved selected device ID: " + selectedDeviceId);
         
@@ -3244,7 +3028,14 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         
+        // 未登录时不恢复设备选择
         android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
+        String token = prefs.getString("auth_token", null);
+        if (token == null || token.isEmpty()) {
+            Log.d(TAG, "User not logged in, skip restoring device");
+            return;
+        }
+        
         String selectedDeviceId = prefs.getString("selected_device_id", "");
         Log.d(TAG, "Saved selected device ID: " + selectedDeviceId);
         
@@ -3270,14 +3061,24 @@ public class MainActivity extends AppCompatActivity {
                     // MVVM - 通过 ViewModel 设置选中设备
                     viewModel.setSelectedDevice(device);
                     selectedDevice = device; // 保持兼容性
+                    
+                    // 恢复设备后等待服务器数据，返回后移动相机到设备位置
+                    pendingDeviceSelection = true;
+                    isUserLocated = false;
+                    resetAddressCache();
+                    viewModel.invalidateAddressRequests();
+                    
                     updateDeviceNameWithTag(device.getName(), device.getTag());
-                    if (bottomInfo != null) bottomInfo.setVisibility(View.VISIBLE);
+                    showBottomInfo();
                     
                     // 先显示默认的设备信息
                     updateDeviceUIDefault();
                     
                     if (device.getLatitude() != 0 && device.getLongitude() != 0) {
-                        Log.d(TAG, "Device has location: lat=" + device.getLatitude() + ", lng=" + device.getLongitude());
+                        showCoordinatesAndGeocode(device.getLatitude(), device.getLongitude(), true);
+                        Log.d(TAG, "Device has local location: lat=" + device.getLatitude() + ", lng=" + device.getLongitude());
+                    } else {
+                        deviceAddressText.setText(getString(R.string.position_getting_address));
                     }
                     
                     // 从数据库中读取最后的轨迹记录来初始化状态
@@ -3343,7 +3144,7 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "Clearing device info");
         selectedDevice = null;
         updateDeviceNameWithTag(getString(R.string.no_device_selected), null);
-        if (bottomInfo != null) bottomInfo.setVisibility(View.VISIBLE);
+        showBottomInfo();
         batteryLevelText.setText(getString(R.string.battery_level_empty));
         deviceAddressText.setText(getString(R.string.position_empty));
         updateTimeText.setText(getString(R.string.last_update_empty));
@@ -3477,8 +3278,14 @@ public class MainActivity extends AppCompatActivity {
         viewModel.setSelectedDevice(firstDevice);
         selectedDevice = firstDevice; // 保持兼容性
         
+        // 登录后首次加载：等待服务器数据返回后移动相机
+        pendingDeviceSelection = true;
+        isUserLocated = false;
+        resetAddressCache();
+        viewModel.invalidateAddressRequests();
+        
         updateDeviceNameWithTag(firstDevice.getName(), firstDevice.getTag());
-        if (bottomInfo != null) bottomInfo.setVisibility(View.VISIBLE);
+        showBottomInfo();
         
         // 先显示默认的设备信息
         updateDeviceUIDefault();
@@ -3489,9 +3296,10 @@ public class MainActivity extends AppCompatActivity {
         editor.apply();
         
         if (firstDevice.getLatitude() != 0 && firstDevice.getLongitude() != 0) {
-            // 不要在这里移动地图，等待 fetchDeviceInfo 返回后再移动
-            // 这样可以确保标记已经添加后再移动地图
-            Log.d(TAG, "Device has location: lat=" + firstDevice.getLatitude() + ", lng=" + firstDevice.getLongitude());
+            showCoordinatesAndGeocode(firstDevice.getLatitude(), firstDevice.getLongitude(), true);
+            Log.d(TAG, "Device has local location: lat=" + firstDevice.getLatitude() + ", lng=" + firstDevice.getLongitude());
+        } else {
+            deviceAddressText.setText(getString(R.string.position_getting_address));
         }
         
         String deviceNumToFetch = firstDevice.getDeviceNum() != null ? firstDevice.getDeviceNum() : firstDevice.getDeviceId();
@@ -3674,24 +3482,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showPermissionSettingsDialog() {
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.permission_settings)
-                .setMessage(R.string.permission_settings_explanation)
-                .setPositiveButton(R.string.go_to_settings, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                        intent.setData(android.net.Uri.fromParts("package", getPackageName(), null));
-                        startActivity(intent);
-                    }
-                })
-                .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        dialog.dismiss();
-                    }
-                })
-                .show();
+        dialogHelper.showPermissionSettingsDialog();
     }
     
     /**
@@ -3707,10 +3498,15 @@ public class MainActivity extends AppCompatActivity {
                         
                 String oldDeviceId = selectedDevice != null ? selectedDevice.getDeviceId() : null;
                 String newDeviceId = device.getDeviceId();
-                boolean isDeviceChanged = !newDeviceId.equals(oldDeviceId);
+                boolean isDeviceChanged = oldDeviceId == null || !newDeviceId.equals(oldDeviceId);
+                double oldLat = selectedDevice != null ? selectedDevice.getLatitude() : 0;
+                double oldLng = selectedDevice != null ? selectedDevice.getLongitude() : 0;
+                boolean coordsJustAvailable = (oldLat == 0 || oldLng == 0)
+                    && device.getLatitude() != 0 && device.getLongitude() != 0;
                         
                 // 【关键修复】检查时间戳，防止服务器旧数据覆盖本地新数据
-                if (selectedDevice != null && !isDeviceChanged) {
+                // 但如果用户刚切换设备（pendingDeviceSelection=true）或坐标刚变为有效，则不跳过
+                if (selectedDevice != null && !isDeviceChanged && !pendingDeviceSelection && !coordsJustAvailable) {
                     long currentTimestamp = selectedDevice.getLastSeen();
                     long newTimestamp = device.getLastSeen();
                     if (newTimestamp > 0 && currentTimestamp > 0 && newTimestamp <= currentTimestamp) {
@@ -3724,12 +3520,14 @@ public class MainActivity extends AppCompatActivity {
                         
                 // 如果设备有有效坐标，更新地图和地址
                 if (device.getLatitude() != 0 && device.getLongitude() != 0) {
-                    Log.d(TAG, "Device has valid coordinates, isDeviceChanged=" + isDeviceChanged);
+                    Log.d(TAG, "Device has valid coordinates, isDeviceChanged=" + isDeviceChanged
+                        + ", pendingDeviceSelection=" + pendingDeviceSelection
+                        + ", coordsJustAvailable=" + coordsJustAvailable);
                             
-                    // 只有当设备切换时才强制移动相机，后台刷新时不移动
-                    if (isDeviceChanged) {
-                        Log.d(TAG, "Device changed, calling locateToDevicePosition to move camera");
-                        // 关键修复：切换设备后自动调用“定位到当前位置”功能（用户主动切换，允许后续自动刷新）
+                    // 设备切换、等待服务器数据、或坐标刚变为有效时，移动相机
+                    if (isDeviceChanged || pendingDeviceSelection || coordsJustAvailable) {
+                        Log.d(TAG, "Moving camera to device position (switch/pending/new coords)");
+                        pendingDeviceSelection = false;
                         locateToDevicePosition(false);
                     } else {
                         Log.d(TAG, "Background refresh, updating marker and address (no camera move)");
@@ -3741,35 +3539,45 @@ public class MainActivity extends AppCompatActivity {
                         tagDevice.setLatitude(device.getLatitude());
                         tagDevice.setLongitude(device.getLongitude());
                         mapViewModel.updateDeviceLocation(tagDevice);
-                                
-                        // 关键修复：刷新时也获取地址，确保地址显示正确
-                        deviceAddressText.setText(getString(R.string.position_getting_address));
-                        getAddressFromLocation(device.getLatitude(), device.getLongitude(), true);
+                        updateDeviceMarkerOnMap(tagDevice);
+                        showCoordinatesAndGeocode(device.getLatitude(), device.getLongitude(), false);
                     }
                 } else {
-                    Log.d(TAG, "Device has no valid coordinates yet, clearing UI");
-                    // 设备没有有效坐标时，将电量、地址、时间显示为 "--"
-                    batteryLevelText.setText(getString(R.string.battery_level_empty));
-                    deviceAddressText.setText(getString(R.string.position_empty));
-                    updateTimeText.setText(getString(R.string.last_update_empty));
+                    Log.d(TAG, "Device has no valid coordinates yet, pendingDeviceSelection=" + pendingDeviceSelection);
+                    if (pendingDeviceSelection) {
+                        // 刚切换设备，服务器数据还没返回，显示"正在获取..."
+                        deviceAddressText.setText(getString(R.string.position_getting_address));
+                    } else {
+                        // 非切换场景，设备确实没有坐标
+                        batteryLevelText.setText(getString(R.string.battery_level_empty));
+                        deviceAddressText.setText(getString(R.string.position_empty));
+                        updateTimeText.setText(getString(R.string.last_update_empty));
+                    }
                 }
             }
         });
         
         // 观察电池电量
         viewModel.getBatteryLevel().observe(this, batteryStr -> {
-            if (batteryStr != null && batteryLevelText != null) {
-                try {
-                    int battery = Integer.parseInt(batteryStr);
-                    if (battery > 0) {
-                        batteryLevelText.setText(getString(R.string.battery_level_value, String.valueOf(battery)));
-                    } else if (battery == 0) {
-                        batteryLevelText.setText(getString(R.string.battery_level_zero));
-                    } else {
-                        batteryLevelText.setText(getString(R.string.battery_level_unknown));
+            if (batteryLevelText != null) {
+                // 未登录或无设备时显示"--"
+                if (selectedDevice == null) {
+                    batteryLevelText.setText(getString(R.string.battery_level_empty));
+                    return;
+                }
+                if (batteryStr != null) {
+                    try {
+                        int battery = Integer.parseInt(batteryStr);
+                        if (battery > 0) {
+                            batteryLevelText.setText(getString(R.string.battery_level_value, String.valueOf(battery)));
+                        } else if (battery == 0) {
+                            batteryLevelText.setText(getString(R.string.battery_level_zero));
+                        } else {
+                            batteryLevelText.setText(getString(R.string.battery_level_empty));
+                        }
+                    } catch (NumberFormatException e) {
+                        batteryLevelText.setText(getString(R.string.battery_level_empty));
                     }
-                } catch (NumberFormatException e) {
-                    batteryLevelText.setText(getString(R.string.battery_level_unknown));
                 }
             }
         });
@@ -3777,41 +3585,54 @@ public class MainActivity extends AppCompatActivity {
         // 关键修复：重新启用设备地址的LiveData观察者，让逆地理编码结果更新到UI
         // updateDeviceUIWithLatest() 设置"正在获取地址..."后，LiveData会异步更新为真实地址
         viewModel.getDeviceAddress().observe(this, address -> {
-            if (address != null && deviceAddressText != null) {
-                // 添加调试日志，确认LiveData传递的值
-                Log.d(TAG, "LiveData observer received address: " + address);
-                
-                if ("not_reported".equals(address)) {
-                    deviceAddressText.setText(getString(R.string.position_not_reported));
-                } else {
-                    deviceAddressText.setText(getString(R.string.position_with_address, address));
+            if (deviceAddressText != null) {
+                // 未登录或无设备时显示"--"
+                if (selectedDevice == null) {
+                    deviceAddressText.setText(getString(R.string.position_empty));
+                    return;
+                }
+                if (address != null) {
+                    Log.d(TAG, "LiveData observer received address: " + address);
+                    
+                    if ("not_reported".equals(address)) {
+                        deviceAddressText.setText(getString(R.string.position_empty));
+                    } else {
+                        deviceAddressText.setText(getString(R.string.position_with_address, address));
+                    }
                 }
             }
         });
         
         // 观察更新时间 - 使用 TimeFormatter 智能格式化
         viewModel.getUpdateTime().observe(this, timeStr -> {
-            if (timeStr != null && updateTimeText != null) {
-                Log.d(TAG, "========== UPDATE TIME OBSERVER TRIGGERED ==========");
-                Log.d(TAG, "Received timeStr: " + timeStr);
-                
-                if ("not_reported".equals(timeStr)) {
-                    Log.d(TAG, "Setting text to: not_reported");
-                    updateTimeText.setText(getString(R.string.last_update_not_reported));
-                } else {
-                    try {
-                        long timestamp = Long.parseLong(timeStr);
-                        String formattedTime = com.RockiotTag.tag.util.TimeFormatter.formatSmartTime(MainActivity.this, timestamp);
-                        Log.d(TAG, "Parsed timestamp: " + timestamp + " (" + 
-                            new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
-                                .format(new java.util.Date(timestamp)) + ")");
-                        Log.d(TAG, "Formatted time: " + formattedTime);
-                        
-                        updateTimeText.setText(getString(R.string.last_update_with_time, formattedTime));
-                        Log.d(TAG, "✓ UI updated with timestamp: " + timestamp);
-                    } catch (NumberFormatException e) {
-                        Log.e(TAG, "✗ Failed to parse timestamp: " + timeStr, e);
-                        updateTimeText.setText(getString(R.string.last_update_not_reported));
+            if (updateTimeText != null) {
+                // 未登录或无设备时显示"--"
+                if (selectedDevice == null) {
+                    updateTimeText.setText(getString(R.string.last_update_empty));
+                    return;
+                }
+                if (timeStr != null) {
+                    Log.d(TAG, "========== UPDATE TIME OBSERVER TRIGGERED ==========");
+                    Log.d(TAG, "Received timeStr: " + timeStr);
+                    
+                    if ("not_reported".equals(timeStr)) {
+                        Log.d(TAG, "Setting text to: --");
+                        updateTimeText.setText(getString(R.string.last_update_empty));
+                    } else {
+                        try {
+                            long timestamp = Long.parseLong(timeStr);
+                            String formattedTime = com.RockiotTag.tag.util.TimeFormatter.formatSmartTime(MainActivity.this, timestamp);
+                            Log.d(TAG, "Parsed timestamp: " + timestamp + " (" + 
+                                new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                                    .format(new java.util.Date(timestamp)) + ")");
+                            Log.d(TAG, "Formatted time: " + formattedTime);
+                            
+                            updateTimeText.setText(getString(R.string.last_update_with_time, formattedTime));
+                            Log.d(TAG, "✓ UI updated with timestamp: " + timestamp);
+                        } catch (NumberFormatException e) {
+                            Log.e(TAG, "✗ Failed to parse timestamp: " + timeStr, e);
+                            updateTimeText.setText(getString(R.string.last_update_empty));
+                        }
                     }
                 }
                 Log.d(TAG, "====================================================");

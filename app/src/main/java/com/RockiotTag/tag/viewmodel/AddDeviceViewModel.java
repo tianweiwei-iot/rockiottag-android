@@ -10,9 +10,13 @@ import androidx.lifecycle.MutableLiveData;
 
 import com.RockiotTag.tag.ApiConfig;
 import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.DeviceApiService;
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.repository.DeviceRepository;
+import com.google.gson.Gson;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -152,6 +156,9 @@ public class AddDeviceViewModel extends AndroidViewModel {
                 
                 Log.d(TAG, "Device bound successfully: " + newDevice.getDeviceId() + ", customerCode: " + finalCustomerCode);
                 
+                // 如果用户已登录，将设备绑定到账号
+                bindDeviceToUserAccount(actualDeviceNum, finalNickname);
+                
                 if (needSyncToServer) {
                     try {
                         NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(actualDeviceNum));
@@ -193,5 +200,88 @@ public class AddDeviceViewModel extends AndroidViewModel {
                 callback.onError(error);
             }
         });
+    }
+    
+    /**
+     * 将设备绑定到用户账号（如果用户已登录）
+     * @param deviceNum 设备号
+     * @param alias 设备别名
+     */
+    private void bindDeviceToUserAccount(String deviceNum, String alias) {
+        try {
+            // 检查用户是否已登录
+            android.content.SharedPreferences prefs = getApplication().getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE);
+            String token = prefs.getString("auth_token", null);
+            
+            if (token == null || token.isEmpty()) {
+                Log.d(TAG, "User not logged in, skip binding to account");
+                return;
+            }
+            
+            Log.d(TAG, "User logged in, binding device to account: " + deviceNum + " with alias: " + alias);
+            
+            // 调用后端API绑定设备到账号（传递昵称）
+            DeviceApiService deviceApiService = DeviceApiService.getInstance();
+            DeviceApiService.DeviceApiResponse response = deviceApiService.bindDevice(token, deviceNum, alias);
+            
+            if (response.isSuccess()) {
+                Log.d(TAG, "Device bound to account successfully: " + deviceNum);
+                
+                // 更新本地bound_devices列表
+                updateBoundDevicesList(prefs, deviceNum, alias);
+            } else {
+                Log.e(TAG, "Failed to bind device to account: " + response.getMessage());
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error binding device to account: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 更新本地bound_devices列表
+     * @param prefs SharedPreferences
+     * @param deviceNum 设备号
+     * @param alias 设备别名
+     */
+    private void updateBoundDevicesList(android.content.SharedPreferences prefs, String deviceNum, String alias) {
+        try {
+            String boundDevicesJson = prefs.getString("bound_devices", null);
+            Gson gson = new Gson();
+            
+            List<DeviceApiService.BoundDevice> boundDevices;
+            if (boundDevicesJson != null && !boundDevicesJson.isEmpty()) {
+                com.google.gson.reflect.TypeToken<List<DeviceApiService.BoundDevice>> tokenType = 
+                    new com.google.gson.reflect.TypeToken<List<DeviceApiService.BoundDevice>>() {};
+                boundDevices = gson.fromJson(boundDevicesJson, tokenType.getType());
+            } else {
+                boundDevices = new ArrayList<>();
+            }
+            
+            // 检查是否已存在
+            boolean exists = false;
+            for (DeviceApiService.BoundDevice device : boundDevices) {
+                if (deviceNum.equals(device.deviceNum)) {
+                    exists = true;
+                    // 更新别名
+                    if (alias != null && !alias.isEmpty()) {
+                        device.alias = alias;
+                    }
+                    break;
+                }
+            }
+            
+            // 如果不存在，添加新设备
+            if (!exists) {
+                DeviceApiService.BoundDevice newBoundDevice = new DeviceApiService.BoundDevice(deviceNum, alias, System.currentTimeMillis());
+                boundDevices.add(newBoundDevice);
+            }
+            
+            // 保存更新后的列表
+            String updatedJson = gson.toJson(boundDevices);
+            prefs.edit().putString("bound_devices", updatedJson).apply();
+            Log.d(TAG, "Updated bound_devices list, total: " + boundDevices.size());
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating bound_devices list: " + e.getMessage(), e);
+        }
     }
 }

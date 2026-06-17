@@ -1,13 +1,14 @@
 package com.RockiotTag.tag;
 
-import android.app.AlertDialog;
 import android.os.Bundle;
+import android.graphics.Typeface;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
@@ -15,6 +16,11 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import com.RockiotTag.tag.repository.DeviceRepository;
+import com.RockiotTag.tag.util.BoundDevicesHelper;
+import com.RockiotTag.tag.util.TagPickerHelper;
+import com.RockiotTag.tag.util.ThemedDialogHelper;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -101,10 +107,7 @@ public class DeviceListFragment extends Fragment {
                         String deviceNum = boundDevice.getDeviceNum();
                         for (Device localDevice : allLocalDevices) {
                             if (deviceNum.equals(localDevice.getDeviceNum()) || deviceNum.equals(localDevice.getDeviceId())) {
-                                // 更新设备别名为服务器返回的别名
-                                if (boundDevice.getAlias() != null && !boundDevice.getAlias().isEmpty()) {
-                                    localDevice.setName(boundDevice.getAlias());
-                                }
+                                // 显示名以本地数据库为准（编辑后会更新）；bound_devices 仅用于过滤绑定设备
                                 deviceList.add(localDevice);
                                 break;
                             }
@@ -116,14 +119,16 @@ public class DeviceListFragment extends Fragment {
                 }
             } catch (Exception e) {
                 android.util.Log.e(TAG, "Error parsing bound devices: " + e.getMessage(), e);
-                // 解析失败，显示所有本地设备
-                deviceList.addAll(databaseHelper.getAllDevices());
+                // 解析失败，显示空列表
             }
         } else {
-            // 未登录：显示所有本地设备（兼容旧版本）
-            deviceList.addAll(databaseHelper.getAllDevices());
-            android.util.Log.d(TAG, "User not logged in, showing all local devices");
+            // 未登录：不显示任何设备（设备跟账号绑定）
+            android.util.Log.d(TAG, "User not logged in, showing empty list");
         }
+        
+        // 获取当前选中设备ID，用于高亮显示
+        String selectedDeviceId = prefs.getString("selected_device_id", null);
+        adapter.setSelectedDeviceId(selectedDeviceId);
         
         adapter.notifyDataSetChanged();
 
@@ -138,6 +143,11 @@ public class DeviceListFragment extends Fragment {
 
     private void onDeviceClick(Device device) {
         if (getActivity() instanceof MainActivity) {
+            // 先更新 adapter 的 selectedDeviceId，确保高亮立即更新
+            String deviceId = device.getDeviceId();
+            adapter.setSelectedDeviceId(deviceId);
+            adapter.notifyDataSetChanged();
+            
             ((MainActivity) getActivity()).selectDevice(device);
             ((MainActivity) getActivity()).switchToTab(0);
         }
@@ -148,57 +158,78 @@ public class DeviceListFragment extends Fragment {
     }
 
     private void showEditDialog(Device device) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
+        final boolean darkMode = ThemedDialogHelper.isDarkModeEnabled(requireContext());
+        int labelColor = getResources().getColor(darkMode ? R.color.dark_text_secondary : R.color.text_secondary, null);
+        int valueColor = getResources().getColor(darkMode ? R.color.dark_onSurface : R.color.onSurface, null);
+
+        androidx.appcompat.app.AlertDialog.Builder builder = ThemedDialogHelper.createBuilder(requireContext());
         builder.setTitle(R.string.edit_device);
 
         LinearLayout layout = new LinearLayout(requireContext());
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(50, 40, 50, 10);
 
+        TextView nickNameLabel = new TextView(requireContext());
+        nickNameLabel.setText(R.string.device_nickname);
+        nickNameLabel.setTextSize(12);
+        nickNameLabel.setTextColor(labelColor);
+        layout.addView(nickNameLabel);
+
         final EditText nicknameInput = new EditText(requireContext());
-        nicknameInput.setHint(R.string.nickname);
+        nicknameInput.setHint(R.string.enter_device_nickname);
         nicknameInput.setText(device.getName());
+        nicknameInput.setSingleLine(true);
+        if (darkMode) {
+            nicknameInput.setTextColor(valueColor);
+            nicknameInput.setHintTextColor(labelColor);
+        }
         layout.addView(nicknameInput);
 
-        final EditText tagInput = new EditText(requireContext());
-        tagInput.setHint(R.string.tag);
-        tagInput.setText(device.getTag() != null ? device.getTag() : "");
-        layout.addView(tagInput);
+        TextView tagLabel = new TextView(requireContext());
+        tagLabel.setText(R.string.device_tag);
+        tagLabel.setTextSize(12);
+        tagLabel.setTextColor(labelColor);
+        tagLabel.setPadding(0, 16, 0, 0);
+        layout.addView(tagLabel);
+
+        final Spinner tagSpinner = new Spinner(requireContext());
+        TagPickerHelper.setupTagSpinner(requireContext(), tagSpinner, device.getTag());
+        layout.addView(tagSpinner);
 
         builder.setView(layout);
 
         builder.setPositiveButton(R.string.save, (dialog, which) -> {
             String nickname = nicknameInput.getText().toString().trim();
-            String tag = tagInput.getText().toString().trim();
+            java.util.List<String> tagList = TagPickerHelper.buildTagList(requireContext());
+            String tag = TagPickerHelper.getTagFromPosition(tagList, tagSpinner.getSelectedItemPosition());
 
             if (nickname.isEmpty()) {
                 Toast.makeText(requireContext(), R.string.nickname_empty, Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            device.setName(nickname);
-            device.setTag(tag);
+            final String deviceId = device.getDeviceId();
+            final String deviceNum = device.getDeviceNum();
+            final String customerCode = device.getCustomerCode();
 
-            if (databaseHelper != null) {
-                databaseHelper.updateDeviceNameAndTag(device.getDeviceId(), device.getDeviceNum(), nickname, tag);
-            }
+            DeviceRepository.getInstance(requireContext()).updateDeviceNameAndTag(
+                    deviceId, deviceNum, nickname, tag, customerCode,
+                    new DeviceRepository.UpdateCallback() {
+                        @Override
+                        public void onSuccess() {
+                            BoundDevicesHelper.updateNickName(requireContext(), deviceNum, nickname);
+                            if (getActivity() instanceof MainActivity) {
+                                ((MainActivity) getActivity()).onDeviceNicknameUpdated(deviceId, nickname, tag);
+                            }
+                            loadDevices();
+                            Toast.makeText(requireContext(), R.string.save_success, Toast.LENGTH_SHORT).show();
+                        }
 
-            // 同步到服务器
-            new Thread(() -> {
-                try {
-                    NewApiService apiService = NewApiService.getInstance();
-                    String customerCode = device.getCustomerCode();
-                    String apiKey = ApiConfig.getApiKeyForCustomer(customerCode);
-                    if (apiKey != null) {
-                        apiService.updateDevice(device.getDeviceNum(), nickname, customerCode);
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }).start();
-
-            loadDevices();
-            Toast.makeText(requireContext(), R.string.save_success, Toast.LENGTH_SHORT).show();
+                        @Override
+                        public void onError(String error) {
+                            Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show();
+                        }
+                    });
         });
 
         builder.setNegativeButton(R.string.cancel, null);
@@ -276,6 +307,7 @@ public class DeviceListFragment extends Fragment {
         private final List<Device> devices;
         private final OnDeviceClickListener clickListener;
         private final OnEditClickListener editListener;
+        private String selectedDeviceId = null; // 当前选中设备的ID
 
         interface OnDeviceClickListener {
             void onDeviceClick(Device device);
@@ -291,6 +323,7 @@ public class DeviceListFragment extends Fragment {
             TextView numText;
             TextView macText;
             ImageButton editBtn;
+            View itemViewContainer; // 整个item容器
 
             ViewHolder(View itemView) {
                 super(itemView);
@@ -299,6 +332,7 @@ public class DeviceListFragment extends Fragment {
                 numText = itemView.findViewById(R.id.device_num);
                 macText = itemView.findViewById(R.id.device_mac);
                 editBtn = itemView.findViewById(R.id.edit_btn);
+                itemViewContainer = itemView;
             }
         }
 
@@ -306,6 +340,14 @@ public class DeviceListFragment extends Fragment {
             this.devices = devices;
             this.clickListener = clickListener;
             this.editListener = editListener;
+        }
+
+        /**
+         * 设置当前选中设备的ID，用于高亮显示
+         */
+        void setSelectedDeviceId(String deviceId) {
+            this.selectedDeviceId = deviceId;
+            notifyDataSetChanged();
         }
 
         @NonNull
@@ -320,7 +362,13 @@ public class DeviceListFragment extends Fragment {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             Device device = devices.get(position);
 
-            holder.nameText.setText(device.getName());
+            // 昵称：显示设备名称
+            String displayName = device.getName();
+            if (displayName == null || displayName.isEmpty()) {
+                holder.nameText.setText(R.string.unknown_device);
+            } else {
+                holder.nameText.setText(displayName);
+            }
 
             String tag = device.getTag();
             if (tag != null && !tag.isEmpty()) {
@@ -360,6 +408,28 @@ public class DeviceListFragment extends Fragment {
             holder.tagText.setTextColor(textSecColor);
             holder.numText.setTextColor(textSecColor);
             holder.macText.setTextColor(textSecColor);
+
+            // 检查是否是当前选中设备，设置高亮样式
+            // 匹配逻辑：selectedDeviceId 可能是 deviceId、deviceNum 或 MAC 地址
+            boolean isSelected = selectedDeviceId != null && 
+                (selectedDeviceId.equals(device.getDeviceId()) || 
+                 selectedDeviceId.equals(device.getDeviceNum()) ||
+                 selectedDeviceId.equals(device.getMac()));
+            
+            if (isSelected) {
+                // 选中状态：背景高亮，文字保持常规颜色并加粗，避免与地图紫色混淆
+                int selectedBgColor = holder.itemView.getContext().getResources().getColor(
+                    isDarkMode ? R.color.dark_card_background_selected : R.color.card_background_selected, null);
+                holder.itemViewContainer.setBackgroundColor(selectedBgColor);
+                holder.nameText.setTextColor(onSurfaceColor);
+                holder.nameText.setTypeface(holder.nameText.getTypeface(), Typeface.BOLD);
+            } else {
+                // 未选中状态：恢复默认背景
+                int normalBgColor = holder.itemView.getContext().getResources().getColor(
+                    isDarkMode ? R.color.dark_card_background : R.color.card_background, null);
+                holder.itemViewContainer.setBackgroundColor(normalBgColor);
+                holder.nameText.setTypeface(holder.nameText.getTypeface(), Typeface.NORMAL);
+            }
 
             holder.itemView.setOnClickListener(v -> clickListener.onDeviceClick(device));
             holder.editBtn.setOnClickListener(v -> editListener.onEditDevice(device));

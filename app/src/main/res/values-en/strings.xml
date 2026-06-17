@@ -433,6 +433,7 @@
     <string name="logout">Logout</string>
     <string name="logout_confirm">Are you sure you want to logout?</string>
     <string name="logout_success">Logged out</string>
+    <string name="switch_account">Switch Account</string>
     <string name="password">Password</string>
     <string name="confirm_password">Confirm Password</string>
     <string name="username_rule">4-64 chars, letters/numbers/underscore only</string>

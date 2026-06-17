@@ -1,6 +1,5 @@
 package com.RockiotTag.tag;
 
-import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -23,8 +22,13 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
+
+import com.RockiotTag.tag.util.BoundDevicesHelper;
+import com.RockiotTag.tag.util.TagPickerHelper;
+import com.RockiotTag.tag.util.ThemedDialogHelper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,14 +63,6 @@ public class DeviceListActivity extends AppCompatActivity {
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         
         setContentView(R.layout.activity_device_list);
-
-        // 设置状态栏白色背景和深色图标
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            getWindow().setStatusBarColor(Color.parseColor("#FFFFFF"));
-            getWindow().getDecorView().setSystemUiVisibility(
-                getWindow().getDecorView().getSystemUiVisibility() 
-                | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-        }
 
         LinearLayout titleBar = findViewById(R.id.title_bar);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -198,6 +194,7 @@ public class DeviceListActivity extends AppCompatActivity {
         });
 
         loadBoundDevices();
+        applyTheme(ThemedDialogHelper.isDarkModeEnabled(this));
     }
     
     private void enterMultiSelectMode() {
@@ -263,7 +260,7 @@ public class DeviceListActivity extends AppCompatActivity {
             return;
         }
         
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        AlertDialog.Builder builder = ThemedDialogHelper.createBuilder(this);
         builder.setTitle(getString(R.string.batch_unbind));
         builder.setMessage(getString(R.string.batch_unbind_confirm, selectedPositions.size()));
         builder.setPositiveButton(getString(R.string.confirm), new DialogInterface.OnClickListener() {
@@ -343,8 +340,65 @@ public class DeviceListActivity extends AppCompatActivity {
         }).start();
     }
 
+    private void applyTheme(boolean isDarkMode) {
+        int bgColor = getResources().getColor(isDarkMode ? R.color.dark_background : R.color.background, null);
+        int topBarColor = getResources().getColor(isDarkMode ? R.color.dark_top_bar_background : R.color.top_bar_background, null);
+        int onSurfaceColor = getResources().getColor(isDarkMode ? R.color.dark_onSurface : R.color.onSurface, null);
+        int textSecColor = getResources().getColor(isDarkMode ? R.color.dark_text_secondary : R.color.text_secondary, null);
+        int cardColor = getResources().getColor(isDarkMode ? R.color.dark_card_background : R.color.white, null);
+        int dividerColor = getResources().getColor(isDarkMode ? R.color.dark_divider : R.color.text_secondary, null);
+
+        View root = findViewById(R.id.device_list_root);
+        if (root != null) {
+            root.setBackgroundColor(bgColor);
+        }
+
+        LinearLayout titleBar = findViewById(R.id.title_bar);
+        if (titleBar != null) {
+            titleBar.setBackgroundColor(topBarColor);
+            for (int i = 0; i < titleBar.getChildCount(); i++) {
+                View child = titleBar.getChildAt(i);
+                if (child instanceof TextView) {
+                    ((TextView) child).setTextColor(onSurfaceColor);
+                }
+            }
+        }
+
+        if (boundDeviceListView != null) {
+            boundDeviceListView.setBackgroundColor(cardColor);
+            boundDeviceListView.setDivider(new android.graphics.drawable.ColorDrawable(dividerColor));
+        }
+        if (emptyText != null) {
+            emptyText.setTextColor(textSecColor);
+            emptyText.setBackgroundColor(bgColor);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (isDarkMode) {
+                getWindow().setStatusBarColor(topBarColor);
+                getWindow().getDecorView().setSystemUiVisibility(
+                    getWindow().getDecorView().getSystemUiVisibility()
+                    & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            } else {
+                getWindow().setStatusBarColor(Color.parseColor("#FFFFFF"));
+                getWindow().getDecorView().setSystemUiVisibility(
+                    getWindow().getDecorView().getSystemUiVisibility()
+                    | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+            }
+        }
+
+        if (boundDeviceAdapter != null) {
+            boundDeviceAdapter.setDarkMode(isDarkMode);
+            boundDeviceAdapter.notifyDataSetChanged();
+        }
+    }
+
     private void showEditDeviceDialog(final Device device, final int position) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        final boolean darkMode = ThemedDialogHelper.isDarkModeEnabled(this);
+        int labelColor = getResources().getColor(darkMode ? R.color.dark_text_secondary : R.color.text_secondary, null);
+        int valueColor = getResources().getColor(darkMode ? R.color.dark_onSurface : R.color.onSurface, null);
+
+        AlertDialog.Builder builder = ThemedDialogHelper.createBuilder(this);
         builder.setTitle(getString(R.string.edit_device));
 
         LinearLayout layout = new LinearLayout(this);
@@ -354,84 +408,43 @@ public class DeviceListActivity extends AppCompatActivity {
         TextView deviceNumLabel = new TextView(this);
         deviceNumLabel.setText(getString(R.string.device_num));
         deviceNumLabel.setTextSize(12);
-        deviceNumLabel.setTextColor(0xFF888888);
+        deviceNumLabel.setTextColor(labelColor);
         layout.addView(deviceNumLabel);
 
         TextView deviceNumText = new TextView(this);
         deviceNumText.setText(device.getDeviceNum() != null ? device.getDeviceNum() : device.getDeviceId());
         deviceNumText.setTextSize(16);
-        deviceNumText.setTextColor(0xFF333333);
+        deviceNumText.setTextColor(valueColor);
         deviceNumText.setPadding(0, 0, 0, 24);
         layout.addView(deviceNumText);
 
         TextView nickNameLabel = new TextView(this);
         nickNameLabel.setText(getString(R.string.device_nickname));
         nickNameLabel.setTextSize(12);
-        nickNameLabel.setTextColor(0xFF888888);
+        nickNameLabel.setTextColor(labelColor);
         layout.addView(nickNameLabel);
 
         final EditText nickNameEditText = new EditText(this);
         nickNameEditText.setHint(getString(R.string.enter_device_nickname));
         nickNameEditText.setText(device.getName());
         nickNameEditText.setSingleLine();
+        if (darkMode) {
+            nickNameEditText.setTextColor(valueColor);
+            nickNameEditText.setHintTextColor(labelColor);
+        }
         nickNameEditText.setPadding(0, 0, 0, 16);
         layout.addView(nickNameEditText);
 
         TextView tagLabel = new TextView(this);
         tagLabel.setText(getString(R.string.device_tag));
         tagLabel.setTextSize(12);
-        tagLabel.setTextColor(0xFF888888);
+        tagLabel.setTextColor(labelColor);
         layout.addView(tagLabel);
 
-        final java.util.List<String> tagList = new java.util.ArrayList<>(java.util.Arrays.asList(
-            getString(R.string.no_tag),
-            "dog",
-            "boy", 
-            "car",
-            "bike",
-            "bank_card",
-            "girl",
-            "key",
-            "moto",
-            "pig",
-            "wallet",
-            "bag",
-            "cat",
-            "bird"
-        ));
-
-        final java.util.List<String> iconList = new java.util.ArrayList<>(java.util.Arrays.asList(
-            "",
-            "🐕",
-            "👦",
-            "🚗",
-            "🚲",
-            "💳",
-            "👧",
-            "🔑",
-            "🏍️",
-            "🐷",
-            "👛",
-            "👜",
-            "🐱",
-            "🐦"
-        ));
+        final java.util.List<String> tagList = TagPickerHelper.buildTagList(this);
 
         final Spinner tagSpinner = new Spinner(this);
-        TagAdapter tagAdapter = new TagAdapter(this, tagList, iconList);
-        tagSpinner.setAdapter(tagAdapter);
-
-        String currentTag = device.getTag();
-        int selectedPosition = 0;
-        if (currentTag != null && !currentTag.isEmpty()) {
-            for (int i = 0; i < tagList.size(); i++) {
-                if (tagList.get(i).equals(currentTag)) {
-                    selectedPosition = i;
-                    break;
-                }
-            }
-        }
-        tagSpinner.setSelection(selectedPosition);
+        TagPickerHelper.setupTagSpinner(this, tagSpinner, device.getTag());
         layout.addView(tagSpinner);
 
         builder.setView(layout);
@@ -447,7 +460,7 @@ public class DeviceListActivity extends AppCompatActivity {
                 }
 
                 int tagPosition = tagSpinner.getSelectedItemPosition();
-                String newTag = tagPosition > 0 ? tagList.get(tagPosition) : "";
+                String newTag = TagPickerHelper.getTagFromPosition(tagList, tagPosition);
 
                 // 直接从文本获取设备号，确保值正确
                 final String deviceNumFromUI = deviceNumText.getText().toString().trim();
@@ -501,6 +514,8 @@ public class DeviceListActivity extends AppCompatActivity {
                             runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
+                                    BoundDevicesHelper.updateNickName(
+                                            DeviceListActivity.this, deviceNumFromUI, finalNickName);
                                     Log.d(TAG, "=== UI Thread: Reloading devices ===");
                                                                         
                                     // 方法1：直接更新列表中的设备对象
@@ -570,7 +585,7 @@ public class DeviceListActivity extends AppCompatActivity {
     }
 
     private void showUnbindDialog(final Device device, final int position) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        AlertDialog.Builder builder = ThemedDialogHelper.createBuilder(this);
         builder.setTitle(getString(R.string.unbind_device));
         builder.setMessage(getString(R.string.unbind_confirm_message, device.getName()));
         builder.setPositiveButton(getString(R.string.confirm), new DialogInterface.OnClickListener() {

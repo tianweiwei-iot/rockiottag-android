@@ -64,4 +64,23 @@
         <item name="colorSurface">@color/surface</item>
         <item name="colorOnSurface">@color/onSurface</item>
     </style>
+
+    <!-- 手动深色模式专用对话框主题（不依赖 UI_MODE_NIGHT / values-night） -->
+    <style name="AlertDialogTheme.Dark" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
+        <item name="colorSurface">@color/dark_surface</item>
+        <item name="android:colorBackground">@color/dark_surface</item>
+        <item name="colorOnSurface">@color/dark_onSurface</item>
+        <item name="android:textColorPrimary">@color/dark_onSurface</item>
+        <item name="textColorAlertDialogListItem">@color/dark_onSurface</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/DarkAlertDialogTitle</item>
+        <item name="materialAlertDialogBodyTextStyle">@style/DarkAlertDialogBody</item>
+    </style>
+
+    <style name="DarkAlertDialogTitle" parent="MaterialAlertDialog.MaterialComponents.Title.Text">
+        <item name="android:textColor">@color/dark_onSurface</item>
+    </style>
+
+    <style name="DarkAlertDialogBody" parent="MaterialAlertDialog.MaterialComponents.Body.Text">
+        <item name="android:textColor">@color/dark_onSurface</item>
+    </style>
 </resources>
