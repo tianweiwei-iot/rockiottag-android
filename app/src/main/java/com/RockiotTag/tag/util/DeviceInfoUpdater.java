@@ -32,7 +32,7 @@ public class DeviceInfoUpdater {
         if (addressText == null) return;
         
         if (address == null || address.isEmpty() || "not_reported".equals(address)) {
-            addressText.setText(context.getString(R.string.position_not_reported));
+            addressText.setText(context.getString(R.string.position_empty));
         } else {
             addressText.setText(context.getString(R.string.position_with_address, address));
         }
@@ -45,7 +45,7 @@ public class DeviceInfoUpdater {
         if (timeText == null) return;
         
         if (timestamp <= 0) {
-            timeText.setText(context.getString(R.string.last_update_not_reported));
+            timeText.setText(context.getString(R.string.last_update_empty));
         } else {
             timeText.setText(context.getString(R.string.last_update_with_time, 
                 TimeFormatter.formatSmartTime(context, timestamp)));
@@ -59,13 +59,13 @@ public class DeviceInfoUpdater {
         if (timeText == null) return;
         
         if ("not_reported".equals(timeStr)) {
-            timeText.setText(context.getString(R.string.last_update_not_reported));
+            timeText.setText(context.getString(R.string.last_update_empty));
         } else {
             try {
                 long timestamp = Long.parseLong(timeStr);
                 updateTime(timeText, timestamp, context);
             } catch (NumberFormatException e) {
-                timeText.setText(context.getString(R.string.last_update_not_reported));
+                timeText.setText(context.getString(R.string.last_update_empty));
             }
         }
     }
@@ -75,15 +75,11 @@ public class DeviceInfoUpdater {
      */
     public static void resetToDefault(TextView batteryText, TextView addressText, TextView timeText, 
                                      android.content.Context context) {
-        // 【关键修复】不要重置电池电量，让 LiveData 控制电池显示
-        // if (batteryText != null) {
-        //     batteryText.setText(context.getString(R.string.battery_level_unknown));
-        // }
         if (addressText != null) {
-            addressText.setText(context.getString(R.string.position_not_reported));
+            addressText.setText(context.getString(R.string.position_empty));
         }
         if (timeText != null) {
-            timeText.setText(context.getString(R.string.last_update_not_reported));
+            timeText.setText(context.getString(R.string.last_update_empty));
         }
     }
 }
