@@ -3,6 +3,7 @@ package com.RockiotTag.tag;
 import android.util.Log;
 
 import com.RockiotTag.tag.network.HttpHelper;
+import com.RockiotTag.tag.util.LogUtil;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -39,7 +40,7 @@ public class UserApiService {
             params.addProperty("username", username);
             params.addProperty("password", password);
 
-            Log.d(TAG, "Register request: " + url);
+            LogUtil.d(TAG, "Register request: " + url);
             HttpHelper.HttpResponse response = HttpHelper.post(url, params.toString());
 
             return parseAuthResponse(response);
@@ -65,7 +66,7 @@ public class UserApiService {
             params.addProperty("username", username);
             params.addProperty("password", password);
 
-            Log.d(TAG, "Login request: " + url);
+            LogUtil.d(TAG, "Login request: " + url);
             HttpHelper.HttpResponse response = HttpHelper.post(url, params.toString());
 
             return parseAuthResponse(response);
@@ -86,7 +87,7 @@ public class UserApiService {
     public boolean logout(String token) {
         try {
             String url = ApiConfig.MY_SERVER_URL + "/user/logout";
-            Log.d(TAG, "Logout request: " + url);
+            LogUtil.d(TAG, "Logout request: " + url);
 
             HttpURLConnection conn = (HttpURLConnection) new java.net.URL(url).openConnection();
             conn.setRequestMethod("POST");
@@ -98,7 +99,7 @@ public class UserApiService {
             conn.getOutputStream().write("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
             int responseCode = conn.getResponseCode();
-            Log.d(TAG, "Logout response code: " + responseCode);
+            LogUtil.d(TAG, "Logout response code: " + responseCode);
             conn.disconnect();
 
             return responseCode >= 200 && responseCode < 300;
@@ -116,7 +117,7 @@ public class UserApiService {
     public UserProfile getUserProfile(String token) {
         try {
             String url = ApiConfig.MY_SERVER_URL + "/user/profile";
-            Log.d(TAG, "Get profile request: " + url);
+            LogUtil.d(TAG, "Get profile request: " + url);
 
             HttpURLConnection conn = (HttpURLConnection) new java.net.URL(url).openConnection();
             conn.setRequestMethod("GET");
@@ -126,7 +127,7 @@ public class UserApiService {
             conn.setReadTimeout(30000);
 
             int responseCode = conn.getResponseCode();
-            Log.d(TAG, "Get profile response code: " + responseCode);
+            LogUtil.d(TAG, "Get profile response code: " + responseCode);
 
             java.io.BufferedReader in = new java.io.BufferedReader(
                 new java.io.InputStreamReader(
@@ -141,7 +142,7 @@ public class UserApiService {
             conn.disconnect();
 
             String responseString = response.toString();
-            Log.d(TAG, "Get profile response: " + responseString);
+            LogUtil.d(TAG, "Get profile response: " + responseString);
 
             if (responseCode >= 200 && responseCode < 300 && responseString != null) {
                 Gson gson = new Gson();
@@ -188,7 +189,7 @@ public class UserApiService {
             params.addProperty("oldPassword", oldPassword);
             params.addProperty("newPassword", newPassword);
 
-            Log.d(TAG, "Update password request: " + url);
+            LogUtil.d(TAG, "Update password request: " + url);
             HttpHelper.HttpResponse response = putWithAuth(url, params.toString(), token);
             return parseAuthResponse(response);
         } catch (Exception e) {
@@ -206,7 +207,7 @@ public class UserApiService {
             JsonObject params = new JsonObject();
             params.addProperty(key, value);
 
-            Log.d(TAG, "PUT request: " + url);
+            LogUtil.d(TAG, "PUT request: " + url);
             HttpHelper.HttpResponse response = putWithAuth(url, params.toString(), token);
             return parseAuthResponse(response);
         } catch (Exception e) {
@@ -230,7 +231,7 @@ public class UserApiService {
             conn.setReadTimeout(30000);
             conn.setDoOutput(true);
 
-            Log.d(TAG, "PUT request body: " + jsonBody);
+            LogUtil.d(TAG, "PUT request body: " + jsonBody);
 
             try (java.io.OutputStream os = conn.getOutputStream()) {
                 os.write(jsonBody.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -250,7 +251,7 @@ public class UserApiService {
             in.close();
 
             String responseString = response.toString();
-            Log.d(TAG, "PUT response code: " + responseCode + ", body: " + responseString);
+            LogUtil.d(TAG, "PUT response code: " + responseCode + ", body: " + responseString);
 
             return new HttpHelper.HttpResponse(responseCode, responseString, null);
         } catch (Exception e) {

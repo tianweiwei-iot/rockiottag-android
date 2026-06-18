@@ -2,6 +2,7 @@ package com.RockiotTag.tag.viewmodel;
 
 import android.app.Application;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
@@ -56,7 +57,7 @@ public class WebViewMapViewModel extends AndroidViewModel {
      * 加载地图页面
      */
     public void loadMapPage(String url) {
-        Log.d(TAG, "Loading map page: " + url);
+        LogUtil.d(TAG, "Loading map page: " + url);
         
         if (url == null || url.isEmpty()) {
             errorMessage.setValue("无效的URL");
@@ -85,7 +86,7 @@ public class WebViewMapViewModel extends AndroidViewModel {
     public void onPageFinished() {
         isLoading.setValue(false);
         progress.setValue(100);
-        Log.d(TAG, "Page loading finished");
+        LogUtil.d(TAG, "Page loading finished");
     }
     
     /**

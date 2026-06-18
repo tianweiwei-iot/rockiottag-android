@@ -14,6 +14,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.fragment.app.Fragment;
+import com.RockiotTag.tag.util.LogUtil;
 
 public class ProfileFragment extends Fragment {
     private static final String TAG = "ProfileFragment";
@@ -234,7 +235,7 @@ public class ProfileFragment extends Fragment {
             dbHelper.deleteAllDevices();
             // 清除所有轨迹/定位记录
             dbHelper.deleteAllLocationRecords();
-            android.util.Log.d("ProfileFragment", "Cleared all local device data and location records");
+            LogUtil.d("ProfileFragment", "Cleared all local device data and location records");
         } catch (Exception e) {
             android.util.Log.e("ProfileFragment", "Error clearing device data: " + e.getMessage(), e);
         }

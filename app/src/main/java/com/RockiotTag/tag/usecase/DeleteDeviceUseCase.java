@@ -5,6 +5,7 @@ import android.util.Log;
 
 import com.RockiotTag.tag.DatabaseHelper;
 import com.RockiotTag.tag.repository.DeviceRepository;
+import com.RockiotTag.tag.util.LogUtil;
 
 /**
  * 删除设备的UseCase
@@ -27,7 +28,7 @@ public class DeleteDeviceUseCase extends BaseUseCase<String, Boolean> {
     
     @Override
     protected Boolean executeSync(String deviceId) throws Exception {
-        Log.d(TAG, "Deleting device: " + deviceId);
+        LogUtil.d(TAG, "Deleting device: " + deviceId);
         
         // 1. 参数验证
         if (deviceId == null || deviceId.isEmpty()) {
@@ -45,7 +46,7 @@ public class DeleteDeviceUseCase extends BaseUseCase<String, Boolean> {
             int deletedCount = dbHelper.deleteDevice(deviceId);
             
             if (deletedCount > 0) {
-                Log.d(TAG, "Device deleted successfully: " + deviceId);
+                LogUtil.d(TAG, "Device deleted successfully: " + deviceId);
                 return true;
             } else {
                 Log.w(TAG, "Device not found in database: " + deviceId);

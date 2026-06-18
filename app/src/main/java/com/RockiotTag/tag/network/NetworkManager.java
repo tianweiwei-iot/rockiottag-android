@@ -2,6 +2,7 @@ package com.RockiotTag.tag.network;
 
 import android.content.Context;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.util.UserFriendlyError;
@@ -55,7 +56,7 @@ public class NetworkManager {
             
             for (int attempt = 1; attempt <= retryCount; attempt++) {
                 try {
-                    Log.d(TAG, "API call attempt " + attempt + "/" + retryCount);
+                    LogUtil.d(TAG, "API call attempt " + attempt + "/" + retryCount);
                     T result = apiCall.call();
                     
                     // 在主线程回调

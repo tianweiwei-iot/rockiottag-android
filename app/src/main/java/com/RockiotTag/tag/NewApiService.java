@@ -3,6 +3,7 @@ package com.RockiotTag.tag;
 import android.util.Log;
 
 import com.RockiotTag.tag.network.HttpHelper;
+import com.RockiotTag.tag.util.LogUtil;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -28,7 +29,7 @@ public class NewApiService {
     
     public static void setApiBaseUrl(String url) {
         API_BASE_URL = url;
-        Log.d(TAG, "API Base URL set to: " + url);
+        LogUtil.d(TAG, "API Base URL set to: " + url);
     }
     
     private NewApiService() {
@@ -53,7 +54,7 @@ public class NewApiService {
      * 登录方法（API Key 模式下不需要登录，直接返回成功）
      */
     public ApiResponse login(String cid, String customerCode, String password) {
-        Log.d(TAG, "Login called (API Key mode - no actual login needed)");
+        LogUtil.d(TAG, "Login called (API Key mode - no actual login needed)");
         ApiResponse response = new ApiResponse();
         response.setStatusCode(200);
         response.setStatus(200);
@@ -63,15 +64,15 @@ public class NewApiService {
     }
     
     public List<DeviceInfo> getDevices() {
-        Log.d(TAG, "getDevices called");
+        LogUtil.d(TAG, "getDevices called");
         List<DeviceInfo> deviceInfoList = new ArrayList<>();
         
         // 使用公开API获取所有设备（包含MAC地址）
         ApiResponse response = getRequest("/devices", false);
-        Log.d(TAG, "getDevices response - success: " + (response != null ? response.isSuccess() : "null"));
+        LogUtil.d(TAG, "getDevices response - success: " + (response != null ? response.isSuccess() : "null"));
         
         if (response != null && response.isSuccess() && response.getRawResponse() != null) {
-            Log.d(TAG, "Raw response: " + response.getRawResponse());
+            LogUtil.d(TAG, "Raw response: " + response.getRawResponse());
             try {
                 Gson gson = new Gson();
                 JsonParser parser = new JsonParser();
@@ -79,7 +80,7 @@ public class NewApiService {
                 
                 if (jsonElement.isJsonArray()) {
                     var devicesArray = jsonElement.getAsJsonArray();
-                    Log.d(TAG, "Parsing " + devicesArray.size() + " devices from array");
+                    LogUtil.d(TAG, "Parsing " + devicesArray.size() + " devices from array");
                     for (int i = 0; i < devicesArray.size(); i++) {
                         JsonObject deviceObj = devicesArray.get(i).getAsJsonObject();
                         DeviceInfo info = new DeviceInfo();
@@ -87,7 +88,7 @@ public class NewApiService {
                         info.nickName = getStringValue(deviceObj, "nickName");
                         info.mac = getStringValue(deviceObj, "mac");
                         deviceInfoList.add(info);
-                        Log.d(TAG, "  Device[" + i + "]: num=" + info.deviceNum + ", name=" + info.nickName + ", mac=" + info.mac);
+                        LogUtil.d(TAG, "  Device[" + i + "]: num=" + info.deviceNum + ", name=" + info.nickName + ", mac=" + info.mac);
                     }
                 } else if (jsonElement.isJsonObject()) {
                     JsonObject jsonObject = jsonElement.getAsJsonObject();
@@ -97,11 +98,11 @@ public class NewApiService {
                         info.nickName = getStringValue(jsonObject, "nickName");
                         info.mac = getStringValue(jsonObject, "mac");
                         deviceInfoList.add(info);
-                        Log.d(TAG, "  Single device: num=" + info.deviceNum + ", name=" + info.nickName + ", mac=" + info.mac);
+                        LogUtil.d(TAG, "  Single device: num=" + info.deviceNum + ", name=" + info.nickName + ", mac=" + info.mac);
                     }
                 }
                 
-                Log.d(TAG, "Parsed " + deviceInfoList.size() + " devices");
+                LogUtil.d(TAG, "Parsed " + deviceInfoList.size() + " devices");
             } catch (Exception e) {
                 Log.e(TAG, "Error parsing devices: " + e.getMessage(), e);
             }
@@ -115,10 +116,10 @@ public class NewApiService {
     }
     
     public ApiResponse getDeviceList(int pageNo, int pageSize) {
-        Log.d(TAG, "getDeviceList called with pageNo: " + pageNo + ", pageSize: " + pageSize);
+        LogUtil.d(TAG, "getDeviceList called with pageNo: " + pageNo + ", pageSize: " + pageSize);
         
         ApiResponse response = getRequest("/devices", false);
-        Log.d(TAG, "getDeviceList response - success: " + (response != null ? response.isSuccess() : "null"));
+        LogUtil.d(TAG, "getDeviceList response - success: " + (response != null ? response.isSuccess() : "null"));
         
         return response;
     }
@@ -128,7 +129,7 @@ public class NewApiService {
     }
     
     public ApiResponse bindDevice(String deviceNum, String sn, String nickName, String customerCode) {
-        Log.d(TAG, "bindDevice called with deviceNum: " + deviceNum + ", sn: " + sn + ", nickName: " + nickName + ", customerCode: " + customerCode);
+        LogUtil.d(TAG, "bindDevice called with deviceNum: " + deviceNum + ", sn: " + sn + ", nickName: " + nickName + ", customerCode: " + customerCode);
         
         Map<String, String> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
@@ -147,7 +148,7 @@ public class NewApiService {
     }
     
     public ApiResponse unbindDevice(String deviceNum, String customerCode) {
-        Log.d(TAG, "unbindDevice called for deviceNum: " + deviceNum + ", customerCode: " + customerCode);
+        LogUtil.d(TAG, "unbindDevice called for deviceNum: " + deviceNum + ", customerCode: " + customerCode);
         
         Map<String, String> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
@@ -160,7 +161,7 @@ public class NewApiService {
     }
     
     public ApiResponse refreshLocation(String deviceNum, String customerCode) {
-        Log.d(TAG, "refreshLocation called for deviceNum: " + deviceNum + ", customerCode: " + customerCode);
+        LogUtil.d(TAG, "refreshLocation called for deviceNum: " + deviceNum + ", customerCode: " + customerCode);
         
         Map<String, String> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
@@ -169,11 +170,11 @@ public class NewApiService {
     }
     
     public ApiResponse syncLocation(String deviceNum, double latitude, double longitude, int battery, long timestamp) {
-        Log.d(TAG, "syncLocation called - deviceNum: " + deviceNum + ", lat: " + latitude + ", lng: " + longitude + ", battery: " + battery);
+        LogUtil.d(TAG, "syncLocation called - deviceNum: " + deviceNum + ", lat: " + latitude + ", lng: " + longitude + ", battery: " + battery);
         
         double roundedLat = roundTo8Decimals(latitude);
         double roundedLng = roundTo8Decimals(longitude);
-        Log.d(TAG, "Coordinates rounded: lat=" + latitude + " -> " + roundedLat + ", lng=" + longitude + " -> " + roundedLng);
+        LogUtil.d(TAG, "Coordinates rounded: lat=" + latitude + " -> " + roundedLat + ", lng=" + longitude + " -> " + roundedLng);
         
         Map<String, Object> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
@@ -194,21 +195,21 @@ public class NewApiService {
     }
     
     public List<LocationInfo> getLocations(String deviceNum, long startTime, long endTime, String customerCode) {
-        Log.d(TAG, "=== getLocations START ===");
-        Log.d(TAG, "deviceNum: " + deviceNum + ", startTime: " + startTime + ", endTime: " + endTime + ", customerCode: " + customerCode);
+        LogUtil.d(TAG, "=== getLocations START ===");
+        LogUtil.d(TAG, "deviceNum: " + deviceNum + ", startTime: " + startTime + ", endTime: " + endTime + ", customerCode: " + customerCode);
         List<LocationInfo> locationInfoList = new ArrayList<>();
         
         String endpoint = "/locations?deviceNum=" + deviceNum;
         if (startTime > 0 && endTime > 0) {
             endpoint += "&startTime=" + startTime + "&endTime=" + endTime;
         }
-        Log.d(TAG, "Request endpoint: " + endpoint);
+        LogUtil.d(TAG, "Request endpoint: " + endpoint);
         
         ApiResponse response = getRequest(endpoint, false, customerCode);
-        Log.d(TAG, "Response received - success: " + (response != null ? response.isSuccess() : "null"));
+        LogUtil.d(TAG, "Response received - success: " + (response != null ? response.isSuccess() : "null"));
         if (response != null) {
-            Log.d(TAG, "Response code: " + response.getStatusCode());
-            Log.d(TAG, "Raw response length: " + (response.getRawResponse() != null ? response.getRawResponse().length() : "null"));
+            LogUtil.d(TAG, "Response code: " + response.getStatusCode());
+            LogUtil.d(TAG, "Raw response length: " + (response.getRawResponse() != null ? response.getRawResponse().length() : "null"));
         }
         
         if (response != null && response.isSuccess() && response.getRawResponse() != null) {
@@ -219,7 +220,7 @@ public class NewApiService {
                 
                 if (jsonElement.isJsonArray()) {
                     var locationsArray = jsonElement.getAsJsonArray();
-                    Log.d(TAG, "Response is JSON array with " + locationsArray.size() + " elements");
+                    LogUtil.d(TAG, "Response is JSON array with " + locationsArray.size() + " elements");
                     for (int i = 0; i < locationsArray.size(); i++) {
                         JsonObject locationObj = locationsArray.get(i).getAsJsonObject();
                         LocationInfo info = new LocationInfo();
@@ -230,11 +231,11 @@ public class NewApiService {
                         info.timestamp = getLongValue(locationObj, "timestamp", 0);
                         locationInfoList.add(info);
                         if (i < 3 || i >= locationsArray.size() - 3) {
-                            Log.d(TAG, "Location[" + i + "]: lat=" + info.latitude + ", lng=" + info.longitude + ", ts=" + info.timestamp);
+                            LogUtil.d(TAG, "Location[" + i + "]: lat=" + info.latitude + ", lng=" + info.longitude + ", ts=" + info.timestamp);
                         }
                     }
                 } else if (jsonElement.isJsonObject()) {
-                    Log.d(TAG, "Response is JSON object");
+                    LogUtil.d(TAG, "Response is JSON object");
                     JsonObject jsonObject = jsonElement.getAsJsonObject();
                     if (jsonObject.has("id")) {
                         LocationInfo info = new LocationInfo();
@@ -244,11 +245,11 @@ public class NewApiService {
                         info.battery = getIntValue(jsonObject, "battery", 0);
                         info.timestamp = getLongValue(jsonObject, "timestamp", 0);
                         locationInfoList.add(info);
-                        Log.d(TAG, "Single location: lat=" + info.latitude + ", lng=" + info.longitude + ", ts=" + info.timestamp);
+                        LogUtil.d(TAG, "Single location: lat=" + info.latitude + ", lng=" + info.longitude + ", ts=" + info.timestamp);
                     }
                 }
                 
-                Log.d(TAG, "=== getLocations END: Parsed " + locationInfoList.size() + " locations ===");
+                LogUtil.d(TAG, "=== getLocations END: Parsed " + locationInfoList.size() + " locations ===");
             } catch (Exception e) {
                 Log.e(TAG, "Error parsing locations: " + e.getMessage(), e);
             }
@@ -260,24 +261,24 @@ public class NewApiService {
     }
     
     public DeviceInfo getDeviceInfo(String deviceNum) {
-        Log.d(TAG, "getDeviceInfo called for deviceNum: " + deviceNum);
+        LogUtil.d(TAG, "getDeviceInfo called for deviceNum: " + deviceNum);
         
         List<DeviceInfo> devices = getDevices();
         for (DeviceInfo info : devices) {
             if (deviceNum.equals(info.deviceNum)) {
-                Log.d(TAG, "Found device: " + deviceNum + ", trying to get locations...");
+                LogUtil.d(TAG, "Found device: " + deviceNum + ", trying to get locations...");
                 try {
                     List<LocationInfo> locations = getLocations(deviceNum, 0, 0);
-                    Log.d(TAG, "Got " + (locations != null ? locations.size() : 0) + " locations");
+                    LogUtil.d(TAG, "Got " + (locations != null ? locations.size() : 0) + " locations");
                     if (locations != null && !locations.isEmpty()) {
                         LocationInfo latestLocation = locations.get(0);
                         info.latitude = latestLocation.latitude;
                         info.longitude = latestLocation.longitude;
                         info.battery = latestLocation.battery;
                         info.timestamp = latestLocation.timestamp;
-                        Log.d(TAG, "Set location info: lat=" + info.latitude + ", lng=" + info.longitude + ", battery=" + info.battery);
+                        LogUtil.d(TAG, "Set location info: lat=" + info.latitude + ", lng=" + info.longitude + ", battery=" + info.battery);
                     } else {
-                        Log.d(TAG, "No locations found for device: " + deviceNum);
+                        LogUtil.d(TAG, "No locations found for device: " + deviceNum);
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Error getting locations: " + e.getMessage(), e);
@@ -291,21 +292,21 @@ public class NewApiService {
     }
     
     public ApiResponse syncAll() {
-        Log.d(TAG, "syncAll called");
+        LogUtil.d(TAG, "syncAll called");
         ApiResponse response = postRequest("/sync/all", new HashMap<>(), false);
-        Log.d(TAG, "syncAll response - success: " + (response != null ? response.isSuccess() : "null"));
+        LogUtil.d(TAG, "syncAll response - success: " + (response != null ? response.isSuccess() : "null"));
         return response;
     }
     
     public ApiResponse syncDevice(String deviceNum) {
-        Log.d(TAG, "syncDevice called for deviceNum: " + deviceNum);
+        LogUtil.d(TAG, "syncDevice called for deviceNum: " + deviceNum);
         ApiResponse response = postRequest("/sync/device/" + deviceNum, new HashMap<>(), false);
-        Log.d(TAG, "syncDevice response - success: " + (response != null ? response.isSuccess() : "null"));
+        LogUtil.d(TAG, "syncDevice response - success: " + (response != null ? response.isSuccess() : "null"));
         return response;
     }
     
     public ApiResponse bindVendorDevice(String deviceNum, String nickName) {
-        Log.d(TAG, "bindVendorDevice called for deviceNum: " + deviceNum + ", nickName: " + nickName);
+        LogUtil.d(TAG, "bindVendorDevice called for deviceNum: " + deviceNum + ", nickName: " + nickName);
         
         Map<String, String> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
@@ -314,7 +315,7 @@ public class NewApiService {
         }
         
         ApiResponse response = postRequest("/sync/bindVendorDevice", params, false);
-        Log.d(TAG, "bindVendorDevice response - success: " + (response != null ? response.isSuccess() : "null"));
+        LogUtil.d(TAG, "bindVendorDevice response - success: " + (response != null ? response.isSuccess() : "null"));
         return response;
     }
     
@@ -323,7 +324,7 @@ public class NewApiService {
     }
 
     public ApiResponse updateDevice(String deviceNum, String nickName, String customerCode) {
-        Log.d(TAG, "updateDevice called for deviceNum: " + deviceNum + ", nickName: " + nickName + ", customerCode: " + customerCode);
+        LogUtil.d(TAG, "updateDevice called for deviceNum: " + deviceNum + ", nickName: " + nickName + ", customerCode: " + customerCode);
 
         Map<String, String> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
@@ -332,7 +333,7 @@ public class NewApiService {
         }
 
         ApiResponse response = postRequest("/devices/update", params, false, customerCode);
-        Log.d(TAG, "updateDevice response - success: " + (response != null ? response.isSuccess() : "null"));
+        LogUtil.d(TAG, "updateDevice response - success: " + (response != null ? response.isSuccess() : "null"));
         return response;
     }
     
@@ -345,17 +346,17 @@ public class NewApiService {
             deviceNum = deviceNum.trim().replaceAll("\\s+", "").toUpperCase();
         }
         
-        Log.d(TAG, "getDeviceLatest called for deviceNum: [" + deviceNum + "], customerCode: " + customerCode);
-        Log.d(TAG, "Using API Key: " + ApiConfig.getApiKeyForCustomer(customerCode));
+        LogUtil.d(TAG, "getDeviceLatest called for deviceNum: [" + deviceNum + "], customerCode: " + customerCode);
+        LogUtil.d(TAG, "Using API Key: " + ApiConfig.getApiKeyForCustomer(customerCode));
         
         ApiResponse response = getRequest("/devices/" + deviceNum + "/latest", false, customerCode);
-        Log.d(TAG, "getDeviceLatest response - statusCode: " + (response != null ? response.getStatusCode() : "null response"));
-        Log.d(TAG, "getDeviceLatest response - success: " + (response != null ? response.isSuccess() : "null"));
+        LogUtil.d(TAG, "getDeviceLatest response - statusCode: " + (response != null ? response.getStatusCode() : "null response"));
+        LogUtil.d(TAG, "getDeviceLatest response - success: " + (response != null ? response.isSuccess() : "null"));
         
         if (response != null) {
-            Log.d(TAG, "=== Raw Response ===");
-            Log.d(TAG, response.getRawResponse() != null ? response.getRawResponse() : "null body");
-            Log.d(TAG, "=== End Raw Response ===");
+            LogUtil.d(TAG, "=== Raw Response ===");
+            LogUtil.d(TAG, response.getRawResponse() != null ? response.getRawResponse() : "null body");
+            LogUtil.d(TAG, "=== End Raw Response ===");
             
             if (response.getRawResponse() != null) {
                 try {
@@ -383,7 +384,7 @@ public class NewApiService {
                         info.address = getStringValue(json, "address");
                         info.updatedAt = getStringValue(json, "updatedAt");
                         
-                        Log.d(TAG, "Got device latest info: deviceNum=" + info.deviceNum + ", lat=" + info.latitude + ", lng=" + info.longitude + 
+                        LogUtil.d(TAG, "Got device latest info: deviceNum=" + info.deviceNum + ", lat=" + info.latitude + ", lng=" + info.longitude + 
                               ", battery=" + info.battery + ", mac=" + info.mac + ", address=" + info.address);
                         
                         if (info.deviceNum != null && !info.deviceNum.isEmpty()) {
@@ -427,13 +428,13 @@ public class NewApiService {
         try {
             String url = API_BASE_URL + endpoint;
             String jsonParams = buildJson(params);
-            Log.d(TAG, "Request: " + jsonParams + ", customerCode: " + customerCode);
+            LogUtil.d(TAG, "Request: " + jsonParams + ", customerCode: " + customerCode);
             
             HttpHelper.HttpResponse response = HttpHelper.post(url, jsonParams, customerCode);
             
-            Log.d(TAG, "Response code: " + response.statusCode);
+            LogUtil.d(TAG, "Response code: " + response.statusCode);
             if (response.isSuccess()) {
-                Log.d(TAG, "Response: " + response.body);
+                LogUtil.d(TAG, "Response: " + response.body);
             } else {
                 Log.e(TAG, "Error response: " + (response.error != null ? response.error : response.body));
             }
@@ -453,13 +454,13 @@ public class NewApiService {
         try {
             String url = API_BASE_URL + endpoint;
             String jsonParams = buildJsonFromObject(params);
-            Log.d(TAG, "Request: " + jsonParams + ", customerCode: " + customerCode);
+            LogUtil.d(TAG, "Request: " + jsonParams + ", customerCode: " + customerCode);
             
             HttpHelper.HttpResponse response = HttpHelper.post(url, jsonParams, customerCode);
             
-            Log.d(TAG, "Response code: " + response.statusCode);
+            LogUtil.d(TAG, "Response code: " + response.statusCode);
             if (response.isSuccess()) {
-                Log.d(TAG, "Response: " + response.body);
+                LogUtil.d(TAG, "Response: " + response.body);
             } else {
                 Log.e(TAG, "Error response: " + (response.error != null ? response.error : response.body));
             }
@@ -478,12 +479,12 @@ public class NewApiService {
     private ApiResponse getRequest(String endpoint, boolean requireAuth, String customerCode) {
         try {
             String url = API_BASE_URL + endpoint;
-            Log.d(TAG, "GET request: " + url + ", customerCode: " + customerCode);
+            LogUtil.d(TAG, "GET request: " + url + ", customerCode: " + customerCode);
             HttpHelper.HttpResponse response = HttpHelper.get(url, customerCode);
             
-            Log.d(TAG, "Response code: " + response.statusCode);
+            LogUtil.d(TAG, "Response code: " + response.statusCode);
             if (response.isSuccess()) {
-                Log.d(TAG, "Response: " + response.body);
+                LogUtil.d(TAG, "Response: " + response.body);
             } else {
                 Log.e(TAG, "Error response: " + (response.error != null ? response.error : response.body));
             }

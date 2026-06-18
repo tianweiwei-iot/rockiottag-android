@@ -6,6 +6,7 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Looper;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
@@ -38,7 +39,7 @@ public class GoogleLocationService {
     public GoogleLocationService(Context context) {
         this.context = context;
         this.fusedLocationClient = LocationServices.getFusedLocationProviderClient(context);
-        Log.d(TAG, "GoogleLocationService initialized for international version");
+        LogUtil.d(TAG, "GoogleLocationService initialized for international version");
     }
     
     /**
@@ -63,7 +64,7 @@ public class GoogleLocationService {
         }
         
         try {
-            Log.d(TAG, "Starting Google location service...");
+            LogUtil.d(TAG, "Starting Google location service...");
             
             // 创建位置请求
             LocationRequest locationRequest = new LocationRequest.Builder(
@@ -80,7 +81,7 @@ public class GoogleLocationService {
                         double longitude = location.getLongitude();
                         float accuracy = location.getAccuracy();
                         
-                        Log.d(TAG, "Location success: lat=" + latitude + ", lng=" + longitude 
+                        LogUtil.d(TAG, "Location success: lat=" + latitude + ", lng=" + longitude 
                             + ", accuracy=" + accuracy + "m");
                         
                         if (callback != null) {
@@ -110,7 +111,7 @@ public class GoogleLocationService {
                 Looper.getMainLooper()
             );
             
-            Log.d(TAG, "Google location service started");
+            LogUtil.d(TAG, "Google location service started");
             
         } catch (SecurityException e) {
             Log.e(TAG, "Security exception - missing location permissions", e);
@@ -132,7 +133,7 @@ public class GoogleLocationService {
         if (locationCallback != null) {
             fusedLocationClient.removeLocationUpdates(locationCallback);
             locationCallback = null;
-            Log.d(TAG, "Google location service stopped");
+            LogUtil.d(TAG, "Google location service stopped");
         }
     }
     
@@ -151,7 +152,7 @@ public class GoogleLocationService {
         }
         
         try {
-            Log.d(TAG, "Requesting single location update...");
+            LogUtil.d(TAG, "Requesting single location update...");
             
             fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                 .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener<Location>() {

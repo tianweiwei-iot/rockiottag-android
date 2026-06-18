@@ -3,6 +3,7 @@ package com.RockiotTag.tag.usecase;
 import android.util.Log;
 
 import com.RockiotTag.tag.repository.BLERepository;
+import com.RockiotTag.tag.util.LogUtil;
 
 /**
  * 触发蜂鸣器的UseCase
@@ -50,7 +51,7 @@ public class TriggerBuzzerUseCase extends BaseUseCase<Void, Boolean> {
      */
     @Override
     protected Boolean executeSync(Void unused) throws Exception {
-        Log.d(TAG, "Triggering buzzer");
+        LogUtil.d(TAG, "Triggering buzzer");
         
         // 1. 检查蓝牙连接状态
         if (!bleRepository.isConnected()) {
@@ -61,14 +62,14 @@ public class TriggerBuzzerUseCase extends BaseUseCase<Void, Boolean> {
         try {
             // 2. 开启蜂鸣器
             bleRepository.controlBuzzer(true);
-            Log.d(TAG, "Buzzer turned on");
+            LogUtil.d(TAG, "Buzzer turned on");
             
             // 3. 等待指定时间后关闭
             Thread.sleep(BUZZER_DURATION_MS);
             
             // 4. 关闭蜂鸣器
             bleRepository.controlBuzzer(false);
-            Log.d(TAG, "Buzzer turned off after " + BUZZER_DURATION_MS + "ms");
+            LogUtil.d(TAG, "Buzzer turned off after " + BUZZER_DURATION_MS + "ms");
             
             return true;
             

@@ -7,6 +7,7 @@ import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.os.Bundle;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 import android.util.Size;
 import android.view.View;
 import android.widget.ImageButton;
@@ -82,7 +83,7 @@ public class CustomCaptureActivity extends AppCompatActivity {
             getSupportActionBar().hide();
         }
         
-        Log.d(TAG, "ML Kit CustomCaptureActivity onCreate");
+        LogUtil.d(TAG, "ML Kit CustomCaptureActivity onCreate");
         
         previewView = findViewById(R.id.preview_view);
         flashBtn = findViewById(R.id.flash_btn);
@@ -108,7 +109,7 @@ public class CustomCaptureActivity extends AppCompatActivity {
     }
     
     private void startCamera() {
-        Log.d(TAG, "Starting camera with ML Kit and AUTO FOCUS...");
+        LogUtil.d(TAG, "Starting camera with ML Kit and AUTO FOCUS...");
         
         ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(this);
         
@@ -154,7 +155,7 @@ public class CustomCaptureActivity extends AppCompatActivity {
                 // 绑定用例到生命周期
                 camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
                 
-                Log.d(TAG, "Camera started with CONTINUOUS_AUTO_FOCUS enabled");
+                LogUtil.d(TAG, "Camera started with CONTINUOUS_AUTO_FOCUS enabled");
                 
             } catch (ExecutionException | InterruptedException e) {
                 Log.e(TAG, "Error starting camera", e);
@@ -183,9 +184,9 @@ public class CustomCaptureActivity extends AppCompatActivity {
                             for (Barcode barcode : barcodes) {
                                 String rawValue = barcode.getRawValue();
                                 if (rawValue != null && !rawValue.isEmpty()) {
-                                    Log.d(TAG, "=== ML Kit QR CODE FOUND ===");
-                                    Log.d(TAG, "Content: " + rawValue);
-                                    Log.d(TAG, "Length: " + rawValue.length());
+                                    LogUtil.d(TAG, "=== ML Kit QR CODE FOUND ===");
+                                    LogUtil.d(TAG, "Content: " + rawValue);
+                                    LogUtil.d(TAG, "Length: " + rawValue.length());
                                     
                                     isScanning = false;
                                     
@@ -218,7 +219,7 @@ public class CustomCaptureActivity extends AppCompatActivity {
             camera.getCameraControl().enableTorch(isFlashOn);
             
             Toast.makeText(this, isFlashOn ? R.string.flash_on : R.string.flash_off, Toast.LENGTH_SHORT).show();
-            Log.d(TAG, "Flash: " + (isFlashOn ? "ON" : "OFF"));
+            LogUtil.d(TAG, "Flash: " + (isFlashOn ? "ON" : "OFF"));
         }
     }
     

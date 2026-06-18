@@ -2,6 +2,7 @@ package com.RockiotTag.tag.room;
 
 import android.content.Context;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import androidx.annotation.NonNull;
 import androidx.room.Database;
@@ -49,13 +50,13 @@ public abstract class AppDatabase extends RoomDatabase {
                             @Override
                             public void onCreate(@NonNull SupportSQLiteDatabase db) {
                                 super.onCreate(db);
-                                Log.d(TAG, "Room database created");
+                                LogUtil.d(TAG, "Room database created");
                             }
                             
                             @Override
                             public void onOpen(@NonNull SupportSQLiteDatabase db) {
                                 super.onOpen(db);
-                                Log.d(TAG, "Room database opened");
+                                LogUtil.d(TAG, "Room database opened");
                             }
                         })
                         .allowMainThreadQueries() // 临时允许主线程查询，后续应改为异步

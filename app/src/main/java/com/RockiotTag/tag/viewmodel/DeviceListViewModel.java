@@ -13,6 +13,7 @@ import androidx.lifecycle.MutableLiveData;
 import com.RockiotTag.tag.Device;
 import com.RockiotTag.tag.repository.DeviceRepository;
 import com.RockiotTag.tag.model.TagDevice;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -74,7 +75,7 @@ public class DeviceListViewModel extends AndroidViewModel {
      * 加载所有设备（异步优化版）
      */
     public void loadDevices() {
-        Log.d(TAG, "Loading devices");
+        LogUtil.d(TAG, "Loading devices");
         isLoading.setValue(true);
         
         // 使用线程池执行后台任务（性能优化）
@@ -87,7 +88,7 @@ public class DeviceListViewModel extends AndroidViewModel {
                     deviceList.setValue(devices);
                     isEmpty.setValue(devices == null || devices.isEmpty());
                     isLoading.setValue(false);
-                    Log.d(TAG, "Loaded " + (devices != null ? devices.size() : 0) + " devices");
+                    LogUtil.d(TAG, "Loaded " + (devices != null ? devices.size() : 0) + " devices");
                 });
             } catch (Exception e) {
                 Log.e(TAG, "Error loading devices: " + e.getMessage(), e);
@@ -112,17 +113,17 @@ public class DeviceListViewModel extends AndroidViewModel {
     }
 
     public void updateDevice(String deviceId, String deviceNum, String name, String tag, String customerCode, UpdateCallback callback) {
-        Log.d(TAG, "=== updateDevice called ===");
-        Log.d(TAG, "deviceId: " + deviceId);
-        Log.d(TAG, "deviceNum: " + deviceNum);
-        Log.d(TAG, "name: " + name);
-        Log.d(TAG, "tag: " + tag);
-        Log.d(TAG, "customerCode: " + customerCode);
+        LogUtil.d(TAG, "=== updateDevice called ===");
+        LogUtil.d(TAG, "deviceId: " + deviceId);
+        LogUtil.d(TAG, "deviceNum: " + deviceNum);
+        LogUtil.d(TAG, "name: " + name);
+        LogUtil.d(TAG, "tag: " + tag);
+        LogUtil.d(TAG, "customerCode: " + customerCode);
 
         deviceRepository.updateDeviceNameAndTag(deviceId, deviceNum, name, tag, customerCode, new DeviceRepository.UpdateCallback() {
             @Override
             public void onSuccess() {
-                Log.d(TAG, "=== DeviceRepository updateDevice onSuccess ===");
+                LogUtil.d(TAG, "=== DeviceRepository updateDevice onSuccess ===");
                 // Repository已经确保在主线程调用callback
                 if (callback != null) {
                     callback.onSuccess();
@@ -131,7 +132,7 @@ public class DeviceListViewModel extends AndroidViewModel {
                 // 延迟重新加载列表
                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                     try {
-                        Log.d(TAG, "Reloading devices after update");
+                        LogUtil.d(TAG, "Reloading devices after update");
                         loadDevices();
                     } catch (Exception e) {
                         Log.e(TAG, "Error reloading devices: " + e.getMessage(), e);
@@ -154,19 +155,19 @@ public class DeviceListViewModel extends AndroidViewModel {
      * 批量删除设备（只加载一次列表）
      */
     public void deleteDevices(List<String> deviceIds, DeleteCallback callback) {
-        Log.d(TAG, "Deleting " + deviceIds.size() + " devices");
+        LogUtil.d(TAG, "Deleting " + deviceIds.size() + " devices");
         
         new Thread(() -> {
             try {
                 for (String deviceId : deviceIds) {
                     deviceRepository.deleteDevice(deviceId, null);
-                    Log.d(TAG, "Device deleted: " + deviceId);
+                    LogUtil.d(TAG, "Device deleted: " + deviceId);
                 }
                 
                 new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                     // 只在所有删除完成后重新加载一次列表
                     loadDevices();
-                    Log.d(TAG, "All devices deleted, list reloaded");
+                    LogUtil.d(TAG, "All devices deleted, list reloaded");
                     if (callback != null) {
                         callback.onSuccess();
                     }
@@ -194,12 +195,12 @@ public class DeviceListViewModel extends AndroidViewModel {
      * 删除设备（带回调）
      */
     public void deleteDevice(String deviceId, DeleteCallback callback) {
-        Log.d(TAG, "Deleting device: " + deviceId);
+        LogUtil.d(TAG, "Deleting device: " + deviceId);
         
         deviceRepository.deleteDevice(deviceId, new DeviceRepository.DeleteCallback() {
             @Override
             public void onSuccess() {
-                Log.d(TAG, "Device deleted successfully, reloading list");
+                LogUtil.d(TAG, "Device deleted successfully, reloading list");
                 // Reload device list after deletion - 这会自动触发LiveData更新
                 loadDevices();
                 // 注意：不在这里调用callback，而是在loadDevices完成后再调用
@@ -241,7 +242,7 @@ public class DeviceListViewModel extends AndroidViewModel {
         super.onCleared();
         if (executorService != null && !executorService.isShutdown()) {
             executorService.shutdown();
-            Log.d(TAG, "ExecutorService shutdown");
+            LogUtil.d(TAG, "ExecutorService shutdown");
         }
     }
 }

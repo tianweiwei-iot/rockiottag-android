@@ -21,6 +21,7 @@ import com.RockiotTag.tag.model.DeviceLocation;
 import com.RockiotTag.tag.model.PhoneLocation;
 import com.RockiotTag.tag.provider.LocationProvider;
 import com.RockiotTag.tag.ui.TimeRefreshManager;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -116,7 +117,7 @@ public class LocationOptimizationManager {
      */
     public void setCurrentSelectedDeviceId(String deviceId) {
         this.currentSelectedDeviceId = deviceId;
-        Log.d(TAG, "Current selected device ID set to: " + deviceId);
+        LogUtil.d(TAG, "Current selected device ID set to: " + deviceId);
     }
     
     /**
@@ -146,7 +147,7 @@ public class LocationOptimizationManager {
      */
     public void autoSelectFirstDevice() {
         if (currentSelectedDeviceId != null && !currentSelectedDeviceId.isEmpty()) {
-            Log.d(TAG, "Already have selected device: " + currentSelectedDeviceId);
+            LogUtil.d(TAG, "Already have selected device: " + currentSelectedDeviceId);
             return;
         }
         
@@ -154,12 +155,12 @@ public class LocationOptimizationManager {
             // 选择第一个设备
             String firstMac = boundDeviceIds.iterator().next();
             setCurrentSelectedDeviceId(firstMac);
-            Log.d(TAG, "Auto-selected first device: " + firstMac);
+            LogUtil.d(TAG, "Auto-selected first device: " + firstMac);
             
             // 同时设置对应的deviceNum
             String deviceNum = macToDeviceNumMap.get(firstMac);
             if (deviceNum != null) {
-                Log.d(TAG, "  -> deviceNum: " + deviceNum);
+                LogUtil.d(TAG, "  -> deviceNum: " + deviceNum);
             }
         } else {
             Log.w(TAG, "No bound devices available for auto-selection");
@@ -170,40 +171,40 @@ public class LocationOptimizationManager {
      * 初始化所有服务
      */
     private void initializeServices() {
-        Log.d(TAG, "=== Initializing Location Optimization Services ===");
+        LogUtil.d(TAG, "=== Initializing Location Optimization Services ===");
         try {
             // 获取已绑定设备列表
-            Log.d(TAG, "Step 1: Getting bound device list...");
+            LogUtil.d(TAG, "Step 1: Getting bound device list...");
             getBoundDeviceIds();
-            Log.d(TAG, "Found " + boundDeviceIds.size() + " bound devices, " + boundDeviceNames.size() + " device names");
-            Log.d(TAG, "boundDeviceIds content: " + boundDeviceIds);
+            LogUtil.d(TAG, "Found " + boundDeviceIds.size() + " bound devices, " + boundDeviceNames.size() + " device names");
+            LogUtil.d(TAG, "boundDeviceIds content: " + boundDeviceIds);
             
             // 初始化蓝牙扫描器
-            Log.d(TAG, "Step 2: Initializing BLE scanner...");
+            LogUtil.d(TAG, "Step 2: Initializing BLE scanner...");
             bluetoothScanner = new OptimizedBLEScanner(context, boundDeviceIds, boundDeviceNames);
-            Log.d(TAG, "BLE scanner initialized");
+            LogUtil.d(TAG, "BLE scanner initialized");
             
             // 初始化手机定位服务
-            Log.d(TAG, "Step 3: Initializing phone location service...");
+            LogUtil.d(TAG, "Step 3: Initializing phone location service...");
             phoneLocationService = new PhoneLocationService(context);
-            Log.d(TAG, "Phone location service initialized");
+            LogUtil.d(TAG, "Phone location service initialized");
             
             // 初始化服务器API
-            Log.d(TAG, "Step 4: Initializing API service...");
+            LogUtil.d(TAG, "Step 4: Initializing API service...");
             apiService = NewApiService.getInstance();
-            Log.d(TAG, "API service initialized");
+            LogUtil.d(TAG, "API service initialized");
             
             // 初始化位置提供者
-            Log.d(TAG, "Step 5: Initializing location provider...");
+            LogUtil.d(TAG, "Step 5: Initializing location provider...");
             locationProvider = new LocationProvider(
                 context,
                 bluetoothScanner,
                 phoneLocationService,
                 apiService
             );
-            Log.d(TAG, "Location provider initialized");
+            LogUtil.d(TAG, "Location provider initialized");
             
-            Log.d(TAG, "✓ Location optimization services initialized successfully");
+            LogUtil.d(TAG, "✓ Location optimization services initialized successfully");
             
         } catch (SecurityException e) {
             Log.e(TAG, "✗ Security exception during initialization", e);
@@ -222,15 +223,15 @@ public class LocationOptimizationManager {
      * 启动持续蓝牙扫描
      */
     public void startBluetoothScanning() {
-        Log.d(TAG, "=== startBluetoothScanning called ===");
-        Log.d(TAG, "optimizationEnabled: " + optimizationEnabled);
-        Log.d(TAG, "bluetoothScanner: " + (bluetoothScanner != null ? "initialized" : "NULL"));
-        Log.d(TAG, "currentSelectedDeviceId: " + currentSelectedDeviceId);
-        Log.d(TAG, "boundDeviceIds: " + boundDeviceIds);
+        LogUtil.d(TAG, "=== startBluetoothScanning called ===");
+        LogUtil.d(TAG, "optimizationEnabled: " + optimizationEnabled);
+        LogUtil.d(TAG, "bluetoothScanner: " + (bluetoothScanner != null ? "initialized" : "NULL"));
+        LogUtil.d(TAG, "currentSelectedDeviceId: " + currentSelectedDeviceId);
+        LogUtil.d(TAG, "boundDeviceIds: " + boundDeviceIds);
         
         // 自动选择第一个设备（如果当前没有选中设备）
         autoSelectFirstDevice();
-        Log.d(TAG, "After autoSelect: currentSelectedDeviceId=" + currentSelectedDeviceId);
+        LogUtil.d(TAG, "After autoSelect: currentSelectedDeviceId=" + currentSelectedDeviceId);
         
         if (!optimizationEnabled) {
             Log.w(TAG, "Optimization disabled during initialization");
@@ -272,13 +273,13 @@ public class LocationOptimizationManager {
             Log.w(TAG, "⚠ No MAC addresses available, but have device names - will scan by name matching");
         }
         
-        Log.d(TAG, "✓ All checks passed, starting BLE scanning...");
+        LogUtil.d(TAG, "✓ All checks passed, starting BLE scanning...");
         
         // 【新增】使用带状态回调的扫描方法
         bluetoothScanner.startContinuousScanningWithState(new OptimizedBLEScanner.ScanStateCallback() {
             @Override
             public void onScanStarted() {
-                Log.d(TAG, "📡 Scan started (scanning for 10s)");
+                LogUtil.d(TAG, "📡 Scan started (scanning for 10s)");
                 if (scanStateCallback != null) {
                     scanStateCallback.onScanStarted();
                 }
@@ -286,7 +287,7 @@ public class LocationOptimizationManager {
             
             @Override
             public void onScanStopped() {
-                Log.d(TAG, "⏸️ Scan stopped (resting for 10s)");
+                LogUtil.d(TAG, "⏸️ Scan stopped (resting for 10s)");
                 if (scanStateCallback != null) {
                     scanStateCallback.onScanStopped();
                 }
@@ -294,18 +295,18 @@ public class LocationOptimizationManager {
             
             @Override
             public void onDeviceFound(com.RockiotTag.tag.Device device) {
-                Log.d(TAG, "📡 BLE Scanner found device: " + device.getName() + " (MAC: " + device.getDeviceId() + ")");
+                LogUtil.d(TAG, "📡 BLE Scanner found device: " + device.getName() + " (MAC: " + device.getDeviceId() + ")");
                 
                 // 已绑定设备，直接处理（OptimizedBLEScanner已经过滤了已绑定设备）
                 // 如果设置了currentSelectedDeviceId，记录但不阻止处理
                 if (currentSelectedDeviceId != null && !currentSelectedDeviceId.trim().equalsIgnoreCase(device.getDeviceId().trim())) {
-                    Log.d(TAG, "   ℹ️ Device found but not selected: " + device.getDeviceId() + " (selected: " + currentSelectedDeviceId + "), but still processing");
+                    LogUtil.d(TAG, "   ℹ️ Device found but not selected: " + device.getDeviceId() + " (selected: " + currentSelectedDeviceId + "), but still processing");
                 }
                 
-                Log.d(TAG, "✓✓✓ Processing bound device: " + device.getDeviceId());
+                LogUtil.d(TAG, "✓✓✓ Processing bound device: " + device.getDeviceId());
                 
                 // 【最关键】第一时间更新时间戳到数据库和UI（不等待任何操作）
-                Log.d(TAG, "⏰ Step 1: Updating timestamp immediately...");
+                LogUtil.d(TAG, "⏰ Step 1: Updating timestamp immediately...");
                 updateDeviceTimestampImmediately(device.getDeviceId(), device.getName());
                 
                 // 通过MAC地址查找对应的16位设备号（deviceNum）
@@ -316,10 +317,10 @@ public class LocationOptimizationManager {
                     return;
                 }
                 
-                Log.d(TAG, "📍 Step 2: Found deviceNum: " + deviceNum);
+                LogUtil.d(TAG, "📍 Step 2: Found deviceNum: " + deviceNum);
                 
                 // MAC地址匹配成功，异步更新位置和上传服务器（不阻塞时间戳更新）
-                Log.d(TAG, "→ Uploading location for device: " + deviceNum);
+                LogUtil.d(TAG, "→ Uploading location for device: " + deviceNum);
                 updateDeviceWithPhoneLocation(device.getDeviceId(), deviceNum);
                 
                 // 【新增】通知扫描成功
@@ -329,7 +330,7 @@ public class LocationOptimizationManager {
             }
         });
         
-        Log.d(TAG, "Bluetooth scanning started");
+        LogUtil.d(TAG, "Bluetooth scanning started");
     }
     
     /**
@@ -337,16 +338,16 @@ public class LocationOptimizationManager {
      * 不等待GPS位置，直接更新当前时间到数据库和UI
      */
     private void updateDeviceTimestampImmediately(String deviceId, String deviceName) {
-        Log.d(TAG, "⚡ IMMEDIATE timestamp update for: " + deviceName + " (" + deviceId + ")");
+        LogUtil.d(TAG, "⚡ IMMEDIATE timestamp update for: " + deviceName + " (" + deviceId + ")");
         
         // 在主线程立即更新UI
         mainHandler.post(() -> {
             try {
                 long currentTime = System.currentTimeMillis();
-                Log.d(TAG, "🕐 Current time: " + currentTime);
+                LogUtil.d(TAG, "🕐 Current time: " + currentTime);
                 
                 // 【关键修复】先获取手机GPS位置
-                Log.d(TAG, "📍 Getting phone GPS location...");
+                LogUtil.d(TAG, "📍 Getting phone GPS location...");
                 PhoneLocation phoneLoc = phoneLocationService.getCurrentLocation();
                 final double lat;
                 final double lng;
@@ -354,7 +355,7 @@ public class LocationOptimizationManager {
                 if (phoneLoc != null && phoneLoc.isValid()) {
                     lat = phoneLoc.getLatitude();
                     lng = phoneLoc.getLongitude();
-                    Log.d(TAG, "✓ Using phone GPS location: " + lat + ", " + lng);
+                    LogUtil.d(TAG, "✓ Using phone GPS location: " + lat + ", " + lng);
                 } else {
                     lat = 0;
                     lng = 0;
@@ -372,25 +373,25 @@ public class LocationOptimizationManager {
                 String deviceNum = getDeviceNumById(deviceId);
                 int deviceBattery = getDeviceBattery(deviceNum);
                 quickUpdate.setBattery(deviceBattery);
-                Log.d(TAG, "Battery from database: " + deviceBattery + "% for device: " + deviceNum);
+                LogUtil.d(TAG, "Battery from database: " + deviceBattery + "% for device: " + deviceNum);
                 
                 quickUpdate.setAddress(null);
                 
-                Log.d(TAG, "📱 Notifying UI callback...");
+                LogUtil.d(TAG, "📱 Notifying UI callback...");
                 // 通知外部回调更新UI（显示最新时间和地址）
                 if (externalCallback != null) {
                     externalCallback.onLocationUpdated(quickUpdate);
-                    Log.d(TAG, "✓ UI updated immediately with timestamp and address");
+                    LogUtil.d(TAG, "✓ UI updated immediately with timestamp and address");
                 } else {
                     Log.w(TAG, "⚠️ externalCallback is NULL!");
                 }
                 
                 // 异步保存到数据库（不阻塞UI）
-                Log.d(TAG, "💾 Saving to database...");
+                LogUtil.d(TAG, "💾 Saving to database...");
                 new Thread(() -> {
                     try {
                         saveLocationToDevice(deviceId, quickUpdate);
-                        Log.d(TAG, "✓ Database saved: time=" + 
+                        LogUtil.d(TAG, "✓ Database saved: time=" + 
                             new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
                                 .format(new java.util.Date(currentTime)) +
                             ", lat=" + lat + ", lng=" + lng);
@@ -422,9 +423,9 @@ public class LocationOptimizationManager {
             boolean hasScan = scanPerm == PackageManager.PERMISSION_GRANTED;
             boolean hasConnect = connectPerm == PackageManager.PERMISSION_GRANTED;
             
-            Log.d(TAG, "Permission check (API " + Build.VERSION.SDK_INT + "):");
-            Log.d(TAG, "  BLUETOOTH_SCAN: " + (hasScan ? "✓" : "✗"));
-            Log.d(TAG, "  BLUETOOTH_CONNECT: " + (hasConnect ? "✓" : "✗"));
+            LogUtil.d(TAG, "Permission check (API " + Build.VERSION.SDK_INT + "):");
+            LogUtil.d(TAG, "  BLUETOOTH_SCAN: " + (hasScan ? "✓" : "✗"));
+            LogUtil.d(TAG, "  BLUETOOTH_CONNECT: " + (hasConnect ? "✓" : "✗"));
             
             return hasScan && hasConnect;
         } else {
@@ -432,8 +433,8 @@ public class LocationOptimizationManager {
             int locationPerm = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION);
             boolean hasLocation = locationPerm == PackageManager.PERMISSION_GRANTED;
             
-            Log.d(TAG, "Permission check (API " + Build.VERSION.SDK_INT + "):");
-            Log.d(TAG, "  ACCESS_FINE_LOCATION: " + (hasLocation ? "✓" : "✗"));
+            LogUtil.d(TAG, "Permission check (API " + Build.VERSION.SDK_INT + "):");
+            LogUtil.d(TAG, "  ACCESS_FINE_LOCATION: " + (hasLocation ? "✓" : "✗"));
             
             return hasLocation;
         }
@@ -451,7 +452,7 @@ public class LocationOptimizationManager {
             }
             
             boolean isEnabled = adapter.isEnabled();
-            Log.d(TAG, "Bluetooth state: " + (isEnabled ? "ON" : "OFF"));
+            LogUtil.d(TAG, "Bluetooth state: " + (isEnabled ? "ON" : "OFF"));
             return isEnabled;
         } catch (Exception e) {
             Log.e(TAG, "Error checking Bluetooth state", e);
@@ -465,7 +466,7 @@ public class LocationOptimizationManager {
     public void stopBluetoothScanning() {
         if (bluetoothScanner != null) {
             bluetoothScanner.stopScanning();
-            Log.d(TAG, "Bluetooth scanning stopped");
+            LogUtil.d(TAG, "Bluetooth scanning stopped");
         }
     }
 
@@ -474,7 +475,7 @@ public class LocationOptimizationManager {
      * 扫描10秒后自动停止，不循环。扫描到设备后更新UI。
      */
     public void startSingleBluetoothScan() {
-        Log.d(TAG, "=== startSingleBluetoothScan called ===");
+        LogUtil.d(TAG, "=== startSingleBluetoothScan called ===");
 
         if (!optimizationEnabled) {
             Log.w(TAG, "Optimization disabled");
@@ -508,12 +509,12 @@ public class LocationOptimizationManager {
             return;
         }
 
-        Log.d(TAG, "Starting single BLE scan (will stop after one cycle)...");
+        LogUtil.d(TAG, "Starting single BLE scan (will stop after one cycle)...");
 
         bluetoothScanner.startSingleScanWithState(new OptimizedBLEScanner.ScanStateCallback() {
             @Override
             public void onScanStarted() {
-                Log.d(TAG, "📡 Single scan started");
+                LogUtil.d(TAG, "📡 Single scan started");
                 if (scanStateCallback != null) {
                     scanStateCallback.onScanStarted();
                 }
@@ -521,7 +522,7 @@ public class LocationOptimizationManager {
 
             @Override
             public void onScanStopped() {
-                Log.d(TAG, "⏹️ Single scan stopped (completed)");
+                LogUtil.d(TAG, "⏹️ Single scan stopped (completed)");
                 if (scanStateCallback != null) {
                     scanStateCallback.onScanStopped();
                 }
@@ -529,7 +530,7 @@ public class LocationOptimizationManager {
 
             @Override
             public void onDeviceFound(com.RockiotTag.tag.Device device) {
-                Log.d(TAG, "📡 Single scan found device: " + device.getName() + " (MAC: " + device.getDeviceId() + ")");
+                LogUtil.d(TAG, "📡 Single scan found device: " + device.getName() + " (MAC: " + device.getDeviceId() + ")");
 
                 updateDeviceTimestampImmediately(device.getDeviceId(), device.getName());
 
@@ -547,7 +548,7 @@ public class LocationOptimizationManager {
             }
         });
 
-        Log.d(TAG, "Single Bluetooth scan started");
+        LogUtil.d(TAG, "Single Bluetooth scan started");
     }
     
     /**
@@ -585,7 +586,7 @@ public class LocationOptimizationManager {
                 
                 int deviceBattery = getDeviceBattery(deviceNum);
                 location.setBattery(deviceBattery);
-                Log.d(TAG, "Battery from database: " + deviceBattery + "% for device: " + deviceNum);
+                LogUtil.d(TAG, "Battery from database: " + deviceBattery + "% for device: " + deviceNum);
                 
                 location.setActualSource(DeviceLocation.DataSource.PHONE_GPS);
                 location.setAddress("正在获取地址...");  // 临时地址，稍后异步获取
@@ -662,7 +663,7 @@ public class LocationOptimizationManager {
     private void fetchReverseGeocodeAsync(String deviceId, DeviceLocation location) {
         new Thread(() -> {
             try {
-                Log.d(TAG, "Fetching reverse geocode for location...");
+                LogUtil.d(TAG, "Fetching reverse geocode for location...");
                 
                 // 这里可以调用高德地图或谷歌地图的逆地理编码API
                 // 由于这是异步操作，不会阻塞UI更新
@@ -697,25 +698,25 @@ public class LocationOptimizationManager {
                 try {
                     retryCount++;
                     if (retryCount > 1) {
-                        Log.d(TAG, "=== RETRY ATTEMPT #" + retryCount + " (20s interval) ===");
+                        LogUtil.d(TAG, "=== RETRY ATTEMPT #" + retryCount + " (20s interval) ===");
                     } else {
-                        Log.d(TAG, "=== FIRST UPLOAD ATTEMPT ===");
+                        LogUtil.d(TAG, "=== FIRST UPLOAD ATTEMPT ===");
                     }
                     
                     // 【关键调试】打印上传的设备信息
-                    Log.d(TAG, "🔍 UPLOAD DEVICE INFO:");
-                    Log.d(TAG, "  deviceNum (will be uploaded): " + deviceNum);
-                    Log.d(TAG, "  Expected deviceNum: check if this matches your selected device");
-                    Log.d(TAG, "  lat: " + location.getLatitude() + ", lng: " + location.getLongitude());
-                    Log.d(TAG, "  timestamp: " + location.getTimestamp() + " (" + 
+                    LogUtil.d(TAG, "🔍 UPLOAD DEVICE INFO:");
+                    LogUtil.d(TAG, "  deviceNum (will be uploaded): " + deviceNum);
+                    LogUtil.d(TAG, "  Expected deviceNum: check if this matches your selected device");
+                    LogUtil.d(TAG, "  lat: " + location.getLatitude() + ", lng: " + location.getLongitude());
+                    LogUtil.d(TAG, "  timestamp: " + location.getTimestamp() + " (" + 
                         new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                             .format(new java.util.Date(location.getTimestamp())) + ")");
-                    Log.d(TAG, "  battery: " + location.getBattery() + "%");
+                    LogUtil.d(TAG, "  battery: " + location.getBattery() + "%");
                     
                     // 设置正确的API地址
                     String apiUrl = com.RockiotTag.tag.ApiConfig.getMyServerUrl(deviceNum);
                     NewApiService.setApiBaseUrl(apiUrl);
-                    Log.d(TAG, "API URL: " + apiUrl);
+                    LogUtil.d(TAG, "API URL: " + apiUrl);
                     
                     long startTime = System.currentTimeMillis();
                     
@@ -729,11 +730,11 @@ public class LocationOptimizationManager {
                     );
                     
                     long endTime = System.currentTimeMillis();
-                    Log.d(TAG, "Sync request took: " + (endTime - startTime) + "ms");
+                    LogUtil.d(TAG, "Sync request took: " + (endTime - startTime) + "ms");
                     
                     if (response != null && response.isSuccess()) {
-                        Log.d(TAG, "✓ UPLOAD SUCCESS on attempt #" + retryCount);
-                        Log.d(TAG, "  Response: " + response.getMessage());
+                        LogUtil.d(TAG, "✓ UPLOAD SUCCESS on attempt #" + retryCount);
+                        LogUtil.d(TAG, "  Response: " + response.getMessage());
                         success = true;
                         
                         // 上传成功后，删除离线缓存（如果有）
@@ -751,7 +752,7 @@ public class LocationOptimizationManager {
                         saveToOfflineCache(deviceNum, location);
                         
                         // 等待20秒后重试
-                        Log.d(TAG, "Waiting 20 seconds before retry...");
+                        LogUtil.d(TAG, "Waiting 20 seconds before retry...");
                         Thread.sleep(20000);
                     }
                 } catch (Exception e) {
@@ -764,7 +765,7 @@ public class LocationOptimizationManager {
                     
                     // 等待20秒后重试
                     try {
-                        Log.d(TAG, "Waiting 20 seconds before retry...");
+                        LogUtil.d(TAG, "Waiting 20 seconds before retry...");
                         Thread.sleep(20000);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
@@ -774,7 +775,7 @@ public class LocationOptimizationManager {
                 }
             }
             
-            Log.d(TAG, "✓✓✓ UPLOAD COMPLETED SUCCESSFULLY after " + retryCount + " attempt(s) ✓✓✓");
+            LogUtil.d(TAG, "✓✓✓ UPLOAD COMPLETED SUCCESSFULLY after " + retryCount + " attempt(s) ✓✓✓");
         }).start();
     }
     
@@ -808,7 +809,7 @@ public class LocationOptimizationManager {
             // 保存到本地数据库
             databaseHelper.addLocationRecord(record);
             
-            Log.d(TAG, "✓ Saved to offline cache: device=" + deviceNum + 
+            LogUtil.d(TAG, "✓ Saved to offline cache: device=" + deviceNum + 
                   ", lat=" + location.getLatitude() + 
                   ", lng=" + location.getLongitude() +
                   ", timestamp=" + location.getTimestamp());
@@ -832,7 +833,7 @@ public class LocationOptimizationManager {
             // 根据设备号和时间戳删除缓存记录
             databaseHelper.deleteLocationRecord(deviceNum, timestamp);
             
-            Log.d(TAG, "✓ Removed offline cache for device: " + deviceNum + 
+            LogUtil.d(TAG, "✓ Removed offline cache for device: " + deviceNum + 
                   ", timestamp: " + timestamp);
                   
         } catch (Exception e) {
@@ -856,7 +857,7 @@ public class LocationOptimizationManager {
                 // 从映射表中查找对应的MAC地址
                 String macAddress = deviceNumToMacMap.get(deviceNum);
                 if (macAddress != null && !macAddress.isEmpty()) {
-                    Log.d(TAG, "Updating MAC address in database for device: " + deviceNum + " -> " + macAddress);
+                    LogUtil.d(TAG, "Updating MAC address in database for device: " + deviceNum + " -> " + macAddress);
                     
                     // 获取设备
                     Device device = databaseHelper.getDeviceByDeviceNum(deviceNum);
@@ -864,12 +865,12 @@ public class LocationOptimizationManager {
                         // 更新MAC地址
                         device.setMac(macAddress);
                         databaseHelper.addDevice(device);
-                        Log.d(TAG, "✓ Updated MAC address in database for device: " + deviceNum);
+                        LogUtil.d(TAG, "✓ Updated MAC address in database for device: " + deviceNum);
                     } else {
                         Log.w(TAG, "Device not found in database for deviceNum: " + deviceNum);
                     }
                 } else {
-                    Log.d(TAG, "No MAC address in map for deviceNum: " + deviceNum + " (this is OK if already saved)");
+                    LogUtil.d(TAG, "No MAC address in map for deviceNum: " + deviceNum + " (this is OK if already saved)");
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Error updating MAC address in database", e);
@@ -902,40 +903,40 @@ public class LocationOptimizationManager {
      * 触发位置更新（备用：当手机GPS不可用时调用服务器）
      */
     private void triggerLocationUpdate(String deviceId, String deviceNum) {
-        Log.d(TAG, "=== triggerLocationUpdate START (fallback to server) ===");
-        Log.d(TAG, "deviceId: " + deviceId + ", deviceNum: " + deviceNum);
+        LogUtil.d(TAG, "=== triggerLocationUpdate START (fallback to server) ===");
+        LogUtil.d(TAG, "deviceId: " + deviceId + ", deviceNum: " + deviceNum);
         
         new Thread(() -> {
             try {
                 long startTime = System.currentTimeMillis();
-                Log.d(TAG, "Calling locationProvider.getDeviceLocation...");
+                LogUtil.d(TAG, "Calling locationProvider.getDeviceLocation...");
                 
                 DeviceLocation location = locationProvider.getDeviceLocation(deviceId, deviceNum);
                 
                 long endTime = System.currentTimeMillis();
-                Log.d(TAG, "Location query took: " + (endTime - startTime) + "ms");
+                LogUtil.d(TAG, "Location query took: " + (endTime - startTime) + "ms");
                 
                 if (location != null && location.isValid()) {
-                    Log.d(TAG, "========== Location Update Success ==========");
-                    Log.d(TAG, "Latitude: " + location.getLatitude());
-                    Log.d(TAG, "Longitude: " + location.getLongitude());
-                    Log.d(TAG, "Accuracy: " + location.getAccuracy() + "m");
-                    Log.d(TAG, "Source: " + location.getActualSource());
-                    Log.d(TAG, "Timestamp: " + location.getDisplayTimeForLog());
-                    Log.d(TAG, "Address: " + location.getAddress());
-                    Log.d(TAG, "Battery: " + location.getBattery() + "%");
+                    LogUtil.d(TAG, "========== Location Update Success ==========");
+                    LogUtil.d(TAG, "Latitude: " + location.getLatitude());
+                    LogUtil.d(TAG, "Longitude: " + location.getLongitude());
+                    LogUtil.d(TAG, "Accuracy: " + location.getAccuracy() + "m");
+                    LogUtil.d(TAG, "Source: " + location.getActualSource());
+                    LogUtil.d(TAG, "Timestamp: " + location.getDisplayTimeForLog());
+                    LogUtil.d(TAG, "Address: " + location.getAddress());
+                    LogUtil.d(TAG, "Battery: " + location.getBattery() + "%");
                     
                     // 保存到数据库
                     saveLocationToDevice(deviceId, location);
                     
                     // 添加Toast提示：开始通知UI更新（备用方法）
                     String toastMsg = "🔄 正在更新UI (备用)...";
-                    Log.d(TAG, "TOAST: " + toastMsg);
+                    LogUtil.d(TAG, "TOAST: " + toastMsg);
                     runToast(toastMsg);
                     
                     // 通知外部回调（如果有）- 必须在主线程执行
                     if (externalCallback != null) {
-                        Log.d(TAG, "Notifying external callback on main thread...");
+                        LogUtil.d(TAG, "Notifying external callback on main thread...");
                         mainHandler.post(() -> {
                             try {
                                 externalCallback.onLocationUpdated(location);
@@ -945,7 +946,7 @@ public class LocationOptimizationManager {
                         });
                     }
                     
-                    Log.d(TAG, "=== Location Update Complete ===");
+                    LogUtil.d(TAG, "=== Location Update Complete ===");
                 } else {
                     Log.w(TAG, "========== Location Update Failed ==========");
                     Log.w(TAG, "Invalid or null location returned");
@@ -986,24 +987,24 @@ public class LocationOptimizationManager {
         
         // 标准化MAC地址（统一格式）
         String normalizedMac = normalizeMacAddress(macAddress);
-        Log.d(TAG, "Looking up deviceNum for MAC: " + macAddress + " -> " + normalizedMac);
+        LogUtil.d(TAG, "Looking up deviceNum for MAC: " + macAddress + " -> " + normalizedMac);
         
         // 首先尝试从内存映射表中查找（最快）
         String deviceNum = macToDeviceNumMap.get(normalizedMac);
         if (deviceNum != null && !deviceNum.isEmpty()) {
-            Log.d(TAG, "✓ Found deviceNum from MAC map: " + deviceNum + " (16-digit)");
+            LogUtil.d(TAG, "✓ Found deviceNum from MAC map: " + deviceNum + " (16-digit)");
             return deviceNum;
         }
         
         // 如果映射表中没有，尝试从数据库查找（备用方案）
         if (databaseHelper != null) {
             try {
-                Log.d(TAG, "MAC not in memory map, trying database lookup...");
+                LogUtil.d(TAG, "MAC not in memory map, trying database lookup...");
                 com.RockiotTag.tag.Device device = databaseHelper.getDevice(macAddress);
                 if (device != null) {
                     deviceNum = device.getDeviceNum();
                     if (deviceNum != null && !deviceNum.isEmpty()) {
-                        Log.d(TAG, "✓ Found deviceNum from database: " + deviceNum + " (16-digit)");
+                        LogUtil.d(TAG, "✓ Found deviceNum from database: " + deviceNum + " (16-digit)");
                         // 更新内存映射表，下次可以直接使用
                         macToDeviceNumMap.put(normalizedMac, deviceNum);
                         deviceNumToMacMap.put(deviceNum, normalizedMac);
@@ -1039,7 +1040,7 @@ public class LocationOptimizationManager {
                 DeviceLocation location = locationProvider.getDeviceLocation(deviceId, deviceNum);
                 
                 if (location != null && location.isValid()) {
-                    Log.d(TAG, String.format(
+                    LogUtil.d(TAG, String.format(
                         "Location obtained: lat=%.6f, lng=%.6f, source=%s",
                         location.getLatitude(),
                         location.getLongitude(),
@@ -1134,17 +1135,17 @@ public class LocationOptimizationManager {
         deviceNumToMacMap.clear();
         macToDeviceNumMap.clear();
         
-        Log.d(TAG, "=== getBoundDeviceIds START ===");
-        Log.d(TAG, "databaseHelper: " + (databaseHelper != null ? "NOT NULL" : "NULL"));
+        LogUtil.d(TAG, "=== getBoundDeviceIds START ===");
+        LogUtil.d(TAG, "databaseHelper: " + (databaseHelper != null ? "NOT NULL" : "NULL"));
         
         if (databaseHelper != null) {
             try {
-                Log.d(TAG, "Step 1: Loading bound devices from database...");
+                LogUtil.d(TAG, "Step 1: Loading bound devices from database...");
                 java.util.List<Device> devices = databaseHelper.getAllDevices();
-                Log.d(TAG, "getAllDevices returned: " + (devices != null ? "list with " + devices.size() + " items" : "NULL"));
+                LogUtil.d(TAG, "getAllDevices returned: " + (devices != null ? "list with " + devices.size() + " items" : "NULL"));
                 
                 if (devices != null && !devices.isEmpty()) {
-                    Log.d(TAG, "Found " + devices.size() + " devices in database");
+                    LogUtil.d(TAG, "Found " + devices.size() + " devices in database");
                     
                     int macCount = 0;
                     int noMacCount = 0;
@@ -1159,7 +1160,7 @@ public class LocationOptimizationManager {
                             continue;
                         }
                         
-                        Log.d(TAG, "Processing device: num=" + deviceNum + ", name=" + deviceName + ", mac=" + deviceMac);
+                        LogUtil.d(TAG, "Processing device: num=" + deviceNum + ", name=" + deviceName + ", mac=" + deviceMac);
                         
                         // 收集设备名称
                         if (deviceName != null && !deviceName.isEmpty()) {
@@ -1182,27 +1183,27 @@ public class LocationOptimizationManager {
                             macToDeviceNumMap.put(normalizedMac, deviceNum);
                             boundDeviceIds.add(normalizedMac);
                             macCount++;
-                            Log.d(TAG, "  ✓ Loaded MAC from database: " + normalizedMac);
+                            LogUtil.d(TAG, "  ✓ Loaded MAC from database: " + normalizedMac);
                         } else {
                             noMacCount++;
                             Log.w(TAG, "  ✗ No MAC address for device: " + deviceNum);
                         }
                     }
                     
-                    Log.d(TAG, "Summary: " + macCount + " devices with MAC, " + noMacCount + " without MAC");
-                    Log.d(TAG, "Loaded " + boundDeviceNames.size() + " device names from database");
-                    Log.d(TAG, "Loaded " + boundDeviceIds.size() + " MAC addresses from database");
+                    LogUtil.d(TAG, "Summary: " + macCount + " devices with MAC, " + noMacCount + " without MAC");
+                    LogUtil.d(TAG, "Loaded " + boundDeviceNames.size() + " device names from database");
+                    LogUtil.d(TAG, "Loaded " + boundDeviceIds.size() + " MAC addresses from database");
                     
                     // 【关键优化】即使没有MAC地址，也立即启动蓝牙扫描（通过名称匹配）
                     // 对于没有MAC地址的设备，异步从服务器获取
                     boolean needFetchMac = noMacCount > 0;
                     if (needFetchMac) {
-                        Log.d(TAG, "Some devices missing MAC, will fetch from server asynchronously...");
-                        Log.d(TAG, "Starting BLE scan NOW with device names (will add MACs when fetched)");
+                        LogUtil.d(TAG, "Some devices missing MAC, will fetch from server asynchronously...");
+                        LogUtil.d(TAG, "Starting BLE scan NOW with device names (will add MACs when fetched)");
                         // 异步获取MAC，但不阻塞蓝牙扫描启动
                         fetchMacAddressesFromServer(devices);
                     } else {
-                        Log.d(TAG, "✓ All devices have MAC addresses, no need to fetch from server");
+                        LogUtil.d(TAG, "✓ All devices have MAC addresses, no need to fetch from server");
                     }
                 } else {
                     Log.w(TAG, "No devices found in database");
@@ -1212,10 +1213,10 @@ public class LocationOptimizationManager {
             }
         }
         
-        Log.d(TAG, "=== getBoundDeviceIds END ===");
-        Log.d(TAG, "Final bound device IDs (MACs): " + boundDeviceIds);
-        Log.d(TAG, "Final bound device names: " + boundDeviceNames);
-        Log.d(TAG, "DeviceNum to MAC map size: " + deviceNumToMacMap.size());
+        LogUtil.d(TAG, "=== getBoundDeviceIds END ===");
+        LogUtil.d(TAG, "Final bound device IDs (MACs): " + boundDeviceIds);
+        LogUtil.d(TAG, "Final bound device names: " + boundDeviceNames);
+        LogUtil.d(TAG, "DeviceNum to MAC map size: " + deviceNumToMacMap.size());
         return boundDeviceIds;
     }
     
@@ -1231,17 +1232,17 @@ public class LocationOptimizationManager {
         
         new Thread(() -> {
             try {
-                Log.d(TAG, "=== Fetching MAC addresses from server ===");
+                LogUtil.d(TAG, "=== Fetching MAC addresses from server ===");
                 
                 // 使用第一个设备的URL来获取所有设备列表（假设所有设备在同一服务器）
                 String firstDeviceNum = devices.get(0).getDeviceNum();
                 String apiUrl = ApiConfig.getMyServerUrl(firstDeviceNum);
                 NewApiService.setApiBaseUrl(apiUrl);
-                Log.d(TAG, "Using API URL: " + apiUrl);
+                LogUtil.d(TAG, "Using API URL: " + apiUrl);
                 
                 // 只调用一次 /devices 接口获取所有设备列表（包含MAC地址）
                 java.util.List<NewApiService.DeviceInfo> allDevices = apiService.getDevices();
-                Log.d(TAG, "Got " + (allDevices != null ? allDevices.size() : 0) + " devices from server");
+                LogUtil.d(TAG, "Got " + (allDevices != null ? allDevices.size() : 0) + " devices from server");
                 
                 if (allDevices == null || allDevices.isEmpty()) {
                     Log.e(TAG, "✗ Failed to get devices from server or empty list");
@@ -1249,17 +1250,17 @@ public class LocationOptimizationManager {
                 }
                 
                 // 打印服务器返回的所有设备信息（调试用）
-                Log.d(TAG, "=== Server returned devices ===");
+                LogUtil.d(TAG, "=== Server returned devices ===");
                 boolean foundMyDevice = false;
                 for (NewApiService.DeviceInfo info : allDevices) {
-                    Log.d(TAG, "  Server device: num=" + info.deviceNum + ", name=" + info.nickName + ", mac=" + info.mac);
+                    LogUtil.d(TAG, "  Server device: num=" + info.deviceNum + ", name=" + info.nickName + ", mac=" + info.mac);
                     // 检查是否包含当前用户的设备
                     if (info.deviceNum != null && info.deviceNum.contains("1756726632035006")) {
                         foundMyDevice = true;
-                        Log.d(TAG, "  >>> FOUND MY DEVICE: " + info.deviceNum + " with MAC: " + info.mac);
+                        LogUtil.d(TAG, "  >>> FOUND MY DEVICE: " + info.deviceNum + " with MAC: " + info.mac);
                     }
                 }
-                Log.d(TAG, "==============================");
+                LogUtil.d(TAG, "==============================");
                 if (!foundMyDevice) {
                     Log.w(TAG, " Device 1756726632035006 (SC-35006) NOT found in server response!");
                     Log.w(TAG, "  This means MAC address cannot be fetched from server!");
@@ -1284,7 +1285,7 @@ public class LocationOptimizationManager {
                     if (macAddress != null && !macAddress.isEmpty()) {
                         String normalizedMac = normalizeMacAddress(macAddress);
                         
-                        Log.d(TAG, "✓ Got MAC for device " + deviceNum + ": " + normalizedMac);
+                        LogUtil.d(TAG, "✓ Got MAC for device " + deviceNum + ": " + normalizedMac);
                         
                         // 更新本地设备的MAC地址
                         device.setMac(normalizedMac);
@@ -1298,22 +1299,22 @@ public class LocationOptimizationManager {
                         
                         // 保存到数据库
                         databaseHelper.addDevice(device);
-                        Log.d(TAG, "  Saved MAC to database for device: " + deviceNum);
+                        LogUtil.d(TAG, "  Saved MAC to database for device: " + deviceNum);
                     } else {
                         Log.w(TAG, "✗ No MAC address found for device: " + deviceNum);
                     }
                 }
                 
-                Log.d(TAG, "=== MAC address fetch complete ===");
-                Log.d(TAG, "Total devices with MAC: " + deviceNumToMacMap.size());
-                Log.d(TAG, "Bound device IDs (MACs): " + boundDeviceIds);
+                LogUtil.d(TAG, "=== MAC address fetch complete ===");
+                LogUtil.d(TAG, "Total devices with MAC: " + deviceNumToMacMap.size());
+                LogUtil.d(TAG, "Bound device IDs (MACs): " + boundDeviceIds);
                 
                 // 【关键】如果蓝牙扫描已经在运行，重启它以应用新的MAC列表
                 if (bluetoothScanner != null && isContinuousScanningActive()) {
-                    Log.d(TAG, "Restarting BLE scanner with updated MAC list...");
+                    LogUtil.d(TAG, "Restarting BLE scanner with updated MAC list...");
                     stopBluetoothScanning();
                     startBluetoothScanning();
-                    Log.d(TAG, "✓ BLE scanner restarted with new MAC addresses");
+                    LogUtil.d(TAG, "✓ BLE scanner restarted with new MAC addresses");
                 }
                 
             } catch (Exception e) {
@@ -1368,7 +1369,7 @@ public class LocationOptimizationManager {
      */
     public void setOptimizationEnabled(boolean enabled) {
         this.optimizationEnabled = enabled;
-        Log.d(TAG, "Optimization " + (enabled ? "enabled" : "disabled"));
+        LogUtil.d(TAG, "Optimization " + (enabled ? "enabled" : "disabled"));
     }
     
     /**
@@ -1377,7 +1378,7 @@ public class LocationOptimizationManager {
      */
     public void setDebugMode(boolean enabled) {
         this.debugMode = enabled;
-        Log.d(TAG, "Debug mode (Toast) " + (enabled ? "enabled" : "disabled"));
+        LogUtil.d(TAG, "Debug mode (Toast) " + (enabled ? "enabled" : "disabled"));
     }
     
     /**
@@ -1408,7 +1409,7 @@ public class LocationOptimizationManager {
             Device device = databaseHelper.getDeviceByDeviceNum(deviceNum);
             if (device != null) {
                 int battery = device.getBattery();
-                Log.d(TAG, "Got battery from database: " + battery + "% for deviceNum: " + deviceNum);
+                LogUtil.d(TAG, "Got battery from database: " + battery + "% for deviceNum: " + deviceNum);
                 return battery;
             }
         } catch (Exception e) {
@@ -1436,6 +1437,6 @@ public class LocationOptimizationManager {
             phoneLocationService = null;
         }
         
-        Log.d(TAG, "Location optimization manager cleaned up");
+        LogUtil.d(TAG, "Location optimization manager cleaned up");
     }
 }

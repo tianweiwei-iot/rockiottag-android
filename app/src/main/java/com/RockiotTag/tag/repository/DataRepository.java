@@ -12,6 +12,7 @@ import com.RockiotTag.tag.room.DeviceDao;
 import com.RockiotTag.tag.room.DeviceEntity;
 import com.RockiotTag.tag.room.LocationRecordDao;
 import com.RockiotTag.tag.room.LocationRecordEntity;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -61,7 +62,7 @@ public class DataRepository {
     public void insertDevice(DeviceEntity device) {
         executorService.execute(() -> {
             deviceDao.insertDevice(device);
-            Log.d(TAG, "Device inserted: " + device.getDeviceId());
+            LogUtil.d(TAG, "Device inserted: " + device.getDeviceId());
         });
     }
     
@@ -71,7 +72,7 @@ public class DataRepository {
     public void insertDevices(List<DeviceEntity> devices) {
         executorService.execute(() -> {
             deviceDao.insertDevices(devices);
-            Log.d(TAG, "Devices batch inserted: " + devices.size());
+            LogUtil.d(TAG, "Devices batch inserted: " + devices.size());
         });
     }
     
@@ -109,7 +110,7 @@ public class DataRepository {
     public void deleteDevice(String deviceId) {
         executorService.execute(() -> {
             int deleted = deviceDao.deleteDeviceById(deviceId);
-            Log.d(TAG, "Device deleted: " + deviceId + ", rows: " + deleted);
+            LogUtil.d(TAG, "Device deleted: " + deviceId + ", rows: " + deleted);
         });
     }
     
@@ -128,7 +129,7 @@ public class DataRepository {
     public void updateDeviceMac(String deviceNum, String mac) {
         executorService.execute(() -> {
             int updated = deviceDao.updateDeviceMac(deviceNum, mac);
-            Log.d(TAG, "Device MAC updated: " + deviceNum + ", rows: " + updated);
+            LogUtil.d(TAG, "Device MAC updated: " + deviceNum + ", rows: " + updated);
         });
     }
     
@@ -149,7 +150,7 @@ public class DataRepository {
     public void insertLocationRecords(List<LocationRecordEntity> records) {
         executorService.execute(() -> {
             locationRecordDao.insertLocationRecords(records);
-            Log.d(TAG, "Location records batch inserted: " + records.size());
+            LogUtil.d(TAG, "Location records batch inserted: " + records.size());
         });
     }
     
@@ -173,7 +174,7 @@ public class DataRepository {
     public void deleteLocationRecord(String deviceId, long timestamp) {
         executorService.execute(() -> {
             int deleted = locationRecordDao.deleteLocationRecordByDeviceAndTimestamp(deviceId, timestamp);
-            Log.d(TAG, "Location record deleted: " + deviceId + "@" + timestamp + ", rows: " + deleted);
+            LogUtil.d(TAG, "Location record deleted: " + deviceId + "@" + timestamp + ", rows: " + deleted);
         });
     }
     
@@ -183,7 +184,7 @@ public class DataRepository {
     public void cleanOldLocationRecords(long cutoffTime) {
         executorService.execute(() -> {
             int deleted = locationRecordDao.cleanOldLocationRecords(cutoffTime);
-            Log.d(TAG, "Old location records cleaned: " + deleted);
+            LogUtil.d(TAG, "Old location records cleaned: " + deleted);
         });
     }
     
@@ -193,7 +194,7 @@ public class DataRepository {
     public void deleteLocationRecordsByDevice(String deviceId) {
         executorService.execute(() -> {
             int deleted = locationRecordDao.deleteLocationRecordsByDevice(deviceId);
-            Log.d(TAG, "Location records deleted for device: " + deviceId + ", rows: " + deleted);
+            LogUtil.d(TAG, "Location records deleted for device: " + deviceId + ", rows: " + deleted);
         });
     }
     
@@ -205,7 +206,7 @@ public class DataRepository {
     public void saveAddressCache(AddressCacheEntity cache) {
         executorService.execute(() -> {
             addressCacheDao.insertAddressCache(cache);
-            Log.d(TAG, "Address cache saved: " + cache.getCacheKey());
+            LogUtil.d(TAG, "Address cache saved: " + cache.getCacheKey());
         });
     }
     
@@ -222,7 +223,7 @@ public class DataRepository {
     public void cleanExpiredAddressCache(long cutoffTime) {
         executorService.execute(() -> {
             int deleted = addressCacheDao.cleanExpiredAddressCache(cutoffTime);
-            Log.d(TAG, "Expired address cache cleaned: " + deleted);
+            LogUtil.d(TAG, "Expired address cache cleaned: " + deleted);
         });
     }
 }

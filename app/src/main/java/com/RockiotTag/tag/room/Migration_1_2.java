@@ -1,6 +1,7 @@
 package com.RockiotTag.tag.room;
 
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import androidx.annotation.NonNull;
 import androidx.room.migration.Migration;
@@ -19,11 +20,11 @@ public class Migration_1_2 extends Migration {
     
     @Override
     public void migrate(@NonNull SupportSQLiteDatabase database) {
-        Log.d(TAG, "Migrating database from version 1 to 2: Adding accuracy column");
+        LogUtil.d(TAG, "Migrating database from version 1 to 2: Adding accuracy column");
         
         // 添加accuracy列，默认值为50.0（BLE Tag典型精度）
         database.execSQL("ALTER TABLE location_history ADD COLUMN accuracy REAL NOT NULL DEFAULT 50.0");
         
-        Log.d(TAG, "Migration completed successfully");
+        LogUtil.d(TAG, "Migration completed successfully");
     }
 }

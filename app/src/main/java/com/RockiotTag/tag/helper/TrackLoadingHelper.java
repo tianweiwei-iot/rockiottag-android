@@ -9,6 +9,7 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.RockiotTag.tag.R;
+import com.RockiotTag.tag.util.LogUtil;
 
 /**
  * TrackActivity 加载状态辅助类
@@ -46,18 +47,18 @@ public class TrackLoadingHelper {
      * 显示加载提示对话框
      */
     public void showLoadingDialog() {
-        Log.d(TAG, "=== showLoadingDialog() called ===");
+        LogUtil.d(TAG, "=== showLoadingDialog() called ===");
         if (activity.isFinishing() || activity.isDestroyed()) {
             Log.w(TAG, "[DIALOG_SKIP] Activity is finishing/destroyed, skip showing dialog");
             return;
         }
 
         if (loadingDialog != null && loadingDialog.isShowing()) {
-            Log.d(TAG, "[DIALOG_EXISTS] Loading dialog already showing, skip");
+            LogUtil.d(TAG, "[DIALOG_EXISTS] Loading dialog already showing, skip");
             return;
         }
 
-        Log.d(TAG, "[DIALOG_CREATE] Creating and showing loading dialog");
+        LogUtil.d(TAG, "[DIALOG_CREATE] Creating and showing loading dialog");
         android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(activity);
         builder.setTitle(activity.getString(R.string.loading_track_title));
         builder.setMessage(activity.getString(R.string.loading_track_message));
@@ -84,17 +85,17 @@ public class TrackLoadingHelper {
         builder.setView(layout);
         loadingDialog = builder.create();
         loadingDialog.show();
-        Log.d(TAG, "[DIALOG_SHOWN] Loading dialog is now visible");
+        LogUtil.d(TAG, "[DIALOG_SHOWN] Loading dialog is now visible");
     }
 
     /**
      * 隐藏加载提示对话框
      */
     public void hideLoadingDialog() {
-        Log.d(TAG, "=== hideLoadingDialog() called === loadingDialog=" + (loadingDialog != null) + ", isShowing=" + (loadingDialog != null && loadingDialog.isShowing()));
+        LogUtil.d(TAG, "=== hideLoadingDialog() called === loadingDialog=" + (loadingDialog != null) + ", isShowing=" + (loadingDialog != null && loadingDialog.isShowing()));
         if (loadingDialog != null && loadingDialog.isShowing()) {
             loadingDialog.dismiss();
-            Log.d(TAG, "[DIALOG_DISMISSED] Loading dialog dismissed");
+            LogUtil.d(TAG, "[DIALOG_DISMISSED] Loading dialog dismissed");
         }
         loadingDialog = null;
     }
@@ -103,10 +104,10 @@ public class TrackLoadingHelper {
      * 隐藏加载状态（进度条 + 对话框）
      */
     public void hideLoading() {
-        Log.d(TAG, "=== hideLoading() called ===");
+        LogUtil.d(TAG, "=== hideLoading() called ===");
         if (loadingProgress != null) {
             loadingProgress.setVisibility(View.GONE);
-            Log.d(TAG, "[PROGRESS_HIDDEN] Loading progress bar hidden");
+            LogUtil.d(TAG, "[PROGRESS_HIDDEN] Loading progress bar hidden");
         }
         hideLoadingDialog();
     }

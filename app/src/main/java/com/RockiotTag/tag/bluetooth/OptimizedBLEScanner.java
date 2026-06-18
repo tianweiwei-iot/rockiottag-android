@@ -16,6 +16,7 @@ import android.util.Log;
 import androidx.core.app.ActivityCompat;
 
 import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -85,7 +86,7 @@ public class OptimizedBLEScanner {
             this.bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
         }
         
-        Log.d(TAG, "OptimizedBLEScanner initialized with " + boundDeviceMacs.size() + " bound devices");
+        LogUtil.d(TAG, "OptimizedBLEScanner initialized with " + boundDeviceMacs.size() + " bound devices");
     }
     
     /**
@@ -100,7 +101,7 @@ public class OptimizedBLEScanner {
             return;
         }
         
-        Log.d(TAG, "Starting continuous BLE scanning (scan 10s, rest 10s)...");
+        LogUtil.d(TAG, "Starting continuous BLE scanning (scan 10s, rest 10s)...");
         
         // 立即开始第一次扫描
         performScan();
@@ -118,7 +119,7 @@ public class OptimizedBLEScanner {
             return;
         }
 
-        Log.d(TAG, "Starting continuous BLE scanning with state callback...");
+        LogUtil.d(TAG, "Starting continuous BLE scanning with state callback...");
         performScan();
     }
 
@@ -134,7 +135,7 @@ public class OptimizedBLEScanner {
             return;
         }
 
-        Log.d(TAG, "Starting single BLE scan (will stop after one cycle)...");
+        LogUtil.d(TAG, "Starting single BLE scan (will stop after one cycle)...");
         performScan();
     }
     
@@ -153,12 +154,12 @@ public class OptimizedBLEScanner {
         }
         
         if (isScanning) {
-            Log.d(TAG, "Already scanning, skip this cycle (continuous mode)");
+            LogUtil.d(TAG, "Already scanning, skip this cycle (continuous mode)");
             return;
         }
         
-        Log.d(TAG, "=== Starting BLE scan cycle (duration: " + SCAN_DURATION + "ms) ===");
-        Log.d(TAG, "Bound devices count: " + (boundDeviceMacs != null ? boundDeviceMacs.size() : 0));
+        LogUtil.d(TAG, "=== Starting BLE scan cycle (duration: " + SCAN_DURATION + "ms) ===");
+        LogUtil.d(TAG, "Bound devices count: " + (boundDeviceMacs != null ? boundDeviceMacs.size() : 0));
         
         // 通知扫描开始
         if (scanStateCallback != null) {
@@ -191,7 +192,7 @@ public class OptimizedBLEScanner {
                 if (result != null && result.getDevice() != null) {
                     String mac = result.getDevice().getAddress();
                     int rssi = result.getRssi();
-                    Log.v(TAG, "📡 Scan result: MAC=" + mac + ", RSSI=" + rssi);
+                    LogUtil.v(TAG, "📡 Scan result: MAC=" + mac + ", RSSI=" + rssi);
                 }
                 processScanResult(result);
             }
@@ -199,7 +200,7 @@ public class OptimizedBLEScanner {
             @Override
             public void onBatchScanResults(List<ScanResult> results) {
                 super.onBatchScanResults(results);
-                Log.d(TAG, "📦 Batch scan: " + results.size() + " devices");
+                LogUtil.d(TAG, "📦 Batch scan: " + results.size() + " devices");
                 for (ScanResult result : results) {
                     processScanResult(result);
                 }
@@ -211,7 +212,7 @@ public class OptimizedBLEScanner {
                 Log.e(TAG, "❌ BLE scan failed with error code: " + errorCode);
                 isScanning = false;
                 // 扫描失败后，等待下一个周期会自动重试
-                Log.d(TAG, "Scan failed, will retry in next cycle");
+                LogUtil.d(TAG, "Scan failed, will retry in next cycle");
             }
         };
         
@@ -220,17 +221,17 @@ public class OptimizedBLEScanner {
             isScanning = true;
             bluetoothLeScanner.startScan(filters, settings, leScanCallback);
             
-            Log.d(TAG, "✅ BLE scan started with MAX POWER mode");
-            Log.d(TAG, "   Scan mode: LOW_LATENCY (fastest)");
-            Log.d(TAG, "   Match mode: AGGRESSIVE");
-            Log.d(TAG, "   Report delay: 0ms (immediate)");
-            Log.d(TAG, "   Duration: " + SCAN_DURATION + "ms per cycle");
+            LogUtil.d(TAG, "✅ BLE scan started with MAX POWER mode");
+            LogUtil.d(TAG, "   Scan mode: LOW_LATENCY (fastest)");
+            LogUtil.d(TAG, "   Match mode: AGGRESSIVE");
+            LogUtil.d(TAG, "   Report delay: 0ms (immediate)");
+            LogUtil.d(TAG, "   Duration: " + SCAN_DURATION + "ms per cycle");
             
             // 设置停止扫描的延迟任务 - 扫描10秒后停止，然后等待10秒再重新启动
             stopScanRunnable = new Runnable() {
                 @Override
                 public void run() {
-                    Log.d(TAG, "⏹️ Stopping scan after 10 seconds, entering rest period...");
+                    LogUtil.d(TAG, "⏹️ Stopping scan after 10 seconds, entering rest period...");
                     stopScanningInternal();
                     
                     // 通知扫描停止（进入休息期）
@@ -240,11 +241,11 @@ public class OptimizedBLEScanner {
                     
                     // 等待10秒后重新启动扫描
                     if (isContinuousScanning) {
-                        Log.d(TAG, "✓ Rest period started, will restart in " + SCAN_INTERVAL + "ms...");
+                        LogUtil.d(TAG, "✓ Rest period started, will restart in " + SCAN_INTERVAL + "ms...");
                         handler.postDelayed(new Runnable() {
                             @Override
                             public void run() {
-                                Log.d(TAG, "🔄 Restarting BLE scan after rest period...");
+                                LogUtil.d(TAG, "🔄 Restarting BLE scan after rest period...");
                                 performScan();
                             }
                         }, SCAN_INTERVAL);
@@ -297,7 +298,7 @@ public class OptimizedBLEScanner {
             
             // 检查是否是已绑定的设备（通过MAC地址匹配）
             if (boundDeviceMacs.contains(normalizedMac)) {
-                Log.d(TAG, "✓ Found bound device: MAC=" + normalizedMac + 
+                LogUtil.d(TAG, "✓ Found bound device: MAC=" + normalizedMac + 
                       ", Name=" + deviceName + ", RSSI=" + rssi);
                 
                 // 保存扫描结果
@@ -323,7 +324,7 @@ public class OptimizedBLEScanner {
                 }
             } else if (deviceName != null && isBoundDeviceByName(deviceName)) {
                 // 也支持通过名称匹配（兼容性考虑）
-                Log.d(TAG, "✓ Found bound device by name: Name=" + deviceName + 
+                LogUtil.d(TAG, "✓ Found bound device by name: Name=" + deviceName + 
                       ", MAC=" + normalizedMac + ", RSSI=" + rssi);
                 
                 // 保存扫描结果
@@ -398,13 +399,13 @@ public class OptimizedBLEScanner {
                     if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) 
                             == PackageManager.PERMISSION_GRANTED) {
                         bluetoothLeScanner.stopScan(leScanCallback);
-                        Log.d(TAG, "BLE scanning stopped (cycle end)");
+                        LogUtil.d(TAG, "BLE scanning stopped (cycle end)");
                     } else {
                         Log.w(TAG, "Cannot stop scan, missing BLUETOOTH_SCAN permission");
                     }
                 } else {
                     bluetoothLeScanner.stopScan(leScanCallback);
-                    Log.d(TAG, "BLE scanning stopped (cycle end)");
+                    LogUtil.d(TAG, "BLE scanning stopped (cycle end)");
                 }
             }
         } catch (SecurityException e) {
@@ -426,7 +427,7 @@ public class OptimizedBLEScanner {
      * 停止扫描（公共方法）- 完全停止持续扫描
      */
     public void stopScanning() {
-        Log.d(TAG, "Stopping continuous BLE scanning...");
+        LogUtil.d(TAG, "Stopping continuous BLE scanning...");
         isContinuousScanning = false; // 退出持续扫描模式
         
         // 移除所有待执行的扫描任务
@@ -439,7 +440,7 @@ public class OptimizedBLEScanner {
             userCallback.onScanComplete();
         }
         
-        Log.d(TAG, "✓ BLE scanning completely stopped");
+        LogUtil.d(TAG, "✓ BLE scanning completely stopped");
     }
     
     /**
@@ -531,7 +532,7 @@ public class OptimizedBLEScanner {
         }
         
         if (!expiredKeys.isEmpty()) {
-            Log.d(TAG, "Cleaned up " + expiredKeys.size() + " expired scan results");
+            LogUtil.d(TAG, "Cleaned up " + expiredKeys.size() + " expired scan results");
         }
     }
 }

@@ -6,6 +6,7 @@ import com.RockiotTag.tag.CoordinateUtils;
 import com.RockiotTag.tag.LocationRecord;
 import com.RockiotTag.tag.StayPoint;
 import com.RockiotTag.tag.model.LocationData;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,7 +35,7 @@ public class TrackDataProcessor {
             }
         }
         
-        Log.d(TAG, "Filtered " + (records.size() - filtered.size()) + " invalid records");
+        LogUtil.d(TAG, "Filtered " + (records.size() - filtered.size()) + " invalid records");
         return filtered;
     }
     
@@ -76,14 +77,14 @@ public class TrackDataProcessor {
             if (com.RockiotTag.tag.util.BLETagFilter.isAnomalous(distance, timeDiff,
                                                                  prev.getAccuracy(), curr.getAccuracy())) {
                 jumpCount++;
-                Log.d(TAG, String.format("Filtered abnormal jump: %.0fm in %dms", distance, timeDiff));
+                LogUtil.d(TAG, String.format("Filtered abnormal jump: %.0fm in %dms", distance, timeDiff));
                 continue;
             }
             
             filtered.add(curr);
         }
         
-        Log.d(TAG, "Filtered " + jumpCount + " abnormal jumps");
+        LogUtil.d(TAG, "Filtered " + jumpCount + " abnormal jumps");
         return filtered;
     }
     
@@ -165,7 +166,7 @@ public class TrackDataProcessor {
             stayPoints.add(currentStayPoint);
         }
         
-        Log.d(TAG, "Generated " + stayPoints.size() + " stay points from " + records.size() + " records");
+        LogUtil.d(TAG, "Generated " + stayPoints.size() + " stay points from " + records.size() + " records");
         return stayPoints;
     }
 }

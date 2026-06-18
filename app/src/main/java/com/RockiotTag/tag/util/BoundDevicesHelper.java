@@ -3,6 +3,7 @@ package com.RockiotTag.tag.util;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import com.RockiotTag.tag.DeviceApiService;
 import com.google.gson.Gson;
@@ -59,7 +60,7 @@ public final class BoundDevicesHelper {
             }
 
             prefs.edit().putString(KEY_BOUND_DEVICES, gson.toJson(boundDevices)).apply();
-            Log.d(TAG, "Updated bound_devices nickName for " + deviceNum);
+            LogUtil.d(TAG, "Updated bound_devices nickName for " + deviceNum);
         } catch (Exception e) {
             Log.e(TAG, "Failed to update bound_devices: " + e.getMessage(), e);
         }

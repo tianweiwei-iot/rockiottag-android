@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.RockiotTag.tag.LocationRecord;
 import com.RockiotTag.tag.StayPoint;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +27,7 @@ public class DetectStayPointsUseCase extends BaseUseCase<List<LocationRecord>, L
     
     @Override
     protected List<StayPoint> executeSync(List<LocationRecord> records) throws Exception {
-        Log.d(TAG, "Detecting stay points from " + (records != null ? records.size() : 0) + " records");
+        LogUtil.d(TAG, "Detecting stay points from " + (records != null ? records.size() : 0) + " records");
         
         if (records == null || records.isEmpty()) {
             return new ArrayList<>();
@@ -60,7 +61,7 @@ public class DetectStayPointsUseCase extends BaseUseCase<List<LocationRecord>, L
                     stayPoint.setOriginalIndex(stayPointIndex++); // 设置序号
                     
                     stayPoints.add(stayPoint);
-                    Log.d(TAG, "Stay point detected: index=" + stayPoint.getOriginalIndex() + ", duration=" + (duration / 1000) + "s");
+                    LogUtil.d(TAG, "Stay point detected: index=" + stayPoint.getOriginalIndex() + ", duration=" + (duration / 1000) + "s");
                     
                     // 重置聚类
                     if (i + 1 < records.size()) {
@@ -78,7 +79,7 @@ public class DetectStayPointsUseCase extends BaseUseCase<List<LocationRecord>, L
             }
         }
         
-        Log.d(TAG, "Detected " + stayPoints.size() + " stay points");
+        LogUtil.d(TAG, "Detected " + stayPoints.size() + " stay points");
         return stayPoints;
     }
     

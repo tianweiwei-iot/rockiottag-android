@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.RockiotTag.tag.repository.DeviceRepository;
 import com.RockiotTag.tag.util.BoundDevicesHelper;
+import com.RockiotTag.tag.util.LogUtil;
 import com.RockiotTag.tag.util.TagPickerHelper;
 import com.RockiotTag.tag.util.ThemedDialogHelper;
 
@@ -113,9 +114,9 @@ public class DeviceListFragment extends Fragment {
                             }
                         }
                     }
-                    android.util.Log.d(TAG, "Loaded " + deviceList.size() + " bound devices from local database");
+                    LogUtil.d(TAG, "Loaded " + deviceList.size() + " bound devices from local database");
                 } else {
-                    android.util.Log.d(TAG, "No bound devices found, showing empty list");
+                    LogUtil.d(TAG, "No bound devices found, showing empty list");
                 }
             } catch (Exception e) {
                 android.util.Log.e(TAG, "Error parsing bound devices: " + e.getMessage(), e);
@@ -123,7 +124,7 @@ public class DeviceListFragment extends Fragment {
             }
         } else {
             // 未登录：不显示任何设备（设备跟账号绑定）
-            android.util.Log.d(TAG, "User not logged in, showing empty list");
+            LogUtil.d(TAG, "User not logged in, showing empty list");
         }
         
         // 获取当前选中设备ID，用于高亮显示

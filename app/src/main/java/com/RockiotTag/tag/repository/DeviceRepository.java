@@ -7,6 +7,7 @@ import com.RockiotTag.tag.DatabaseHelper;
 import com.RockiotTag.tag.Device;
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.model.TagDevice;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +39,7 @@ public class DeviceRepository {
      * 从本地数据库获取所有设备（转换为新模型）
      */
     public List<TagDevice> getAllLocalDevices() {
-        Log.d(TAG, "Getting all local devices");
+        LogUtil.d(TAG, "Getting all local devices");
         List<Device> oldDevices = databaseHelper.getAllDevices();
         List<TagDevice> newDevices = new ArrayList<>();
         for (Device d : oldDevices) {
@@ -71,7 +72,7 @@ public class DeviceRepository {
      * 从服务器获取设备列表
      */
     public List<NewApiService.DeviceInfo> getRemoteDevices() {
-        Log.d(TAG, "Getting remote devices from server");
+        LogUtil.d(TAG, "Getting remote devices from server");
         try {
             return apiService.getDevices();
         } catch (Exception e) {
@@ -84,17 +85,17 @@ public class DeviceRepository {
      * 保存或更新设备到本地数据库
      */
     public synchronized void saveDevice(Device device) {
-        Log.d(TAG, "Saving device: " + device.getName());
+        LogUtil.d(TAG, "Saving device: " + device.getName());
         databaseHelper.addDevice(device);
     }
     
     public Device getDeviceById(String deviceId) {
-        Log.d(TAG, "Getting device by ID: " + deviceId);
+        LogUtil.d(TAG, "Getting device by ID: " + deviceId);
         return databaseHelper.getDevice(deviceId);
     }
     
     public Device getDeviceByNum(String deviceNum) {
-        Log.d(TAG, "Getting device by deviceNum: " + deviceNum);
+        LogUtil.d(TAG, "Getting device by deviceNum: " + deviceNum);
         return databaseHelper.getDeviceByDeviceNum(deviceNum);
     }
     
@@ -110,14 +111,14 @@ public class DeviceRepository {
      * 删除设备
      */
     public void deleteDevice(String deviceId, DeleteCallback callback) {
-        Log.d(TAG, "Deleting device: " + deviceId);
+        LogUtil.d(TAG, "Deleting device: " + deviceId);
         
         new Thread(() -> {
             try {
                 int deletedCount = databaseHelper.deleteDevice(deviceId);
                 
                 if (deletedCount > 0) {
-                    Log.d(TAG, "Device deleted successfully: " + deviceId);
+                    LogUtil.d(TAG, "Device deleted successfully: " + deviceId);
                     if (callback != null) {
                         new android.os.Handler(android.os.Looper.getMainLooper()).post(callback::onSuccess);
                     }
@@ -151,28 +152,28 @@ public class DeviceRepository {
     }
 
     public void updateDeviceNameAndTag(String deviceId, String deviceNum, String name, String tag, String customerCode, UpdateCallback callback) {
-        Log.d(TAG, "=== updateDeviceNameAndTag called ===");
-        Log.d(TAG, "deviceId: " + deviceId + ", deviceNum: " + deviceNum);
-        Log.d(TAG, "name: " + name + ", tag: " + tag + ", customerCode: " + customerCode);
-        Log.d(TAG, "callback: " + (callback != null ? "not null" : "NULL"));
+        LogUtil.d(TAG, "=== updateDeviceNameAndTag called ===");
+        LogUtil.d(TAG, "deviceId: " + deviceId + ", deviceNum: " + deviceNum);
+        LogUtil.d(TAG, "name: " + name + ", tag: " + tag + ", customerCode: " + customerCode);
+        LogUtil.d(TAG, "callback: " + (callback != null ? "not null" : "NULL"));
 
         new Thread(() -> {
             try {
                 // 更新服务器（传递customerCode以确保使用正确的API Key）
                 if (deviceNum != null && !deviceNum.isEmpty()) {
                     try {
-                        Log.d(TAG, "[Thread] Updating server for device: " + deviceNum);
+                        LogUtil.d(TAG, "[Thread] Updating server for device: " + deviceNum);
                         NewApiService.setApiBaseUrl(com.RockiotTag.tag.ApiConfig.getMyServerUrl(deviceNum));
                         NewApiService.ApiResponse response = apiService.updateDevice(deviceNum, name, customerCode);
-                        Log.d(TAG, "[Thread] Server update response: success=" + (response != null ? response.isSuccess() : "null"));
+                        LogUtil.d(TAG, "[Thread] Server update response: success=" + (response != null ? response.isSuccess() : "null"));
                         
                         // 检查服务器响应
                         if (response != null && !response.isSuccess()) {
                             Log.e(TAG, "[Thread] Server update failed: " + response.getMessage());
                             if (callback != null) {
-                                Log.d(TAG, "[Thread] Posting onError to main thread (server failure)");
+                                LogUtil.d(TAG, "[Thread] Posting onError to main thread (server failure)");
                                 new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-                                    Log.d(TAG, "[Main Thread] Executing callback.onError");
+                                    LogUtil.d(TAG, "[Main Thread] Executing callback.onError");
                                     callback.onError("服务器更新失败: " + response.getMessage());
                                 });
                             }
@@ -185,20 +186,20 @@ public class DeviceRepository {
                 }
                 
                 // 更新本地数据库
-                Log.d(TAG, "[Thread] Updating local database...");
+                LogUtil.d(TAG, "[Thread] Updating local database...");
                 boolean updated = databaseHelper.updateDeviceNameAndTag(deviceId, deviceNum, name, tag);
-                Log.d(TAG, "[Thread] Local database update result: " + updated);
+                LogUtil.d(TAG, "[Thread] Local database update result: " + updated);
                 
                 if (updated) {
-                    Log.d(TAG, "[Thread] Device updated successfully");
+                    LogUtil.d(TAG, "[Thread] Device updated successfully");
                     // 关键修复：必须在主线程调用callback，因为UI操作需要在主线程
                     if (callback != null) {
-                        Log.d(TAG, "[Thread] Posting onSuccess to main thread");
+                        LogUtil.d(TAG, "[Thread] Posting onSuccess to main thread");
                         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-                            Log.d(TAG, "[Main Thread] === Executing callback.onSuccess ===");
+                            LogUtil.d(TAG, "[Main Thread] === Executing callback.onSuccess ===");
                             try {
                                 callback.onSuccess();
-                                Log.d(TAG, "[Main Thread] callback.onSuccess completed");
+                                LogUtil.d(TAG, "[Main Thread] callback.onSuccess completed");
                             } catch (Exception e) {
                                 Log.e(TAG, "[Main Thread] Error in callback.onSuccess: " + e.getMessage(), e);
                                 e.printStackTrace();
@@ -210,9 +211,9 @@ public class DeviceRepository {
                 } else {
                     Log.e(TAG, "[Thread] Failed to update device in database");
                     if (callback != null) {
-                        Log.d(TAG, "[Thread] Posting onError to main thread (database failure)");
+                        LogUtil.d(TAG, "[Thread] Posting onError to main thread (database failure)");
                         new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-                            Log.d(TAG, "[Main Thread] Executing callback.onError");
+                            LogUtil.d(TAG, "[Main Thread] Executing callback.onError");
                             callback.onError("数据库更新失败");
                         });
                     }
@@ -221,23 +222,23 @@ public class DeviceRepository {
                 Log.e(TAG, "[Thread] Error updating device: " + e.getMessage(), e);
                 e.printStackTrace();
                 if (callback != null) {
-                    Log.d(TAG, "[Thread] Posting onError to main thread (exception)");
+                    LogUtil.d(TAG, "[Thread] Posting onError to main thread (exception)");
                     new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-                        Log.d(TAG, "[Main Thread] Executing callback.onError");
+                        LogUtil.d(TAG, "[Main Thread] Executing callback.onError");
                         callback.onError("更新异常: " + e.getMessage());
                     });
                 }
             }
         }).start();
         
-        Log.d(TAG, "=== Background thread started ===");
+        LogUtil.d(TAG, "=== Background thread started ===");
     }
     
     /**
      * 更新本地设备信息（从服务器同步后）
      */
     public void updateLocalDeviceInfo(String deviceId, NewApiService.DeviceInfo deviceInfo) {
-        Log.d(TAG, "Updating local device info for: " + deviceId);
+        LogUtil.d(TAG, "Updating local device info for: " + deviceId);
         databaseHelper.updateDeviceLocationAndBattery(
             deviceId,
             deviceInfo.latitude,

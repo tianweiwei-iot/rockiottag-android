@@ -3,6 +3,7 @@ package com.RockiotTag.tag;
 import android.util.Log;
 
 import com.RockiotTag.tag.network.HttpHelper;
+import com.RockiotTag.tag.util.LogUtil;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -56,7 +57,7 @@ public class DeviceApiService {
                 params.addProperty("nickName", nickName);
             }
 
-            Log.d(TAG, "Bind device request: " + url + ", deviceNum: " + deviceNum + ", nickName: " + nickName);
+            LogUtil.d(TAG, "Bind device request: " + url + ", deviceNum: " + deviceNum + ", nickName: " + nickName);
             HttpHelper.HttpResponse response = postWithAuth(url, params.toString(), token);
 
             return parseResponse(response);
@@ -77,7 +78,7 @@ public class DeviceApiService {
     public DeviceApiResponse getBoundDevices(String token) {
         try {
             String url = ApiConfig.MY_SERVER_URL + "/device/list";
-            Log.d(TAG, "Get bound devices request: " + url);
+            LogUtil.d(TAG, "Get bound devices request: " + url);
 
             HttpURLConnection conn = (HttpURLConnection) new java.net.URL(url).openConnection();
             conn.setRequestMethod("GET");
@@ -87,7 +88,7 @@ public class DeviceApiService {
             conn.setReadTimeout(30000);
 
             int responseCode = conn.getResponseCode();
-            Log.d(TAG, "Get bound devices response code: " + responseCode);
+            LogUtil.d(TAG, "Get bound devices response code: " + responseCode);
 
             java.io.BufferedReader in = new java.io.BufferedReader(
                 new java.io.InputStreamReader(
@@ -102,7 +103,7 @@ public class DeviceApiService {
             conn.disconnect();
 
             String responseString = response.toString();
-            Log.d(TAG, "Get bound devices response: " + responseString);
+            LogUtil.d(TAG, "Get bound devices response: " + responseString);
 
             DeviceApiResponse apiResponse = new DeviceApiResponse();
             apiResponse.setStatusCode(responseCode);
@@ -157,7 +158,7 @@ public class DeviceApiService {
                             devices.add(device);
                         }
                         apiResponse.setDevices(devices);
-                        Log.d(TAG, "Parsed " + devices.size() + " bound devices");
+                        LogUtil.d(TAG, "Parsed " + devices.size() + " bound devices");
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Parse bound devices error: " + e.getMessage());
@@ -186,7 +187,7 @@ public class DeviceApiService {
             JsonObject params = new JsonObject();
             params.addProperty("deviceNum", deviceNum);
 
-            Log.d(TAG, "Unbind device request: " + url + ", deviceNum: " + deviceNum);
+            LogUtil.d(TAG, "Unbind device request: " + url + ", deviceNum: " + deviceNum);
             HttpHelper.HttpResponse response = postWithAuth(url, params.toString(), token);
 
             return parseResponse(response);
@@ -213,7 +214,7 @@ public class DeviceApiService {
             params.addProperty("deviceNum", deviceNum);
             params.addProperty("alias", alias);
 
-            Log.d(TAG, "Update alias request: " + url + ", deviceNum: " + deviceNum + ", alias: " + alias);
+            LogUtil.d(TAG, "Update alias request: " + url + ", deviceNum: " + deviceNum + ", alias: " + alias);
             HttpHelper.HttpResponse response = putWithAuth(url, params.toString(), token);
 
             return parseResponse(response);
@@ -241,7 +242,7 @@ public class DeviceApiService {
             conn.setReadTimeout(30000);
             conn.setDoOutput(true);
 
-            Log.d(TAG, "POST request body: " + jsonBody);
+            LogUtil.d(TAG, "POST request body: " + jsonBody);
 
             try (java.io.OutputStream os = conn.getOutputStream()) {
                 os.write(jsonBody.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -261,7 +262,7 @@ public class DeviceApiService {
             in.close();
 
             String responseString = response.toString();
-            Log.d(TAG, "POST response code: " + responseCode + ", body: " + responseString);
+            LogUtil.d(TAG, "POST response code: " + responseCode + ", body: " + responseString);
 
             return new HttpHelper.HttpResponse(responseCode, responseString, null);
         } catch (Exception e) {
@@ -287,7 +288,7 @@ public class DeviceApiService {
             conn.setReadTimeout(30000);
             conn.setDoOutput(true);
 
-            Log.d(TAG, "PUT request body: " + jsonBody);
+            LogUtil.d(TAG, "PUT request body: " + jsonBody);
 
             try (java.io.OutputStream os = conn.getOutputStream()) {
                 os.write(jsonBody.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -307,7 +308,7 @@ public class DeviceApiService {
             in.close();
 
             String responseString = response.toString();
-            Log.d(TAG, "PUT response code: " + responseCode + ", body: " + responseString);
+            LogUtil.d(TAG, "PUT response code: " + responseCode + ", body: " + responseString);
 
             return new HttpHelper.HttpResponse(responseCode, responseString, null);
         } catch (Exception e) {

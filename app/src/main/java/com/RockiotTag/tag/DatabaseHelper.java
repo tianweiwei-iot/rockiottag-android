@@ -7,6 +7,8 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
+import com.RockiotTag.tag.util.LogUtil;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -83,18 +85,18 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 + COLUMN_CACHE_LANGUAGE + " TEXT" + ")";
         db.execSQL(CREATE_ADDRESS_CACHE_TABLE);
 
-        Log.d(TAG, "Database tables created");
+        LogUtil.d(TAG, "Database tables created");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        Log.d(TAG, "Upgrading database from version " + oldVersion + " to " + newVersion);
+        LogUtil.d(TAG, "Upgrading database from version " + oldVersion + " to " + newVersion);
         
         if (oldVersion < 8) {
             try {
-                Log.d(TAG, "Adding battery column to devices table");
+                LogUtil.d(TAG, "Adding battery column to devices table");
                 db.execSQL("ALTER TABLE " + TABLE_DEVICES + " ADD COLUMN " + COLUMN_BATTERY + " INTEGER DEFAULT -1");
-                Log.d(TAG, "battery column added successfully");
+                LogUtil.d(TAG, "battery column added successfully");
             } catch (Exception e) {
                 Log.e(TAG, "Error adding battery column: " + e.getMessage());
             }
@@ -102,9 +104,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         
         if (oldVersion < 7) {
             try {
-                Log.d(TAG, "Adding customer_code column to devices table");
+                LogUtil.d(TAG, "Adding customer_code column to devices table");
                 db.execSQL("ALTER TABLE " + TABLE_DEVICES + " ADD COLUMN " + COLUMN_CUSTOMER_CODE + " TEXT DEFAULT ''");
-                Log.d(TAG, "customer_code column added successfully");
+                LogUtil.d(TAG, "customer_code column added successfully");
             } catch (Exception e) {
                 Log.e(TAG, "Error adding customer_code column: " + e.getMessage());
             }
@@ -112,9 +114,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         
         if (oldVersion < 6) {
             try {
-                Log.d(TAG, "Adding accuracy column to location_history table");
+                LogUtil.d(TAG, "Adding accuracy column to location_history table");
                 db.execSQL("ALTER TABLE " + TABLE_LOCATION_HISTORY + " ADD COLUMN " + COLUMN_HISTORY_ACCURACY + " REAL DEFAULT 50.0");
-                Log.d(TAG, "Accuracy column added successfully");
+                LogUtil.d(TAG, "Accuracy column added successfully");
             } catch (Exception e) {
                 Log.e(TAG, "Error adding accuracy column: " + e.getMessage());
             }
@@ -122,9 +124,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         
         if (oldVersion < 5) {
             try {
-                Log.d(TAG, "Adding MAC address column to devices table");
+                LogUtil.d(TAG, "Adding MAC address column to devices table");
                 db.execSQL("ALTER TABLE " + TABLE_DEVICES + " ADD COLUMN " + COLUMN_DEVICE_MAC + " TEXT DEFAULT ''");
-                Log.d(TAG, "MAC address column added successfully");
+                LogUtil.d(TAG, "MAC address column added successfully");
             } catch (Exception e) {
                 Log.e(TAG, "Error adding MAC column: " + e.getMessage());
             }
@@ -161,15 +163,15 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             }
             
             if (!hasLanguageColumn) {
-                Log.d(TAG, "Adding language column to address_cache table");
+                LogUtil.d(TAG, "Adding language column to address_cache table");
                 db.execSQL("ALTER TABLE " + TABLE_ADDRESS_CACHE + " ADD COLUMN " + COLUMN_CACHE_LANGUAGE + " TEXT DEFAULT 'zh-CN'");
                 
                 // 更新现有的缓存记录的cache_key，添加语言后缀
                 db.execSQL("UPDATE " + TABLE_ADDRESS_CACHE + " SET " + COLUMN_CACHE_LANGUAGE + "='zh-CN' WHERE " + COLUMN_CACHE_LANGUAGE + " IS NULL");
                 
-                Log.d(TAG, "Database upgraded to support multi-language cache");
+                LogUtil.d(TAG, "Database upgraded to support multi-language cache");
             } else {
-                Log.d(TAG, "Database already supports multi-language cache");
+                LogUtil.d(TAG, "Database already supports multi-language cache");
             }
         } catch (Exception e) {
             Log.e(TAG, "Error upgrading database: " + e.getMessage(), e);
@@ -193,7 +195,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_BATTERY, device.getBattery());
 
         long result = db.replace(TABLE_DEVICES, null, values);
-        Log.d(TAG, "Device added/updated: " + result + ", deviceId=" + device.getDeviceId() + ", name=" + device.getName() + ", mac=" + device.getMac() + ", customerCode=" + device.getCustomerCode());
+        LogUtil.d(TAG, "Device added/updated: " + result + ", deviceId=" + device.getDeviceId() + ", name=" + device.getName() + ", mac=" + device.getMac() + ", customerCode=" + device.getCustomerCode());
     }
 
     /**
@@ -208,7 +210,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_BATTERY, battery);
         
         int rowsAffected = db.update(TABLE_DEVICES, values, COLUMN_DEVICE_ID + "=?", new String[]{deviceId});
-        Log.d(TAG, "Updated device location/battery: " + rowsAffected + " rows for id: " + deviceId + ", battery=" + battery);
+        LogUtil.d(TAG, "Updated device location/battery: " + rowsAffected + " rows for id: " + deviceId + ", battery=" + battery);
     }
     
     /**
@@ -228,7 +230,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             values.put(COLUMN_DEVICE_MAC, mac);
             
             int rowsAffected = db.update(TABLE_DEVICES, values, COLUMN_DEVICE_NUM + "=?", new String[]{deviceNum});
-            Log.d(TAG, "Updated MAC address for device " + deviceNum + ": " + rowsAffected + " rows, mac=" + mac);
+            LogUtil.d(TAG, "Updated MAC address for device " + deviceNum + ": " + rowsAffected + " rows, mac=" + mac);
         } catch (Exception e) {
             Log.e(TAG, "Error updating MAC address for device " + deviceNum, e);
         }
@@ -241,36 +243,36 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         
         try {
             // 步骤1：先查询设备是否存在
-            Log.d(TAG, "=== Step 1: Query device before update ===");
+            LogUtil.d(TAG, "=== Step 1: Query device before update ===");
             Cursor cursor = db.query(TABLE_DEVICES, 
                 new String[]{COLUMN_DEVICE_ID, COLUMN_DEVICE_NUM, COLUMN_DEVICE_NAME, COLUMN_TAG},
                 null, null, null, null, null);
             
-            Log.d(TAG, "Total devices in database: " + cursor.getCount());
+            LogUtil.d(TAG, "Total devices in database: " + cursor.getCount());
             while (cursor.moveToNext()) {
                 String id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_ID));
                 String num = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NUM));
                 String n = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NAME));
                 String t = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TAG));
-                Log.d(TAG, "  Device: id=" + id + ", num=" + num + ", name=" + n + ", tag=" + t);
+                LogUtil.d(TAG, "  Device: id=" + id + ", num=" + num + ", name=" + n + ", tag=" + t);
             }
             cursor.close();
             
             // 步骤2：使用原始 SQL UPDATE
-            Log.d(TAG, "=== Step 2: Executing UPDATE ===");
-            Log.d(TAG, "Target deviceNum: " + deviceNum);
-            Log.d(TAG, "New name: " + name);
-            Log.d(TAG, "New tag: " + tag);
+            LogUtil.d(TAG, "=== Step 2: Executing UPDATE ===");
+            LogUtil.d(TAG, "Target deviceNum: " + deviceNum);
+            LogUtil.d(TAG, "New name: " + name);
+            LogUtil.d(TAG, "New tag: " + tag);
             
             String sql = "UPDATE " + TABLE_DEVICES + 
                         " SET " + COLUMN_DEVICE_NAME + "=?, " + COLUMN_TAG + "=?" +
                         " WHERE " + COLUMN_DEVICE_NUM + "=?";
             
             db.execSQL(sql, new String[]{name, tag, deviceNum});
-            Log.d(TAG, "✅ UPDATE SQL executed successfully");
+            LogUtil.d(TAG, "✅ UPDATE SQL executed successfully");
             
             // 步骤3：验证更新结果
-            Log.d(TAG, "=== Step 3: Verify update ===");
+            LogUtil.d(TAG, "=== Step 3: Verify update ===");
             cursor = db.query(TABLE_DEVICES,
                 new String[]{COLUMN_DEVICE_ID, COLUMN_DEVICE_NUM, COLUMN_DEVICE_NAME, COLUMN_TAG},
                 COLUMN_DEVICE_NUM + "=?",
@@ -283,8 +285,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 String verifyName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NAME));
                 String verifyTag = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TAG));
                 
-                Log.d(TAG, "✅ VERIFICATION SUCCESS!");
-                Log.d(TAG, "  After update: id=" + verifyId + ", num=" + verifyNum + ", name=" + verifyName + ", tag=" + verifyTag);
+                LogUtil.d(TAG, "✅ VERIFICATION SUCCESS!");
+                LogUtil.d(TAG, "  After update: id=" + verifyId + ", num=" + verifyNum + ", name=" + verifyName + ", tag=" + verifyTag);
                 
                 boolean success = verifyName.equals(name) && verifyTag.equals(tag);
                 cursor.close();
@@ -351,7 +353,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 if (macIndex != -1) {
                     String mac = cursor.getString(macIndex);
                     device.setMac(mac);
-                    Log.d(TAG, "Device loaded: id=" + device.getDeviceId() + ", num=" + device.getDeviceNum() + ", name=" + device.getName() + ", mac=" + mac);
+                    LogUtil.d(TAG, "Device loaded: id=" + device.getDeviceId() + ", num=" + device.getDeviceNum() + ", name=" + device.getName() + ", mac=" + mac);
                 }
                 int customerCodeIndex = cursor.getColumnIndex(COLUMN_CUSTOMER_CODE);
                 if (customerCodeIndex != -1) {
@@ -539,7 +541,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             " AND " + COLUMN_HISTORY_TIMESTAMP + "<=?" +
             " ORDER BY " + COLUMN_HISTORY_TIMESTAMP + " ASC";
 
-        Log.d("DatabaseHelper", "[DB_QUERY] Query: deviceId=" + deviceId + ", startTime=" + startTime + ", endTime=" + endTime);
+        LogUtil.d("DatabaseHelper", "[DB_QUERY] Query: deviceId=" + deviceId + ", startTime=" + startTime + ", endTime=" + endTime);
 
         Cursor cursor = db.rawQuery(selectQuery, new String[]{
             deviceId,
@@ -547,7 +549,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             String.valueOf(endTime)
         });
 
-        Log.d("DatabaseHelper", "[DB_QUERY] Cursor count: " + cursor.getCount());
+        LogUtil.d("DatabaseHelper", "[DB_QUERY] Cursor count: " + cursor.getCount());
 
         if (cursor.moveToFirst()) {
             do {
@@ -565,10 +567,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
         cursor.close();
         
-        Log.d("DatabaseHelper", "[DB_QUERY] Returned records: " + recordList.size());
+        LogUtil.d("DatabaseHelper", "[DB_QUERY] Returned records: " + recordList.size());
         if (!recordList.isEmpty()) {
-            Log.d("DatabaseHelper", "[DB_QUERY] First record: devId=" + recordList.get(0).getDeviceId() + ", ts=" + recordList.get(0).getTimestamp());
-            Log.d("DatabaseHelper", "[DB_QUERY] Last record: devId=" + recordList.get(recordList.size()-1).getDeviceId() + ", ts=" + recordList.get(recordList.size()-1).getTimestamp());
+            LogUtil.d("DatabaseHelper", "[DB_QUERY] First record: devId=" + recordList.get(0).getDeviceId() + ", ts=" + recordList.get(0).getTimestamp());
+            LogUtil.d("DatabaseHelper", "[DB_QUERY] Last record: devId=" + recordList.get(recordList.size()-1).getDeviceId() + ", ts=" + recordList.get(recordList.size()-1).getTimestamp());
         }
         
         return recordList;
@@ -581,7 +583,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         int deletedCount = db.delete(TABLE_LOCATION_HISTORY, 
             COLUMN_HISTORY_TIMESTAMP + "<?", 
             new String[]{String.valueOf(threeMonthsAgo)});
-        Log.d(TAG, "Cleaned " + deletedCount + " location records older than 3 months");
+        LogUtil.d(TAG, "Cleaned " + deletedCount + " location records older than 3 months");
         // 注意：SQLiteOpenHelper 内部管理连接池，不应手动关闭
     }
     
@@ -589,7 +591,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public int deleteAllLocationRecords() {
         SQLiteDatabase db = this.getWritableDatabase();
         int deletedCount = db.delete(TABLE_LOCATION_HISTORY, null, null);
-        Log.d(TAG, "Deleted " + deletedCount + " all location records");
+        LogUtil.d(TAG, "Deleted " + deletedCount + " all location records");
         // 注意：SQLiteOpenHelper 内部管理连接池，不应手动关闭
         return deletedCount;
     }
@@ -598,7 +600,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public int deleteAllDevices() {
         SQLiteDatabase db = this.getWritableDatabase();
         int deletedCount = db.delete(TABLE_DEVICES, null, null);
-        Log.d(TAG, "Deleted " + deletedCount + " all devices");
+        LogUtil.d(TAG, "Deleted " + deletedCount + " all devices");
         // 注意：SQLiteOpenHelper 内部管理连接池，不应手动关闭
         return deletedCount;
     }
@@ -609,7 +611,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         int deletedCount = db.delete(TABLE_LOCATION_HISTORY, 
             COLUMN_HISTORY_DEVICE_ID + "=?", 
             new String[]{deviceId});
-        Log.d(TAG, "Deleted " + deletedCount + " location records for device: " + deviceId);
+        LogUtil.d(TAG, "Deleted " + deletedCount + " location records for device: " + deviceId);
         // 注意：SQLiteOpenHelper 内部管理连接池，不应手动关闭
         return deletedCount;
     }
@@ -625,7 +627,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             int deletedCount = db.delete(TABLE_LOCATION_HISTORY, 
                 COLUMN_HISTORY_DEVICE_ID + "=? AND " + COLUMN_HISTORY_TIMESTAMP + "=?",
                 new String[]{deviceId, String.valueOf(timestamp)});
-            Log.d(TAG, "Deleted " + deletedCount + " location record for device: " + deviceId + ", timestamp: " + timestamp);
+            LogUtil.d(TAG, "Deleted " + deletedCount + " location record for device: " + deviceId + ", timestamp: " + timestamp);
         } catch (Exception e) {
             Log.e(TAG, "Error deleting location record", e);
         }
@@ -671,19 +673,19 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 if (maxAgeMillis > 0) {
                     long currentTime = System.currentTimeMillis();
                     if (currentTime - cacheTimestamp > maxAgeMillis) {
-                        Log.d(TAG, "Address cache expired for key: " + cacheKey);
+                        LogUtil.d(TAG, "Address cache expired for key: " + cacheKey);
                         cursor.close();
                         return null;
                     }
                 }
                 
-                Log.d(TAG, "Address cache hit for key: " + cacheKey + ", language: " + languageCode);
+                LogUtil.d(TAG, "Address cache hit for key: " + cacheKey + ", language: " + languageCode);
                 cursor.close();
                 return address;
             }
             
             cursor.close();
-            Log.d(TAG, "Address cache miss for key: " + cacheKey + ", language: " + languageCode);
+            LogUtil.d(TAG, "Address cache miss for key: " + cacheKey + ", language: " + languageCode);
             return null;
         } catch (Exception e) {
             Log.e(TAG, "Error getting cached address: " + e.getMessage(), e);
@@ -730,7 +732,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             
             // 使用replace实现插入或更新
             long result = db.replace(TABLE_ADDRESS_CACHE, null, values);
-            Log.d(TAG, "Address cached: " + cacheKey + ", language: " + languageCode + ", result=" + result);
+            LogUtil.d(TAG, "Address cached: " + cacheKey + ", language: " + languageCode + ", result=" + result);
         } catch (Exception e) {
             Log.e(TAG, "Error saving address to cache: " + e.getMessage(), e);
         }
@@ -748,7 +750,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             int deletedCount = db.delete(TABLE_ADDRESS_CACHE,
                 COLUMN_CACHE_TIMESTAMP + "<?",
                 new String[]{String.valueOf(sevenDaysAgo)});
-            Log.d(TAG, "Cleaned " + deletedCount + " expired address cache entries");
+            LogUtil.d(TAG, "Cleaned " + deletedCount + " expired address cache entries");
         } catch (Exception e) {
             Log.e(TAG, "Error cleaning address cache: " + e.getMessage(), e);
         }
@@ -773,7 +775,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             int deletedCount = db.delete(TABLE_ADDRESS_CACHE,
                 COLUMN_CACHE_KEY + " LIKE ?",
                 new String[]{pattern});
-            Log.d(TAG, "Cleaned " + deletedCount + " address cache entries for map mode: " + mapMode);
+            LogUtil.d(TAG, "Cleaned " + deletedCount + " address cache entries for map mode: " + mapMode);
         } catch (Exception e) {
             Log.e(TAG, "Error cleaning address cache for map mode " + mapMode + ": " + e.getMessage(), e);
         }
@@ -792,7 +794,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             boolean success = operation.execute(db);
             if (success) {
                 db.setTransactionSuccessful();
-                Log.d(TAG, "Batch transaction committed successfully");
+                LogUtil.d(TAG, "Batch transaction committed successfully");
             } else {
                 Log.w(TAG, "Batch transaction rolled back");
             }
@@ -839,7 +841,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             return true;
         });
         
-        Log.d(TAG, "Batch saved " + successCount[0] + "/" + devices.size() + " devices");
+        LogUtil.d(TAG, "Batch saved " + successCount[0] + "/" + devices.size() + " devices");
         return successCount[0];
     }
     

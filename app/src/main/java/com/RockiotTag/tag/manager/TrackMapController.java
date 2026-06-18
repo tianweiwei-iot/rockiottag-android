@@ -2,6 +2,7 @@ package com.RockiotTag.tag.manager;
 
 import android.content.Context;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import com.RockiotTag.tag.StayPoint;
 import com.RockiotTag.tag.util.GoogleMapTrackRenderer;
@@ -63,7 +64,7 @@ public class TrackMapController {
             arrowMarkers = GoogleMapTrackRenderer.addDirectionArrows(googleMap, latLngList);
         }
         
-        Log.d(TAG, "Track rendered with " + stayPoints.size() + " points");
+        LogUtil.d(TAG, "Track rendered with " + stayPoints.size() + " points");
     }
     
     /**
@@ -88,7 +89,7 @@ public class TrackMapController {
         playedPoints.clear();
         playedPoints.add(startPos);
         
-        Log.d(TAG, "Playback marker initialized");
+        LogUtil.d(TAG, "Playback marker initialized");
     }
     
     /**
@@ -107,7 +108,7 @@ public class TrackMapController {
         playedPoints.add(newPos);
         updatePlayedPolyline();
         
-        Log.d(TAG, "Playback position updated to index " + currentIndex);
+        LogUtil.d(TAG, "Playback position updated to index " + currentIndex);
     }
     
     /**
@@ -160,7 +161,7 @@ public class TrackMapController {
         }
         playedPoints.clear();
         
-        Log.d(TAG, "Track cleared");
+        LogUtil.d(TAG, "Track cleared");
     }
     
     /**

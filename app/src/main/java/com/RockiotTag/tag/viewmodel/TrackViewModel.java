@@ -14,6 +14,7 @@ import com.RockiotTag.tag.LocationRecord;
 import com.RockiotTag.tag.StayPoint;
 import com.RockiotTag.tag.model.LocationData;
 import com.RockiotTag.tag.util.BLETagFilter;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -126,7 +127,7 @@ public class TrackViewModel extends ViewModel {
     }
     
     public void loadTrackData(String deviceId, Calendar date, boolean forceSync) {
-        Log.d(TAG, "=== ViewModel.loadTrackData START === deviceId=" + deviceId + ", forceSync=" + forceSync);
+        LogUtil.d(TAG, "=== ViewModel.loadTrackData START === deviceId=" + deviceId + ", forceSync=" + forceSync);
         if (databaseHelper == null) {
             Log.e(TAG, "[VM_ERROR] databaseHelper is null");
             errorMessage.setValue("Database not initialized");
@@ -138,20 +139,20 @@ public class TrackViewModel extends ViewModel {
         isLoadCancelled = new AtomicBoolean(false);
         
         isLoading.setValue(true);
-        Log.d(TAG, "[VM_STATE] isLoading set to TRUE");
+        LogUtil.d(TAG, "[VM_STATE] isLoading set to TRUE");
         this.selectedDate = (Calendar) date.clone();
         
         final Calendar dateCopy = (Calendar) date.clone();
         final AtomicBoolean currentTaskCancelled = isLoadCancelled;
         
-        Log.d(TAG, "[VM_DATE] Date captured: year=" + dateCopy.get(Calendar.YEAR) + ", month=" + dateCopy.get(Calendar.MONTH) + ", day=" + dateCopy.get(Calendar.DAY_OF_MONTH));
+        LogUtil.d(TAG, "[VM_DATE] Date captured: year=" + dateCopy.get(Calendar.YEAR) + ", month=" + dateCopy.get(Calendar.MONTH) + ", day=" + dateCopy.get(Calendar.DAY_OF_MONTH));
         
         executor.submit(() -> {
-            Log.d(TAG, "[VM_THREAD] Background thread started");
+            LogUtil.d(TAG, "[VM_THREAD] Background thread started");
             try {
                 long startTime = getDayStartTime(dateCopy);
                 long endTime = getDayEndTime(dateCopy);
-                Log.d(TAG, "[VM_QUERY] Querying database: startTime=" + startTime + ", endTime=" + endTime + " (date: " + dateCopy.get(Calendar.YEAR) + "-" + (dateCopy.get(Calendar.MONTH)+1) + "-" + dateCopy.get(Calendar.DAY_OF_MONTH) + ")");
+                LogUtil.d(TAG, "[VM_QUERY] Querying database: startTime=" + startTime + ", endTime=" + endTime + " (date: " + dateCopy.get(Calendar.YEAR) + "-" + (dateCopy.get(Calendar.MONTH)+1) + "-" + dateCopy.get(Calendar.DAY_OF_MONTH) + ")");
                 
                 if (currentTaskCancelled.get()) {
                     Log.w(TAG, "[VM_CANCELLED] Task cancelled before database query");
@@ -167,7 +168,7 @@ public class TrackViewModel extends ViewModel {
                     return;
                 }
                 
-                Log.d(TAG, "[VM_RESULT] Loaded " + (records != null ? records.size() : 0) + " records from database");
+                LogUtil.d(TAG, "[VM_RESULT] Loaded " + (records != null ? records.size() : 0) + " records from database");
                 
                 if (currentTaskCancelled.get()) {
                     Log.w(TAG, "[VM_CANCELLED] Task cancelled before processing records");
@@ -176,35 +177,35 @@ public class TrackViewModel extends ViewModel {
                 }
                 
                 if (records != null && !records.isEmpty()) {
-                    Log.d(TAG, "[VM_PROCESS] Processing " + records.size() + " records");
+                    LogUtil.d(TAG, "[VM_PROCESS] Processing " + records.size() + " records");
                     currentLocationRecords = new ArrayList<>(records);
                     locationRecords.postValue(records);
-                    Log.d(TAG, "[VM_POST] locationRecords posted to observer");
+                    LogUtil.d(TAG, "[VM_POST] locationRecords posted to observer");
                     isSyncingFromServer.postValue(false);
                     
                     List<StayPoint> points = generateStayPoints(records);
                     currentStayPoints = points;
                     stayPoints.postValue(points);
-                    Log.d(TAG, "[VM_POST] stayPoints posted to observer, count=" + points.size());
+                    LogUtil.d(TAG, "[VM_POST] stayPoints posted to observer, count=" + points.size());
                     
                     TrackStatistics stats = calculateStatistics(records);
                     statistics.postValue(stats);
                     
                     isLoading.postValue(false);
-                    Log.d(TAG, "[VM_STATE] isLoading set to FALSE (data loaded)");
-                    Log.d(TAG, "=== ViewModel.loadTrackData END (success) ===");
+                    LogUtil.d(TAG, "[VM_STATE] isLoading set to FALSE (data loaded)");
+                    LogUtil.d(TAG, "=== ViewModel.loadTrackData END (success) ===");
                 } else {
-                    Log.d(TAG, "[VM_NO_DATA] No local data, triggering server sync");
+                    LogUtil.d(TAG, "[VM_NO_DATA] No local data, triggering server sync");
                     isSyncingFromServer.postValue(true);
                     isLoading.postValue(false);
-                    Log.d(TAG, "[VM_STATE] isLoading set to FALSE (no data, need sync)");
+                    LogUtil.d(TAG, "[VM_STATE] isLoading set to FALSE (no data, need sync)");
                     
                     final SyncParams syncParams = new SyncParams(deviceId, startTime, endTime);
                     final Handler mainHandler = new Handler(Looper.getMainLooper());
                     mainHandler.post(() -> {
-                        Log.d(TAG, "[VM_MAIN_THREAD] Setting needsServerSync on main thread");
+                        LogUtil.d(TAG, "[VM_MAIN_THREAD] Setting needsServerSync on main thread");
                         needsServerSync.setValue(syncParams);
-                        Log.d(TAG, "[VM_POST] needsServerSync setValue completed");
+                        LogUtil.d(TAG, "[VM_POST] needsServerSync setValue completed");
                     });
                     return;
                 }
@@ -213,7 +214,7 @@ public class TrackViewModel extends ViewModel {
                 Log.e(TAG, "[VM_EXCEPTION] Error loading track data: " + e.getMessage(), e);
                 errorMessage.postValue("加载失败: " + e.getMessage());
                 isLoading.postValue(false);
-                Log.d(TAG, "[VM_STATE] isLoading set to FALSE (exception)");
+                LogUtil.d(TAG, "[VM_STATE] isLoading set to FALSE (exception)");
             }
         });
     }
@@ -247,7 +248,7 @@ public class TrackViewModel extends ViewModel {
                     TrackStatistics stats = calculateStatistics(records);
                     statistics.postValue(stats);
                     
-                    Log.d(TAG, "Loaded " + records.size() + " records from local, " + points.size() + " stay points");
+                    LogUtil.d(TAG, "Loaded " + records.size() + " records from local, " + points.size() + " stay points");
                 } else {
                     locationRecords.postValue(new ArrayList<>());
                     stayPoints.postValue(new ArrayList<>());
@@ -367,7 +368,7 @@ public class TrackViewModel extends ViewModel {
         start.set(Calendar.SECOND, 0);
         start.set(Calendar.MILLISECOND, 0);
         long timestamp = start.getTimeInMillis();
-        Log.d(TAG, "[TIME_CALC] getDayStartTime: input date=" + date.get(Calendar.YEAR) + "-" + (date.get(Calendar.MONTH)+1) + "-" + date.get(Calendar.DAY_OF_MONTH) + 
+        LogUtil.d(TAG, "[TIME_CALC] getDayStartTime: input date=" + date.get(Calendar.YEAR) + "-" + (date.get(Calendar.MONTH)+1) + "-" + date.get(Calendar.DAY_OF_MONTH) + 
               ", result timestamp=" + timestamp + 
               ", start calendar=" + start.get(Calendar.YEAR) + "-" + (start.get(Calendar.MONTH)+1) + "-" + start.get(Calendar.DAY_OF_MONTH) + " " + start.get(Calendar.HOUR_OF_DAY) + ":" + start.get(Calendar.MINUTE));
         return timestamp;
@@ -380,7 +381,7 @@ public class TrackViewModel extends ViewModel {
         end.set(Calendar.SECOND, 59);
         end.set(Calendar.MILLISECOND, 999);
         long timestamp = end.getTimeInMillis();
-        Log.d(TAG, "[TIME_CALC] getDayEndTime: input date=" + date.get(Calendar.YEAR) + "-" + (date.get(Calendar.MONTH)+1) + "-" + date.get(Calendar.DAY_OF_MONTH) + 
+        LogUtil.d(TAG, "[TIME_CALC] getDayEndTime: input date=" + date.get(Calendar.YEAR) + "-" + (date.get(Calendar.MONTH)+1) + "-" + date.get(Calendar.DAY_OF_MONTH) + 
               ", result timestamp=" + timestamp + 
               ", end calendar=" + end.get(Calendar.YEAR) + "-" + (end.get(Calendar.MONTH)+1) + "-" + end.get(Calendar.DAY_OF_MONTH) + " " + end.get(Calendar.HOUR_OF_DAY) + ":" + end.get(Calendar.MINUTE));
         return timestamp;
@@ -393,11 +394,11 @@ public class TrackViewModel extends ViewModel {
     private List<StayPoint> generateStayPointsWithAccuracy(List<LocationData> records, int accuracyThreshold) {
         List<StayPoint> stayPoints = new ArrayList<>();
         if (records == null || records.isEmpty()) {
-            Log.d(TAG, "[ACCURACY_FILTER] No records to filter");
+            LogUtil.d(TAG, "[ACCURACY_FILTER] No records to filter");
             return stayPoints;
         }
         
-        Log.d(TAG, "[ACCURACY_FILTER] Input records: " + records.size() + ", threshold: " + accuracyThreshold + "m");
+        LogUtil.d(TAG, "[ACCURACY_FILTER] Input records: " + records.size() + ", threshold: " + accuracyThreshold + "m");
         
         // 第1步：过滤无效坐标(0,0)
         List<LocationData> validRecords = new ArrayList<>();
@@ -408,7 +409,7 @@ public class TrackViewModel extends ViewModel {
         }
         
         if (validRecords.isEmpty()) {
-            Log.d(TAG, "[ACCURACY_FILTER] No valid records after filtering zeros");
+            LogUtil.d(TAG, "[ACCURACY_FILTER] No valid records after filtering zeros");
             return stayPoints;
         }
         
@@ -416,7 +417,7 @@ public class TrackViewModel extends ViewModel {
         List<LocationData> filteredRecords = new ArrayList<>();
         LocationData basePoint = validRecords.get(0);
         filteredRecords.add(basePoint);
-        Log.d(TAG, "[ACCURACY_FILTER] Base point: lat=" + basePoint.getLatitude() + ", lng=" + basePoint.getLongitude());
+        LogUtil.d(TAG, "[ACCURACY_FILTER] Base point: lat=" + basePoint.getLatitude() + ", lng=" + basePoint.getLongitude());
         
         int anomalousCount = 0;
         for (int i = 1; i < validRecords.size(); i++) {
@@ -431,7 +432,7 @@ public class TrackViewModel extends ViewModel {
             if (BLETagFilter.isAnomalous(distance, timeDiffMs)) {
                 anomalousCount++;
                 double speedKmh = (timeDiffMs > 0) ? (distance / (timeDiffMs / 1000.0)) * 3.6 : 0;
-                Log.d(TAG, "[ACCURACY_FILTER] Point " + i + " ANOMALOUS skipped, distance=" + 
+                LogUtil.d(TAG, "[ACCURACY_FILTER] Point " + i + " ANOMALOUS skipped, distance=" + 
                     String.format("%.1f", distance) + "m, time=" + (timeDiffMs/1000) + "s, speed=" + 
                     String.format("%.1f", speedKmh) + "km/h");
                 continue;
@@ -440,13 +441,13 @@ public class TrackViewModel extends ViewModel {
             if (distance >= accuracyThreshold) {
                 filteredRecords.add(currentPoint);
                 basePoint = currentPoint;
-                Log.d(TAG, "[ACCURACY_FILTER] Point " + i + " kept, distance=" + String.format("%.1f", distance) + "m >= " + accuracyThreshold + "m, new base: lat=" + basePoint.getLatitude() + ", lng=" + basePoint.getLongitude());
+                LogUtil.d(TAG, "[ACCURACY_FILTER] Point " + i + " kept, distance=" + String.format("%.1f", distance) + "m >= " + accuracyThreshold + "m, new base: lat=" + basePoint.getLatitude() + ", lng=" + basePoint.getLongitude());
             } else {
-                Log.d(TAG, "[ACCURACY_FILTER] Point " + i + " skipped, distance=" + String.format("%.1f", distance) + "m < " + accuracyThreshold + "m");
+                LogUtil.d(TAG, "[ACCURACY_FILTER] Point " + i + " skipped, distance=" + String.format("%.1f", distance) + "m < " + accuracyThreshold + "m");
             }
         }
         
-        Log.d(TAG, "[ACCURACY_FILTER] Filtered records: " + filteredRecords.size() + " (from " + validRecords.size() + ", anomalous: " + anomalousCount + ")");
+        LogUtil.d(TAG, "[ACCURACY_FILTER] Filtered records: " + filteredRecords.size() + " (from " + validRecords.size() + ", anomalous: " + anomalousCount + ")");
         
         for (int i = 0; i < filteredRecords.size(); i++) {
             LocationData record = filteredRecords.get(i);
@@ -460,7 +461,7 @@ public class TrackViewModel extends ViewModel {
             stayPoints.add(point);
         }
         
-        Log.d(TAG, "[ACCURACY_FILTER] Generated " + stayPoints.size() + " stay points");
+        LogUtil.d(TAG, "[ACCURACY_FILTER] Generated " + stayPoints.size() + " stay points");
         return stayPoints;
     }
     
@@ -534,6 +535,6 @@ public class TrackViewModel extends ViewModel {
         if (executor != null) {
             executor.shutdown();
         }
-        Log.d(TAG, "ViewModel cleared, all tasks cancelled");
+        LogUtil.d(TAG, "ViewModel cleared, all tasks cancelled");
     }
 }

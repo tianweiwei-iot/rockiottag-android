@@ -15,6 +15,7 @@ import com.RockiotTag.tag.model.Resource;
 import com.RockiotTag.tag.repository.DeviceRepository;
 import com.RockiotTag.tag.repository.LocationRepository;
 import com.RockiotTag.tag.repository.BLERepository;
+import com.RockiotTag.tag.util.LogUtil;
 import com.RockiotTag.tag.usecase.GetDeviceInfoUseCase;
 import com.RockiotTag.tag.usecase.ReverseGeocodeUseCase;
 import com.RockiotTag.tag.usecase.SelectDeviceUseCase;
@@ -188,7 +189,7 @@ public class MainViewModel extends AndroidViewModel {
         
         // 递增序列号，使旧请求的结果失效
         int currentSeq = ++fetchSequence;
-        Log.d(TAG, "Fetch request #" + currentSeq + " for device: " + deviceNum);
+        LogUtil.d(TAG, "Fetch request #" + currentSeq + " for device: " + deviceNum);
         
         isLoading.setValue(true);
         
@@ -196,7 +197,7 @@ public class MainViewModel extends AndroidViewModel {
         getDeviceInfoUseCase.execute(deviceNum).observeForever(resource -> {
             // 只处理最新请求的结果，丢弃旧请求
             if (currentSeq != fetchSequence) {
-                Log.d(TAG, "Fetch request #" + currentSeq + " ignored (stale), current=#" + fetchSequence);
+                LogUtil.d(TAG, "Fetch request #" + currentSeq + " ignored (stale), current=#" + fetchSequence);
                 return;
             }
             
@@ -215,7 +216,7 @@ public class MainViewModel extends AndroidViewModel {
      * 处理设备信息成功获取
      */
     private void handleDeviceInfoSuccess(NewApiService.DeviceInfo deviceInfo) {
-        Log.d(TAG, "Processing device info: " + deviceInfo.deviceNum);
+        LogUtil.d(TAG, "Processing device info: " + deviceInfo.deviceNum);
         
         // 3. 关键优化：从本地数据库获取最新设备信息，比较时间戳，保留更新的那一个
         String deviceId = deviceInfo.deviceNum;
@@ -242,7 +243,7 @@ public class MainViewModel extends AndroidViewModel {
             // 【最简单逻辑】直接比较时间戳，哪个新用哪个
             if (serverTimestamp > localTimestamp) {
                 // 服务器时间更新，使用服务器数据（位置、电量等）
-                Log.d(TAG, "Server newer: " + serverTimestamp + " > " + localTimestamp);
+                LogUtil.d(TAG, "Server newer: " + serverTimestamp + " > " + localTimestamp);
 
                 Device updatedDevice = new Device(localDevice.getDeviceId(), localDevice.getName());
                 updatedDevice.setDeviceNum(localDevice.getDeviceNum());
@@ -265,7 +266,7 @@ public class MainViewModel extends AndroidViewModel {
                 finalTimestamp = serverTimestamp;
             } else {
                 // 本地时间更新或相等，使用本地数据
-                Log.d(TAG, "Local newer or equal: " + localTimestamp + " >= " + serverTimestamp);
+                LogUtil.d(TAG, "Local newer or equal: " + localTimestamp + " >= " + serverTimestamp);
 
                 // 昵称：保留本地昵称，不使用服务器昵称覆盖
                 deviceName.setValue(localDevice.getName());
@@ -279,7 +280,7 @@ public class MainViewModel extends AndroidViewModel {
                         && deviceInfo.latitude != 0 && deviceInfo.longitude != 0) {
                     localDevice.setLatitude(deviceInfo.latitude);
                     localDevice.setLongitude(deviceInfo.longitude);
-                    Log.d(TAG, "Merged server coordinates into local device (local had no coords)");
+                    LogUtil.d(TAG, "Merged server coordinates into local device (local had no coords)");
                 }
 
                 deviceRepository.saveDevice(localDevice);
@@ -290,7 +291,7 @@ public class MainViewModel extends AndroidViewModel {
             }
         } else {
             // 本地没有该设备，直接使用服务器数据创建新设备
-            Log.d(TAG, "Device not found in local database, creating new device from server data");
+            LogUtil.d(TAG, "Device not found in local database, creating new device from server data");
             
             Device newDevice = new Device(deviceInfo.deviceNum, 
                 (deviceInfo.nickName != null && !deviceInfo.nickName.isEmpty()) ? 
@@ -315,45 +316,45 @@ public class MainViewModel extends AndroidViewModel {
         }
         
         // 1. 更新电池电量（使用最终设备的电池信息）
-        Log.d(TAG, "Server returned battery: " + deviceInfo.battery);
+        LogUtil.d(TAG, "Server returned battery: " + deviceInfo.battery);
         if (deviceInfo.battery > 0) {
             batteryLevel.setValue(String.valueOf(deviceInfo.battery));
-            Log.d(TAG, "✓ Battery level set to: " + deviceInfo.battery + "%");
+            LogUtil.d(TAG, "✓ Battery level set to: " + deviceInfo.battery + "%");
         } else if (deviceInfo.battery == 0) {
             batteryLevel.setValue("0");
-            Log.d(TAG, "✓ Battery level set to: 0%");
+            LogUtil.d(TAG, "✓ Battery level set to: 0%");
         } else {
             batteryLevel.setValue("-1"); // 未知
             Log.w(TAG, "✗ Battery level is unknown (-1), server may not have this data");
         }
         
         // 2. 更新时间戳（使用最终确定的时间戳）
-        Log.d(TAG, "========== FINAL TIMESTAMP DECISION ==========");
-        Log.d(TAG, "finalTimestamp=" + finalTimestamp + " (" + 
+        LogUtil.d(TAG, "========== FINAL TIMESTAMP DECISION ==========");
+        LogUtil.d(TAG, "finalTimestamp=" + finalTimestamp + " (" + 
             new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                 .format(new java.util.Date(finalTimestamp)) + ")");
-        Log.d(TAG, "finalDevice=" + (finalDevice != null ? finalDevice.getName() : "null"));
+        LogUtil.d(TAG, "finalDevice=" + (finalDevice != null ? finalDevice.getName() : "null"));
         if (finalDevice != null) {
-            Log.d(TAG, "finalDevice.lastSeen=" + finalDevice.getLastSeen() + " (" + 
+            LogUtil.d(TAG, "finalDevice.lastSeen=" + finalDevice.getLastSeen() + " (" + 
                 new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                     .format(new java.util.Date(finalDevice.getLastSeen())) + ")");
         }
         
         if (finalTimestamp > 0) {
             updateTime.setValue(String.valueOf(finalTimestamp));
-            Log.d(TAG, "✓ Update time SET to: " + finalTimestamp + " (" + 
+            LogUtil.d(TAG, "✓ Update time SET to: " + finalTimestamp + " (" + 
                 new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                     .format(new java.util.Date(finalTimestamp)) + ")");
         } else {
             updateTime.setValue("not_reported");
-            Log.d(TAG, "✗ Update time set to: not_reported");
+            LogUtil.d(TAG, "✗ Update time set to: not_reported");
         }
-        Log.d(TAG, "==============================================");
+        LogUtil.d(TAG, "==============================================");
         
         // 4. 【关键改进】不要在这里更新地址，让MainActivity的地址获取逻辑单独处理
         // 地址获取由MainActivity的onLocationUpdated回调或refreshMapWithCurrentDevice处理
         // 这样可以避免地址被多次设置导致覆盖问题
-        Log.d(TAG, "Address update will be handled by MainActivity's callback or refreshMapWithCurrentDevice");
+        LogUtil.d(TAG, "Address update will be handled by MainActivity's callback or refreshMapWithCurrentDevice");
     }
     
     /**
@@ -362,7 +363,7 @@ public class MainViewModel extends AndroidViewModel {
     public void triggerBuzzer() {
         triggerBuzzerUseCase.execute(null).observeForever(resource -> {
             if (resource.isSuccess()) {
-                Log.d(TAG, "Buzzer triggered successfully");
+                LogUtil.d(TAG, "Buzzer triggered successfully");
             } else if (resource.isError()) {
                 errorMessage.setValue(resource.message);
                 Log.e(TAG, "Buzzer failed: " + resource.message);
@@ -386,7 +387,7 @@ public class MainViewModel extends AndroidViewModel {
             
             if (resource.isSuccess()) {
                 setSelectedDevice(resource.data);
-                Log.d(TAG, "Device selected: " + resource.data.getName());
+                LogUtil.d(TAG, "Device selected: " + resource.data.getName());
             } else if (resource.isError()) {
                 errorMessage.setValue(resource.message);
                 Log.e(TAG, "Failed to select device: " + resource.message);
@@ -399,7 +400,7 @@ public class MainViewModel extends AndroidViewModel {
      */
     public void invalidateAddressRequests() {
         addressRequestSequence++;
-        Log.d(TAG, "Address requests invalidated, sequence=" + addressRequestSequence);
+        LogUtil.d(TAG, "Address requests invalidated, sequence=" + addressRequestSequence);
     }
     
     /**
@@ -415,7 +416,7 @@ public class MainViewModel extends AndroidViewModel {
     public void getAddress(double latitude, double longitude, String languageCode, boolean forceRefresh, boolean useAMapGeocoder, String mapMode) {
         // 关键修复：递增请求序列号，确保只处理最新请求的结果
         int currentSequence = ++addressRequestSequence;
-        Log.d(TAG, "Address request #" + currentSequence + " started: lat=" + latitude + ", lng=" + longitude);
+        LogUtil.d(TAG, "Address request #" + currentSequence + " started: lat=" + latitude + ", lng=" + longitude);
         
         isLoading.setValue(true);
         
@@ -426,7 +427,7 @@ public class MainViewModel extends AndroidViewModel {
         reverseGeocodeUseCase.execute(params).observeForever(resource -> {
             // 关键修复：只处理最新请求的结果，忽略过期请求
             if (currentSequence != addressRequestSequence) {
-                Log.d(TAG, "Address request #" + currentSequence + " ignored (stale), current=#" + addressRequestSequence);
+                LogUtil.d(TAG, "Address request #" + currentSequence + " ignored (stale), current=#" + addressRequestSequence);
                 return;
             }
             
@@ -434,7 +435,7 @@ public class MainViewModel extends AndroidViewModel {
             
             if (resource.isSuccess()) {
                 deviceAddress.setValue(resource.data);
-                Log.d(TAG, "Address request #" + currentSequence + " success, setting address: " + resource.data);
+                LogUtil.d(TAG, "Address request #" + currentSequence + " success, setting address: " + resource.data);
             } else if (resource.isError()) {
                 // 失败时显示坐标
                 String coordStr = String.format("%.6f, %.6f", latitude, longitude);
@@ -473,7 +474,7 @@ public class MainViewModel extends AndroidViewModel {
     public void syncDevices() {
         // 并发安全：防止重复同步
         if (isLoading.getValue() != null && isLoading.getValue()) {
-            Log.d(TAG, "Sync already in progress, ignoring request");
+            LogUtil.d(TAG, "Sync already in progress, ignoring request");
             return;
         }
         
@@ -483,7 +484,7 @@ public class MainViewModel extends AndroidViewModel {
             isLoading.setValue(false);
             
             if (resource.isSuccess()) {
-                Log.d(TAG, "Devices synced successfully: " + resource.data.size());
+                LogUtil.d(TAG, "Devices synced successfully: " + resource.data.size());
             } else if (resource.isError()) {
                 errorMessage.setValue(resource.message);
                 Log.e(TAG, "Failed to sync devices: " + resource.message);

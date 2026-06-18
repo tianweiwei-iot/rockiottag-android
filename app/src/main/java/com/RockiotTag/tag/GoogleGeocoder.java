@@ -1,6 +1,7 @@
 package com.RockiotTag.tag;
 
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -50,7 +51,7 @@ public class GoogleGeocoder {
             @Override
             public void run() {
                 try {
-                    Log.d(TAG, "Starting Google Geocoding for: " + latitude + ", " + longitude + ", language: " + languageCode);
+                    LogUtil.d(TAG, "Starting Google Geocoding for: " + latitude + ", " + longitude + ", language: " + languageCode);
                     
                     // 构建请求URL
                     String latLng = latitude + "," + longitude;
@@ -58,7 +59,7 @@ public class GoogleGeocoder {
                                      + "&language=" + languageCode
                                      + "&key=" + ApiConfig.GOOGLE_MAPS_API_KEY;
                     
-                    Log.d(TAG, "Request URL: " + urlString);
+                    LogUtil.d(TAG, "Request URL: " + urlString);
                     
                     // 发送HTTP请求
                     URL url = new URL(urlString);
@@ -68,7 +69,7 @@ public class GoogleGeocoder {
                     connection.setReadTimeout(10000);
                     
                     int responseCode = connection.getResponseCode();
-                    Log.d(TAG, "Response code: " + responseCode);
+                    LogUtil.d(TAG, "Response code: " + responseCode);
                     
                     if (responseCode == HttpURLConnection.HTTP_OK) {
                         BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
@@ -81,7 +82,7 @@ public class GoogleGeocoder {
                         reader.close();
                         
                         String jsonResponse = response.toString();
-                        Log.d(TAG, "Response: " + jsonResponse);
+                        LogUtil.d(TAG, "Response: " + jsonResponse);
                         
                         // 解析JSON响应
                         JSONObject jsonObject = new JSONObject(jsonResponse);
@@ -94,7 +95,7 @@ public class GoogleGeocoder {
                                 JSONObject firstResult = results.getJSONObject(0);
                                 String formattedAddress = firstResult.getString("formatted_address");
                                 
-                                Log.d(TAG, "✅ Address found: " + formattedAddress);
+                                LogUtil.d(TAG, "✅ Address found: " + formattedAddress);
                                 
                                 // 在主线程中调用回调
                                 if (callback != null) {

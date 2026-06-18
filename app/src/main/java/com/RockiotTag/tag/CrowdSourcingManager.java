@@ -2,6 +2,7 @@ package com.RockiotTag.tag;
 
 import android.os.AsyncTask;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -77,7 +78,7 @@ public class CrowdSourcingManager {
                         response.append(inputLine);
                     }
                     in.close();
-                    Log.d(TAG, "Device data sent successfully: " + response.toString());
+                    LogUtil.d(TAG, "Device data sent successfully: " + response.toString());
                     return true;
                 } else {
                     Log.e(TAG, "Failed to send device data, response code: " + responseCode);
@@ -92,7 +93,7 @@ public class CrowdSourcingManager {
         @Override
         protected void onPostExecute(Boolean success) {
             if (success) {
-                Log.d(TAG, "Device data sent successfully");
+                LogUtil.d(TAG, "Device data sent successfully");
             } else {
                 Log.e(TAG, "Failed to send device data");
             }
@@ -121,7 +122,7 @@ public class CrowdSourcingManager {
                         response.append(inputLine);
                     }
                     in.close();
-                    Log.d(TAG, "Nearby devices received: " + response.toString());
+                    LogUtil.d(TAG, "Nearby devices received: " + response.toString());
                     return response.toString();
                 } else {
                     Log.e(TAG, "Failed to request nearby devices, response code: " + responseCode);
@@ -136,7 +137,7 @@ public class CrowdSourcingManager {
         @Override
         protected void onPostExecute(String response) {
             if (response != null) {
-                Log.d(TAG, "Received nearby devices data");
+                LogUtil.d(TAG, "Received nearby devices data");
                 // 解析响应数据并更新UI
                 parseNearbyDevicesResponse(response);
             } else {
@@ -174,7 +175,7 @@ public class CrowdSourcingManager {
         @Override
         protected void onPostExecute(List<Device> devices) {
             if (devices != null) {
-                Log.d(TAG, "Device list received: " + devices.size() + " devices");
+                LogUtil.d(TAG, "Device list received: " + devices.size() + " devices");
                 if (callback != null) {
                     callback.onDeviceListReceived(devices);
                 }

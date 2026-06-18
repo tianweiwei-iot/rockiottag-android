@@ -8,6 +8,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import com.RockiotTag.tag.StayPoint;
+import com.RockiotTag.tag.util.LogUtil;
 import com.RockiotTag.tag.util.TimeFormatter;
 
 import java.util.List;
@@ -52,7 +53,7 @@ public class TrackPlaybackHelper {
         }
         
         scheduleNextMove();
-        Log.d(TAG, "Playback started");
+        LogUtil.d(TAG, "Playback started");
     }
     
     /**
@@ -66,7 +67,7 @@ public class TrackPlaybackHelper {
         if (moveAnimator != null) {
             moveAnimator.cancel();
         }
-        Log.d(TAG, "Playback paused at index " + currentIndex);
+        LogUtil.d(TAG, "Playback paused at index " + currentIndex);
     }
     
     /**
@@ -89,7 +90,7 @@ public class TrackPlaybackHelper {
                 callback.onPlaybackProgress(currentIndex, currentPoint);
             }
             
-            Log.d(TAG, "Seeked to index " + index);
+            LogUtil.d(TAG, "Seeked to index " + index);
         }
     }
     
@@ -131,7 +132,7 @@ public class TrackPlaybackHelper {
      */
     public void setPlaySpeed(int speed) {
         this.playSpeed = speed;
-        Log.d(TAG, "Play speed set to " + speed + "x");
+        LogUtil.d(TAG, "Play speed set to " + speed + "x");
     }
     
     /**

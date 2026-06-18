@@ -3,6 +3,7 @@ package com.RockiotTag.tag.data;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import com.RockiotTag.tag.ApiConfig;
 import com.RockiotTag.tag.DatabaseHelper;
@@ -63,16 +64,16 @@ public class DeviceDataManager {
         
         new Thread(() -> {
             try {
-                Log.d(TAG, "Starting API sync...");
+                LogUtil.d(TAG, "Starting API sync...");
                 
                 // 同步数据
-                Log.d(TAG, "Syncing data from vendor API...");
+                LogUtil.d(TAG, "Syncing data from vendor API...");
                 NewApiService.ApiResponse syncResponse = apiService.syncAll();
-                Log.d(TAG, "Sync response: " + (syncResponse != null ? syncResponse.isSuccess() : "null"));
+                LogUtil.d(TAG, "Sync response: " + (syncResponse != null ? syncResponse.isSuccess() : "null"));
                 
-                Log.d(TAG, "Fetching bound devices from API...");
+                LogUtil.d(TAG, "Fetching bound devices from API...");
                 List<NewApiService.DeviceInfo> apiDevices = apiService.getBoundDeviceList();
-                Log.d(TAG, "Found " + apiDevices.size() + " devices from API");
+                LogUtil.d(TAG, "Found " + apiDevices.size() + " devices from API");
                 
                 if (apiDevices.isEmpty()) {
                     Log.w(TAG, "API returned empty device list");
@@ -89,7 +90,7 @@ public class DeviceDataManager {
                     String deviceId = info.deviceNum;
                     
                     if (unboundDeviceManager.isDeviceUnbound(deviceId)) {
-                        Log.d(TAG, "Skipping unbound device: " + deviceId);
+                        LogUtil.d(TAG, "Skipping unbound device: " + deviceId);
                         skippedCount++;
                         continue;
                     }
@@ -103,7 +104,7 @@ public class DeviceDataManager {
                         device.setLastSeen(info.timestamp > 0 ? info.timestamp : System.currentTimeMillis());
                         databaseHelper.addDevice(device);
                         syncedDevices.add(device);
-                        Log.d(TAG, "Synced new device: " + device.getName());
+                        LogUtil.d(TAG, "Synced new device: " + device.getName());
                     } else {
                         Device existingDevice = databaseHelper.getDevice(deviceId);
                         if (existingDevice != null) {
@@ -117,7 +118,7 @@ public class DeviceDataManager {
                             existingDevice.setLastSeen(info.timestamp > 0 ? info.timestamp : System.currentTimeMillis());
                             databaseHelper.addDevice(existingDevice);
                             syncedDevices.add(existingDevice);
-                            Log.d(TAG, "Updated device: " + existingDevice.getName());
+                            LogUtil.d(TAG, "Updated device: " + existingDevice.getName());
                         }
                     }
                 }
@@ -141,7 +142,7 @@ public class DeviceDataManager {
     public void fetchDeviceInfo(String deviceNum) {
         new Thread(() -> {
             try {
-                Log.d(TAG, "Fetching device info for: " + deviceNum);
+                LogUtil.d(TAG, "Fetching device info for: " + deviceNum);
                 
                 // 根据设备号长度设置对应的API URL
                 NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNum));
@@ -186,7 +187,7 @@ public class DeviceDataManager {
         SharedPreferences.Editor editor = prefs.edit();
         editor.putString("selected_device_id", deviceId);
         editor.apply();
-        Log.d(TAG, "Saved selected device ID: " + deviceId);
+        LogUtil.d(TAG, "Saved selected device ID: " + deviceId);
     }
     
     /**

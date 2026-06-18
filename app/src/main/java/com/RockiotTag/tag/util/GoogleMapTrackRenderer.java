@@ -3,6 +3,7 @@ package com.RockiotTag.tag.util;
 import android.content.Context;
 import android.graphics.Color;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import com.RockiotTag.tag.R;
 import com.RockiotTag.tag.StayPoint;
@@ -81,7 +82,7 @@ public class GoogleMapTrackRenderer {
             arrowMarkers.add(marker);
         }
         
-        Log.d(TAG, "Added direction arrows on Google Map (interval: " + arrowInterval + ")");
+        LogUtil.d(TAG, "Added direction arrows on Google Map (interval: " + arrowInterval + ")");
         return arrowMarkers;
     }
     

@@ -20,6 +20,7 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageButton;
@@ -150,7 +151,7 @@ public class NavigationActivity extends AppCompatActivity
 
         if (startLatitude != 0 && startLongitude != 0) {
             hasStartLocation = true;
-            Log.d(TAG, "Start location from intent: lat=" + startLatitude + ", lng=" + startLongitude
+            LogUtil.d(TAG, "Start location from intent: lat=" + startLatitude + ", lng=" + startLongitude
                     + ", isGcj02=" + startIsGcj02);
         } else {
             // 尝试从系统获取当前位置作为备份
@@ -164,16 +165,16 @@ public class NavigationActivity extends AppCompatActivity
         com.amap.api.maps.model.LatLng destGcj = CoordinateUtils.wgs84ToGcj02(destLatitude, destLongitude);
         destLatitude = destGcj.latitude;
         destLongitude = destGcj.longitude;
-        Log.d(TAG, "Navigation destination (GCJ-02): lat=" + destLatitude + ", lng=" + destLongitude);
+        LogUtil.d(TAG, "Navigation destination (GCJ-02): lat=" + destLatitude + ", lng=" + destLongitude);
 
         // 起点位置：高德定位SDK返回的已经是GCJ-02，不需要转换；Google/系统定位返回的是WGS-84，需要转换
         if (hasStartLocation && !startIsGcj02) {
             com.amap.api.maps.model.LatLng startGcj = CoordinateUtils.wgs84ToGcj02(startLatitude, startLongitude);
             startLatitude = startGcj.latitude;
             startLongitude = startGcj.longitude;
-            Log.d(TAG, "Navigation start converted to GCJ-02: lat=" + startLatitude + ", lng=" + startLongitude);
+            LogUtil.d(TAG, "Navigation start converted to GCJ-02: lat=" + startLatitude + ", lng=" + startLongitude);
         } else if (hasStartLocation) {
-            Log.d(TAG, "Navigation start already in GCJ-02: lat=" + startLatitude + ", lng=" + startLongitude);
+            LogUtil.d(TAG, "Navigation start already in GCJ-02: lat=" + startLatitude + ", lng=" + startLongitude);
         }
 
         initViews(savedInstanceState);
@@ -203,7 +204,7 @@ public class NavigationActivity extends AppCompatActivity
                 startLatitude = gpsLocation.getLatitude();
                 startLongitude = gpsLocation.getLongitude();
                 hasStartLocation = true;
-                Log.d(TAG, "Got GPS location: lat=" + startLatitude + ", lng=" + startLongitude);
+                LogUtil.d(TAG, "Got GPS location: lat=" + startLatitude + ", lng=" + startLongitude);
                 return;
             }
 
@@ -213,7 +214,7 @@ public class NavigationActivity extends AppCompatActivity
                 startLatitude = networkLocation.getLatitude();
                 startLongitude = networkLocation.getLongitude();
                 hasStartLocation = true;
-                Log.d(TAG, "Got network location: lat=" + startLatitude + ", lng=" + startLongitude);
+                LogUtil.d(TAG, "Got network location: lat=" + startLatitude + ", lng=" + startLongitude);
                 return;
             }
 
@@ -332,7 +333,7 @@ public class NavigationActivity extends AppCompatActivity
         try {
             mAMapNavi = AMapNavi.getInstance(getApplicationContext());
             mAMapNavi.addAMapNaviListener(this);
-            Log.d(TAG, "AMapNavi instance created, waiting for init callback...");
+            LogUtil.d(TAG, "AMapNavi instance created, waiting for init callback...");
         } catch (AMapException e) {
             Log.e(TAG, "AMapNavi init failed: " + e.getErrorMessage(), e);
             Toast.makeText(this, "导航初始化失败", Toast.LENGTH_LONG).show();
@@ -356,7 +357,7 @@ public class NavigationActivity extends AppCompatActivity
         NaviLatLng startPoint = new NaviLatLng(startLatitude, startLongitude);
         NaviLatLng endPoint = new NaviLatLng(destLatitude, destLongitude);
 
-        Log.d(TAG, "Calculating route: start=(" + startLatitude + "," + startLongitude
+        LogUtil.d(TAG, "Calculating route: start=(" + startLatitude + "," + startLongitude
                 + "), end=(" + destLatitude + "," + destLongitude + "), mode=" + currentNaviMode);
 
         // 所有模式统一使用 calculateDriveRoute 格式（List参数能正确传递起点）
@@ -394,7 +395,7 @@ public class NavigationActivity extends AppCompatActivity
                 break;
         }
 
-        Log.d(TAG, "Route calculation: mode=" + currentNaviMode + ", strategy=" + strategy + ", result=" + result);
+        LogUtil.d(TAG, "Route calculation: mode=" + currentNaviMode + ", strategy=" + strategy + ", result=" + result);
 
         if (!result) {
             Log.e(TAG, "Route calculation method returned false for mode=" + currentNaviMode);
@@ -424,7 +425,7 @@ public class NavigationActivity extends AppCompatActivity
         List<NaviLatLng> wayList = new ArrayList<>();
 
         boolean result = mAMapNavi.calculateDriveRoute(startList, endList, wayList, strategy);
-        Log.d(TAG, "Smart mode: calculating drive route first, result=" + result);
+        LogUtil.d(TAG, "Smart mode: calculating drive route first, result=" + result);
 
         if (!result) {
             // 驾车失败，尝试步行
@@ -447,7 +448,7 @@ public class NavigationActivity extends AppCompatActivity
 
         int distance = naviPath.getAllLength(); // 单位：米
         lastRouteDistance = distance;
-        Log.d(TAG, "Route distance: " + distance + " meters");
+        LogUtil.d(TAG, "Route distance: " + distance + " meters");
 
         // 显示距离信息
         naviDistance.setVisibility(View.VISIBLE);
@@ -494,7 +495,7 @@ public class NavigationActivity extends AppCompatActivity
                         latLngList.add(new com.amap.api.maps.model.LatLng(
                                 naviLatLng.getLatitude(), naviLatLng.getLongitude()));
                     }
-                    Log.d(TAG, "Route polyline drawn with " + latLngList.size() + " points");
+                    LogUtil.d(TAG, "Route polyline drawn with " + latLngList.size() + " points");
 
                     // 起点终点使用路线连线的首末点（标记在路线上才对齐）
                     com.amap.api.maps.model.LatLng routeStart = latLngList.get(0);
@@ -569,7 +570,7 @@ public class NavigationActivity extends AppCompatActivity
             if (aMap != null) {
                 // 移动相机显示整条路线
                 aMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100));
-                Log.d(TAG, "Camera moved to show route bounds");
+                LogUtil.d(TAG, "Camera moved to show route bounds");
             }
         }
     }
@@ -630,7 +631,7 @@ public class NavigationActivity extends AppCompatActivity
 
     @Override
     public void onInitNaviSuccess() {
-        Log.d(TAG, "Navigation init success");
+        LogUtil.d(TAG, "Navigation init success");
         progressBar.setVisibility(View.GONE);
         naviModeBar.setVisibility(View.VISIBLE);
         // 智能选择导航模式
@@ -646,7 +647,7 @@ public class NavigationActivity extends AppCompatActivity
 
     @Override
     public void onStartNavi(int i) {
-        Log.d(TAG, "Navigation started, type=" + i);
+        LogUtil.d(TAG, "Navigation started, type=" + i);
     }
 
     @Override
@@ -759,7 +760,7 @@ public class NavigationActivity extends AppCompatActivity
 
     @Override
     public void onCalculateRouteSuccess(int[] ints) {
-        Log.d(TAG, "Route calculation success (legacy), routeIds count=" + (ints != null ? ints.length : 0));
+        LogUtil.d(TAG, "Route calculation success (legacy), routeIds count=" + (ints != null ? ints.length : 0));
         isRouteCalculated = true;
         progressBar.setVisibility(View.GONE);
         btnStartNavi.setVisibility(View.VISIBLE);
@@ -792,7 +793,7 @@ public class NavigationActivity extends AppCompatActivity
 
     @Override
     public void onCalculateRouteSuccess(AMapCalcRouteResult aMapCalcRouteResult) {
-        Log.d(TAG, "Route calculation success (new API), route count=" +
+        LogUtil.d(TAG, "Route calculation success (new API), route count=" +
                 (aMapCalcRouteResult != null && aMapCalcRouteResult.getRouteid() != null ? aMapCalcRouteResult.getRouteid().length : 0));
         isRouteCalculated = true;
         progressBar.setVisibility(View.GONE);
@@ -856,7 +857,7 @@ public class NavigationActivity extends AppCompatActivity
 
     @Override
     public void onNaviViewLoaded() {
-        Log.d(TAG, "Navigation view loaded");
+        LogUtil.d(TAG, "Navigation view loaded");
     }
 
     @Override
@@ -1268,7 +1269,7 @@ public class NavigationActivity extends AppCompatActivity
                 .strokeWidth(2)
                 .visible(showHeatCircle));
 
-        Log.d(TAG, "Bluetooth heat circle added at destination, radius=" + bleRadius + "m");
+        LogUtil.d(TAG, "Bluetooth heat circle added at destination, radius=" + bleRadius + "m");
     }
 
     /**
@@ -1313,7 +1314,7 @@ public class NavigationActivity extends AppCompatActivity
                 com.amap.api.maps.model.Marker marker = aMap.addMarker(assetMarker);
                 assetMarkers.add(marker);
             }
-            Log.d(TAG, "Nearby asset points added: " + assetMarkers.size());
+            LogUtil.d(TAG, "Nearby asset points added: " + assetMarkers.size());
         } catch (Exception e) {
             Log.e(TAG, "Error adding nearby asset points", e);
         }
@@ -1413,7 +1414,7 @@ public class NavigationActivity extends AppCompatActivity
             }
         });
         pulseAnimator.start();
-        Log.d(TAG, "Pulse animation started at destination");
+        LogUtil.d(TAG, "Pulse animation started at destination");
     }
 
     /**

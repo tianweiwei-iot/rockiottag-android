@@ -4,6 +4,7 @@ import android.content.Context;
 import android.location.Address;
 import android.location.Geocoder;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,7 +28,7 @@ public class GoogleGeocoderService {
     
     public GoogleGeocoderService(Context context) {
         this.context = context;
-        Log.d(TAG, "GoogleGeocoderService initialized for international version");
+        LogUtil.d(TAG, "GoogleGeocoderService initialized for international version");
     }
     
     /**
@@ -45,7 +46,7 @@ public class GoogleGeocoderService {
      */
     public void getAddressFromLocation(final double latitude, final double longitude, 
                                        final String languageCode) {
-        Log.d(TAG, "Starting reverse geocoding for: lat=" + latitude + ", lng=" + longitude 
+        LogUtil.d(TAG, "Starting reverse geocoding for: lat=" + latitude + ", lng=" + longitude 
             + ", language=" + languageCode);
         
         // 在后台线程中执行逆地理编码
@@ -72,7 +73,7 @@ public class GoogleGeocoderService {
                         }
                         
                         String finalAddress = addressStr.toString();
-                        Log.d(TAG, "Reverse geocoding success: " + finalAddress);
+                        LogUtil.d(TAG, "Reverse geocoding success: " + finalAddress);
                         
                         if (callback != null) {
                             callback.onSuccess(finalAddress);

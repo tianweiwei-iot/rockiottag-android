@@ -6,6 +6,7 @@ import com.RockiotTag.tag.ApiConfig;
 import com.RockiotTag.tag.Device;
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.repository.DeviceRepository;
+import com.RockiotTag.tag.util.LogUtil;
 
 /**
  * 更新设备位置的UseCase
@@ -30,7 +31,7 @@ public class UpdateDeviceLocationUseCase extends BaseUseCase<String, NewApiServi
             throw new IllegalArgumentException("设备编号不能为空");
         }
         
-        Log.d(TAG, "Updating device location: " + deviceNum);
+        LogUtil.d(TAG, "Updating device location: " + deviceNum);
         
         try {
             // 设置API地址
@@ -45,7 +46,7 @@ public class UpdateDeviceLocationUseCase extends BaseUseCase<String, NewApiServi
                 throw new RuntimeException("无法获取设备位置信息");
             }
             
-            Log.d(TAG, "Device location updated: lat=" + deviceInfo.latitude + 
+            LogUtil.d(TAG, "Device location updated: lat=" + deviceInfo.latitude + 
                 ", lng=" + deviceInfo.longitude);
             
             // 更新本地数据库

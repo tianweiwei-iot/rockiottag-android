@@ -7,6 +7,7 @@ import android.util.Log;
 import com.RockiotTag.tag.BLEManager;
 import com.RockiotTag.tag.Device;
 import com.RockiotTag.tag.model.TagDevice;
+import com.RockiotTag.tag.util.LogUtil;
 
 /**
  * BLE数据仓库 - 统一管理蓝牙设备扫描和连接操作
@@ -47,7 +48,7 @@ public class BLERepository {
      * 开始扫描BLE设备
      */
     public void startScanning(ScanCallback callback) {
-        Log.d(TAG, "Starting BLE scan with new model");
+        LogUtil.d(TAG, "Starting BLE scan with new model");
         bleManager.startScanning(new BLEManager.DeviceScanCallback() {
             @Override
             public void onDeviceFound(Device device) {
@@ -72,7 +73,7 @@ public class BLERepository {
      * 停止扫描BLE设备
      */
     public void stopScanning() {
-        Log.d(TAG, "Stopping BLE scan");
+        LogUtil.d(TAG, "Stopping BLE scan");
         bleManager.stopScanning();
     }
     
@@ -80,7 +81,7 @@ public class BLERepository {
      * 连接到BLE设备
      */
     public void connectToDevice(BluetoothDevice device, BLEManager.DeviceConnectionCallback callback) {
-        Log.d(TAG, "Connecting to BLE device: " + device.getName());
+        LogUtil.d(TAG, "Connecting to BLE device: " + device.getName());
         bleManager.connectToDevice(device, callback);
     }
     
@@ -88,7 +89,7 @@ public class BLERepository {
      * 断开BLE连接
      */
     public void disconnect() {
-        Log.d(TAG, "Disconnecting BLE device");
+        LogUtil.d(TAG, "Disconnecting BLE device");
         bleManager.disconnect();
     }
     

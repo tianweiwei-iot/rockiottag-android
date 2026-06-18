@@ -8,6 +8,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import com.RockiotTag.tag.model.Resource;
+import com.RockiotTag.tag.util.LogUtil;
 
 /**
  * UseCase基类，提供统一的执行框架
@@ -60,7 +61,7 @@ public abstract class BaseUseCase<Params, Result> {
         // 立即返回loading状态
         result.setValue(Resource.loading(null));
         
-        Log.d(TAG, "UseCase started: " + getClass().getSimpleName());
+        LogUtil.d(TAG, "UseCase started: " + getClass().getSimpleName());
         
         // 在后台线程执行
         new Thread(() -> {
@@ -71,7 +72,7 @@ public abstract class BaseUseCase<Params, Result> {
                 Result data = executeSync(params);
                 
                 long duration = System.currentTimeMillis() - startTime;
-                Log.d(TAG, "UseCase completed: " + getClass().getSimpleName() 
+                LogUtil.d(TAG, "UseCase completed: " + getClass().getSimpleName() 
                     + " in " + duration + "ms");
                 
                 // 在主线程返回成功结果

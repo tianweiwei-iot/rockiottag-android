@@ -2,6 +2,7 @@ package com.RockiotTag.tag.map.amap;
 
 import android.content.Context;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import com.amap.api.services.core.LatLonPoint;
 import com.amap.api.services.geocoder.GeocodeSearch;
@@ -29,7 +30,7 @@ public class AMapGeocoder {
         this.context = context;
         try {
             geocodeSearch = new GeocodeSearch(context);
-            Log.d(TAG, "AMapGeocoder initialized for domestic version");
+            LogUtil.d(TAG, "AMapGeocoder initialized for domestic version");
         } catch (Exception e) {
             Log.e(TAG, "Failed to initialize GeocodeSearch: " + e.getMessage(), e);
         }
@@ -54,7 +55,7 @@ public class AMapGeocoder {
             return null;
         }
         
-        Log.d(TAG, "Starting sync reverse geocoding for: lat=" + latitude + ", lng=" + longitude);
+        LogUtil.d(TAG, "Starting sync reverse geocoding for: lat=" + latitude + ", lng=" + longitude);
         
         try {
             // 使用 WGS84 坐标系（GPS原始坐标）
@@ -68,7 +69,7 @@ public class AMapGeocoder {
             
             if (regeocodeAddress != null) {
                 String simpleAddress = buildSimpleAddress(regeocodeAddress);
-                Log.d(TAG, "Sync reverse geocoding success: " + simpleAddress);
+                LogUtil.d(TAG, "Sync reverse geocoding success: " + simpleAddress);
                 return simpleAddress;
             } else {
                 Log.e(TAG, "Sync reverse geocoding failed: result is null");
@@ -98,7 +99,7 @@ public class AMapGeocoder {
             return;
         }
         
-        Log.d(TAG, "Starting reverse geocoding for: lat=" + latitude + ", lng=" + longitude);
+        LogUtil.d(TAG, "Starting reverse geocoding for: lat=" + latitude + ", lng=" + longitude);
         
         // 在后台线程中执行逆地理编码
         new Thread(new Runnable() {
@@ -116,7 +117,7 @@ public class AMapGeocoder {
                     
                     if (regeocodeAddress != null) {
                         String formatAddress = regeocodeAddress.getFormatAddress();
-                        Log.d(TAG, "Reverse geocoding success: " + formatAddress);
+                        LogUtil.d(TAG, "Reverse geocoding success: " + formatAddress);
                         
                         // 构建简洁地址
                         String simpleAddress = buildSimpleAddress(regeocodeAddress);

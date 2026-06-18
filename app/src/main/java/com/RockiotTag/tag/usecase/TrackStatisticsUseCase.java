@@ -5,6 +5,7 @@ import android.util.Log;
 import com.RockiotTag.tag.LocationRecord;
 import com.RockiotTag.tag.repository.LocationRepository;
 import com.RockiotTag.tag.util.BLETagFilter;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,7 +38,7 @@ public class TrackStatisticsUseCase extends BaseUseCase<List<LocationRecord>, Tr
     
     @Override
     protected Result executeSync(List<LocationRecord> records) throws Exception {
-        Log.d(TAG, "Calculating track statistics from " + (records != null ? records.size() : 0) + " records");
+        LogUtil.d(TAG, "Calculating track statistics from " + (records != null ? records.size() : 0) + " records");
         
         if (records == null || records.size() < 2) {
             return new Result(0, 0, 0, records != null ? records.size() : 0);
@@ -77,7 +78,7 @@ public class TrackStatisticsUseCase extends BaseUseCase<List<LocationRecord>, Tr
         // 计算平均速度
         double averageSpeed = totalTime > 0 ? totalDistance / (totalTime / 1000.0) : 0;
         
-        Log.d(TAG, String.format("Track statistics: distance=%.2fm, time=%dms, speed=%.2fm/s, filtered=%d",
+        LogUtil.d(TAG, String.format("Track statistics: distance=%.2fm, time=%dms, speed=%.2fm/s, filtered=%d",
             totalDistance, totalTime, averageSpeed, filteredCount));
         
         return new Result(totalDistance, totalTime, averageSpeed, records.size());

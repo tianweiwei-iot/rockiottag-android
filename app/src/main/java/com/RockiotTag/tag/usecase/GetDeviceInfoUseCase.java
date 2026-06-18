@@ -6,6 +6,7 @@ import com.RockiotTag.tag.ApiConfig;
 import com.RockiotTag.tag.Device;
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.repository.DeviceRepository;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.Map;
 
@@ -25,29 +26,29 @@ public class GetDeviceInfoUseCase extends BaseUseCase<String, NewApiService.Devi
             throw new IllegalArgumentException("设备编号不能为空");
         }
         
-        Log.d(TAG, "Fetching device info for: " + deviceNum);
+        LogUtil.d(TAG, "Fetching device info for: " + deviceNum);
         
         try {
             String apiUrl = ApiConfig.getMyServerUrl(deviceNum);
             NewApiService.setApiBaseUrl(apiUrl);
-            Log.d(TAG, "API URL: " + apiUrl);
+            LogUtil.d(TAG, "API URL: " + apiUrl);
             
             Device localDevice = deviceRepository.getDeviceByNum(deviceNum);
             String savedCustomerCode = null;
             if (localDevice != null && localDevice.getCustomerCode() != null && !localDevice.getCustomerCode().isEmpty()) {
                 savedCustomerCode = localDevice.getCustomerCode();
-                Log.d(TAG, "Using saved customerCode from local device: " + savedCustomerCode);
+                LogUtil.d(TAG, "Using saved customerCode from local device: " + savedCustomerCode);
             }
             
             NewApiService.DeviceInfo deviceInfo = null;
             
             if (savedCustomerCode != null) {
-                Log.d(TAG, "Trying with saved customerCode: " + savedCustomerCode);
+                LogUtil.d(TAG, "Trying with saved customerCode: " + savedCustomerCode);
                 deviceInfo = NewApiService.getInstance().getDeviceLatest(deviceNum, savedCustomerCode);
             }
             
             if (deviceInfo == null || deviceInfo.deviceNum == null || deviceInfo.deviceNum.isEmpty()) {
-                Log.d(TAG, "Trying all customer codes...");
+                LogUtil.d(TAG, "Trying all customer codes...");
                 Map<String, ApiConfig.CustomerConfig> configs = ApiConfig.getAllCustomerConfigs();
                 for (Map.Entry<String, ApiConfig.CustomerConfig> entry : configs.entrySet()) {
                     String customerCode = entry.getKey();
@@ -55,10 +56,10 @@ public class GetDeviceInfoUseCase extends BaseUseCase<String, NewApiService.Devi
                         continue;
                     }
                     
-                    Log.d(TAG, "Trying customerCode: " + customerCode);
+                    LogUtil.d(TAG, "Trying customerCode: " + customerCode);
                     deviceInfo = NewApiService.getInstance().getDeviceLatest(deviceNum, customerCode);
                     if (deviceInfo != null && deviceInfo.deviceNum != null && !deviceInfo.deviceNum.isEmpty()) {
-                        Log.d(TAG, "Device found with customerCode: " + customerCode);
+                        LogUtil.d(TAG, "Device found with customerCode: " + customerCode);
                         savedCustomerCode = customerCode;
                         break;
                     }
@@ -70,13 +71,13 @@ public class GetDeviceInfoUseCase extends BaseUseCase<String, NewApiService.Devi
                 throw new RuntimeException("无法获取设备信息，请稍后重试");
             }
             
-            Log.d(TAG, "Device info fetched successfully:");
-            Log.d(TAG, "  - DeviceNum: " + deviceInfo.deviceNum);
-            Log.d(TAG, "  - NickName: " + deviceInfo.nickName);
-            Log.d(TAG, "  - Latitude: " + deviceInfo.latitude);
-            Log.d(TAG, "  - Longitude: " + deviceInfo.longitude);
-            Log.d(TAG, "  - Battery: " + deviceInfo.battery);
-            Log.d(TAG, "  - Timestamp: " + deviceInfo.timestamp);
+            LogUtil.d(TAG, "Device info fetched successfully:");
+            LogUtil.d(TAG, "  - DeviceNum: " + deviceInfo.deviceNum);
+            LogUtil.d(TAG, "  - NickName: " + deviceInfo.nickName);
+            LogUtil.d(TAG, "  - Latitude: " + deviceInfo.latitude);
+            LogUtil.d(TAG, "  - Longitude: " + deviceInfo.longitude);
+            LogUtil.d(TAG, "  - Battery: " + deviceInfo.battery);
+            LogUtil.d(TAG, "  - Timestamp: " + deviceInfo.timestamp);
             
             try {
                 Device existingDevice = deviceRepository.getDeviceByNum(deviceInfo.deviceNum);
@@ -89,7 +90,7 @@ public class GetDeviceInfoUseCase extends BaseUseCase<String, NewApiService.Devi
                         existingDevice.setCustomerCode(savedCustomerCode);
                         deviceRepository.saveDevice(existingDevice);
                     }
-                    Log.d(TAG, "Local database updated");
+                    LogUtil.d(TAG, "Local database updated");
                 }
             } catch (Exception e) {
                 Log.w(TAG, "Failed to update local database: " + e.getMessage());

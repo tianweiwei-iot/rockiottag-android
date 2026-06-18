@@ -1,6 +1,7 @@
 package com.RockiotTag.tag.util;
 
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 /**
  * 卡尔曼滤波器 - 双维度完整实现（精度感知版本）
@@ -41,7 +42,7 @@ public class LocationKalmanFilter {
             // 第一个观测，直接初始化
             xLat = latitude;
             xLng = longitude;
-            Log.d(TAG, String.format("Kalman filter initialized: lat=%.6f, lng=%.6f, accuracy=%.1fm",
+            LogUtil.d(TAG, String.format("Kalman filter initialized: lat=%.6f, lng=%.6f, accuracy=%.1fm",
                 latitude, longitude, accuracy));
         } else {
             // ===== 预测步骤 =====
@@ -60,7 +61,7 @@ public class LocationKalmanFilter {
             xLng = predictXLng + kLng * (longitude - predictXLng);
             pLng = (1 - kLng) * predictPLng;
             
-            Log.d(TAG, String.format("Kalman filtered: (%.6f, %.6f) -> (%.6f, %.6f), accuracy=%.1fm, k_lat=%.3f, k_lng=%.3f",
+            LogUtil.d(TAG, String.format("Kalman filtered: (%.6f, %.6f) -> (%.6f, %.6f), accuracy=%.1fm, k_lat=%.3f, k_lng=%.3f",
                 latitude, longitude, xLat, xLng, accuracy, kLat, kLng));
         }
         
@@ -75,7 +76,7 @@ public class LocationKalmanFilter {
         xLng = Double.NaN;
         pLat = 1.0;
         pLng = 1.0;
-        Log.d(TAG, "Kalman filter reset");
+        LogUtil.d(TAG, "Kalman filter reset");
     }
     
     /**
@@ -85,7 +86,7 @@ public class LocationKalmanFilter {
     public void setProcessNoise(double q) {
         if (q > 0 && q <= 1.0) {
             this.q = q;
-            Log.d(TAG, "Process noise updated: q=" + q);
+            LogUtil.d(TAG, "Process noise updated: q=" + q);
         } else {
             Log.w(TAG, "Invalid process noise value: " + q + ", keeping current value: " + this.q);
         }

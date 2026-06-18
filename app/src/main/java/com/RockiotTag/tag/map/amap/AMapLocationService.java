@@ -2,6 +2,7 @@ package com.RockiotTag.tag.map.amap;
 
 import android.content.Context;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import com.amap.api.location.AMapLocation;
 import com.amap.api.location.AMapLocationClient;
@@ -26,7 +27,7 @@ public class AMapLocationService {
     
     public AMapLocationService(Context context) {
         this.context = context;
-        Log.d(TAG, "AMapLocationService initialized for domestic version");
+        LogUtil.d(TAG, "AMapLocationService initialized for domestic version");
     }
     
     /**
@@ -41,7 +42,7 @@ public class AMapLocationService {
      */
     public void startLocation() {
         try {
-            Log.d(TAG, "Starting AMap location service...");
+            LogUtil.d(TAG, "Starting AMap location service...");
             
             locationClient = new AMapLocationClient(context.getApplicationContext());
             
@@ -66,7 +67,7 @@ public class AMapLocationService {
                             float accuracy = aMapLocation.getAccuracy();
                             String address = aMapLocation.getAddress();
                             
-                            Log.d(TAG, "Location success: lat=" + latitude + ", lng=" + longitude 
+                            LogUtil.d(TAG, "Location success: lat=" + latitude + ", lng=" + longitude 
                                 + ", accuracy=" + accuracy + "m");
                             
                             if (callback != null) {
@@ -91,7 +92,7 @@ public class AMapLocationService {
             
             // 启动定位
             locationClient.startLocation();
-            Log.d(TAG, "AMap location service started");
+            LogUtil.d(TAG, "AMap location service started");
             
         } catch (SecurityException e) {
             Log.e(TAG, "Security exception - missing location permissions", e);
@@ -114,7 +115,7 @@ public class AMapLocationService {
             locationClient.stopLocation();
             locationClient.onDestroy();
             locationClient = null;
-            Log.d(TAG, "AMap location service stopped");
+            LogUtil.d(TAG, "AMap location service stopped");
         }
     }
     
@@ -155,7 +156,7 @@ public class AMapLocationService {
             }
             
             locationClient.startLocation();
-            Log.d(TAG, "Single location request sent");
+            LogUtil.d(TAG, "Single location request sent");
             
         } catch (Exception e) {
             Log.e(TAG, "Error requesting single location: " + e.getMessage(), e);

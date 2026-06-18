@@ -7,6 +7,7 @@ import android.util.Log;
 import com.RockiotTag.tag.CoordinateUtils;
 import com.RockiotTag.tag.LocationRecord;
 import com.RockiotTag.tag.StayPoint;
+import com.RockiotTag.tag.util.LogUtil;
 import com.RockiotTag.tag.util.MapMarkerHelper;
 import com.RockiotTag.tag.util.TimeFormatter;
 import com.amap.api.maps.AMap;
@@ -85,7 +86,7 @@ public class TrackMapRenderer {
         }
         
         if (filteredCount > 0) {
-            Log.d(TAG, "Filtered " + filteredCount + " invalid coordinates from " + stayPoints.size() + " stay points");
+            LogUtil.d(TAG, "Filtered " + filteredCount + " invalid coordinates from " + stayPoints.size() + " stay points");
         }
         
         if (latLngList.size() > 1) {
@@ -106,7 +107,7 @@ public class TrackMapRenderer {
         // 调整相机视角（考虑精度阈值，确保精度范围内可见）
         adjustCameraOnAMap(aMap, latLngList, false, 17.0f, accuracyThreshold);
         
-        Log.d(TAG, "Track rendered on AMap with " + stayPoints.size() + " stay points");
+        LogUtil.d(TAG, "Track rendered on AMap with " + stayPoints.size() + " stay points");
         
         return trackPolyline;
     }
@@ -175,9 +176,9 @@ public class TrackMapRenderer {
             // 如果只有一个点：今天显示起点，历史日期显示终点
             if (stayPoints.size() == 1) {
                 if (isToday) {
-                    Log.d(TAG, "Only one point today on AMap, showing Start marker");
+                    LogUtil.d(TAG, "Only one point today on AMap, showing Start marker");
                 } else {
-                    Log.d(TAG, "Only one point in history on AMap, showing End marker");
+                    LogUtil.d(TAG, "Only one point in history on AMap, showing End marker");
                 }
             }
                 
@@ -321,7 +322,7 @@ public class TrackMapRenderer {
         double zoom = 17.0 - Math.log(diameterMeters / 300.0) / Math.log(2.0);
         // 限制在合理范围内
         zoom = Math.max(3.0f, Math.min(20.0f, zoom));
-        Log.d(TAG, "Calculated zoom for accuracy " + accuracyThreshold + "m: " + String.format("%.1f", zoom));
+        LogUtil.d(TAG, "Calculated zoom for accuracy " + accuracyThreshold + "m: " + String.format("%.1f", zoom));
         return (float) zoom;
     }
     
@@ -362,7 +363,7 @@ public class TrackMapRenderer {
             builder.include(new LatLng(centerLat + latOffset, centerLng + lngOffset));
             builder.include(new LatLng(centerLat - latOffset, centerLng - lngOffset));
             
-            Log.d(TAG, "Expanded bounds for accuracy " + accuracyThreshold + "m, diagonal was " + 
+            LogUtil.d(TAG, "Expanded bounds for accuracy " + accuracyThreshold + "m, diagonal was " + 
                 String.format("%.1f", diagonalDistance) + "m");
         }
     }

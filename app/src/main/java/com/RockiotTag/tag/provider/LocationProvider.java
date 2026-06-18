@@ -2,6 +2,7 @@ package com.RockiotTag.tag.provider;
 
 import android.content.Context;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.bluetooth.BluetoothScanResult;
@@ -45,66 +46,66 @@ public class LocationProvider {
      * @return DeviceLocation对象
      */
     public synchronized DeviceLocation getDeviceLocation(String deviceId, String deviceNum) {
-        Log.d(TAG, "========== LocationProvider.getDeviceLocation START ==========");
-        Log.d(TAG, "deviceId: " + deviceId);
-        Log.d(TAG, "deviceNum: " + deviceNum);
+        LogUtil.d(TAG, "========== LocationProvider.getDeviceLocation START ==========");
+        LogUtil.d(TAG, "deviceId: " + deviceId);
+        LogUtil.d(TAG, "deviceNum: " + deviceNum);
         
         // 1. 检查蓝牙是否在附近
-        Log.d(TAG, "Step 1: Checking Bluetooth proximity...");
+        LogUtil.d(TAG, "Step 1: Checking Bluetooth proximity...");
         BluetoothScanResult btResult = bluetoothScanner.getRecentScan(deviceId);
         boolean isNearby = bluetoothScanner.isDeviceNearby(deviceId);
         
-        Log.d(TAG, "Bluetooth scan result: " + (btResult != null ? "found" : "not found"));
+        LogUtil.d(TAG, "Bluetooth scan result: " + (btResult != null ? "found" : "not found"));
         if (btResult != null) {
-            Log.d(TAG, "RSSI: " + btResult.getRssi() + " dBm");
-            Log.d(TAG, "Scan time: " + new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+            LogUtil.d(TAG, "RSSI: " + btResult.getRssi() + " dBm");
+            LogUtil.d(TAG, "Scan time: " + new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
                 .format(new java.util.Date(btResult.getScanTime())));
         }
-        Log.d(TAG, "Is nearby: " + isNearby);
+        LogUtil.d(TAG, "Is nearby: " + isNearby);
         
         if (isNearby && btResult != null) {
-            Log.d(TAG, String.format(
+            LogUtil.d(TAG, String.format(
                 "✓ Device nearby detected: RSSI=%d dBm",
                 btResult.getRssi()
             ));
             
             // 2. 尝试使用手机GPS定位
-            Log.d(TAG, "Step 2: Attempting to get phone GPS location...");
+            LogUtil.d(TAG, "Step 2: Attempting to get phone GPS location...");
             PhoneLocation phoneLoc = phoneLocationService.getCurrentLocation();
             
             if (phoneLoc != null) {
-                Log.d(TAG, "Phone GPS available:");
-                Log.d(TAG, "  Latitude: " + phoneLoc.getLatitude());
-                Log.d(TAG, "  Longitude: " + phoneLoc.getLongitude());
-                Log.d(TAG, "  Accuracy: " + phoneLoc.getAccuracy() + "m");
-                Log.d(TAG, "  Is valid: " + phoneLoc.isValid());
+                LogUtil.d(TAG, "Phone GPS available:");
+                LogUtil.d(TAG, "  Latitude: " + phoneLoc.getLatitude());
+                LogUtil.d(TAG, "  Longitude: " + phoneLoc.getLongitude());
+                LogUtil.d(TAG, "  Accuracy: " + phoneLoc.getAccuracy() + "m");
+                LogUtil.d(TAG, "  Is valid: " + phoneLoc.isValid());
             } else {
                 Log.w(TAG, "Phone GPS not available (null)");
             }
             
             if (phoneLoc != null && phoneLoc.isValid() && phoneLoc.getAccuracy() < 20) {
-                Log.d(TAG, "✓ Using phone GPS for better accuracy (< 20m)");
+                LogUtil.d(TAG, "✓ Using phone GPS for better accuracy (< 20m)");
                 
                 DeviceLocation location = createFromPhone(phoneLoc);
                 location.setActualSource(DeviceLocation.DataSource.PHONE_GPS);
                 
-                Log.d(TAG, "========== LocationProvider RETURNING PHONE GPS LOCATION ==========");
+                LogUtil.d(TAG, "========== LocationProvider RETURNING PHONE GPS LOCATION ==========");
                 return location;
             } else {
                 Log.w(TAG, "✗ Phone GPS not suitable (invalid or accuracy >= 20m), fallback to server");
             }
         } else {
-            Log.d(TAG, "Device not nearby or no recent scan");
+            LogUtil.d(TAG, "Device not nearby or no recent scan");
         }
         
         // 3. 使用服务器数据
-        Log.d(TAG, "Step 3: Fetching location from server...");
+        LogUtil.d(TAG, "Step 3: Fetching location from server...");
         DeviceLocation serverLocation = fetchFromServer(deviceNum);
         
         if (serverLocation != null && serverLocation.isValid()) {
-            Log.d(TAG, "✓ Using server data");
+            LogUtil.d(TAG, "✓ Using server data");
             serverLocation.setActualSource(DeviceLocation.DataSource.SERVER);
-            Log.d(TAG, "========== LocationProvider RETURNING SERVER LOCATION ==========");
+            LogUtil.d(TAG, "========== LocationProvider RETURNING SERVER LOCATION ==========");
             return serverLocation;
         }
         
@@ -113,8 +114,8 @@ public class LocationProvider {
         DeviceLocation cachedLocation = getCachedLocation(deviceId);
         
         if (cachedLocation != null) {
-            Log.d(TAG, "✓ Using cached location");
-            Log.d(TAG, "========== LocationProvider RETURNING CACHED LOCATION ==========");
+            LogUtil.d(TAG, "✓ Using cached location");
+            LogUtil.d(TAG, "========== LocationProvider RETURNING CACHED LOCATION ==========");
             return cachedLocation;
         }
         
@@ -140,7 +141,7 @@ public class LocationProvider {
         
         if (cachedAddress != null) {
             loc.setAddress(cachedAddress);
-            Log.d(TAG, "Using cached address: " + cachedAddress);
+            LogUtil.d(TAG, "Using cached address: " + cachedAddress);
         } else {
             // TODO: 异步调用逆地理编码API
             loc.setAddress("正在获取地址...");
@@ -149,7 +150,7 @@ public class LocationProvider {
         // 使用缓存的电量（蓝牙扫描时不获取电池电量，设置为-1表示未知）
         loc.setBattery(-1);
         
-        Log.d(TAG, String.format(
+        LogUtil.d(TAG, String.format(
             "Created location from phone GPS: lat=%.6f, lng=%.6f, accuracy=%.1fm",
             loc.getLatitude(), loc.getLongitude(), loc.getAccuracy()
         ));
@@ -179,7 +180,7 @@ public class LocationProvider {
                     addressCache.putAddress(deviceInfo.latitude, deviceInfo.longitude, deviceInfo.address);
                 }
                 
-                Log.d(TAG, String.format(
+                LogUtil.d(TAG, String.format(
                     "Fetched location from server: lat=%.6f, lng=%.6f, time=%s",
                     loc.getLatitude(), loc.getLongitude(), loc.getDisplayTimeForLog()
                 ));

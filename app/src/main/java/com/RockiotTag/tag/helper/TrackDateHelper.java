@@ -11,6 +11,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.RockiotTag.tag.R;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.Calendar;
 
@@ -60,7 +61,7 @@ public class TrackDateHelper {
 
                     // 关键修复：防止快速切换日期导致并发加载
                     if (callbacks.isLoadingTrackData()) {
-                        Log.d(TAG, "Already loading track data, ignore date picker selection");
+                        LogUtil.d(TAG, "Already loading track data, ignore date picker selection");
                         return;
                     }
 
@@ -274,7 +275,7 @@ public class TrackDateHelper {
      * 跳转到前一天
      */
     public void goToPreviousDay() {
-        Log.d(TAG, "=== goToPreviousDay START === isLoadingTrackData=" + callbacks.isLoadingTrackData());
+        LogUtil.d(TAG, "=== goToPreviousDay START === isLoadingTrackData=" + callbacks.isLoadingTrackData());
         try {
             callbacks.stopPlayback();
 
@@ -289,7 +290,7 @@ public class TrackDateHelper {
             minDate.add(Calendar.MONTH, -1);
 
             if (selectedDate.before(minDate)) {
-                Log.d(TAG, "[DATE_LIMIT] Selected date before min date, reverting");
+                LogUtil.d(TAG, "[DATE_LIMIT] Selected date before min date, reverting");
                 selectedDate.add(Calendar.DAY_OF_MONTH, 1);
                 return;
             }
@@ -308,10 +309,10 @@ public class TrackDateHelper {
             endDate.set(Calendar.MILLISECOND, 999);
             callbacks.setEndDate(endDate);
 
-            Log.d(TAG, "[DATE_CHANGE] Previous day: " + com.RockiotTag.tag.util.TimeFormatter.formatDate(selectedDate.getTimeInMillis()));
+            LogUtil.d(TAG, "[DATE_CHANGE] Previous day: " + com.RockiotTag.tag.util.TimeFormatter.formatDate(selectedDate.getTimeInMillis()));
             callbacks.updateDateBtnText();
             callbacks.loadTrackData();
-            Log.d(TAG, "=== goToPreviousDay END ===");
+            LogUtil.d(TAG, "=== goToPreviousDay END ===");
         } catch (Exception e) {
             Log.e(TAG, "[EXCEPTION] goToPreviousDay: " + e.getMessage(), e);
             callbacks.setLoadingTrackData(false);
@@ -322,7 +323,7 @@ public class TrackDateHelper {
      * 跳转到后一天
      */
     public void goToNextDay() {
-        Log.d(TAG, "=== goToNextDay START === isLoadingTrackData=" + callbacks.isLoadingTrackData());
+        LogUtil.d(TAG, "=== goToNextDay START === isLoadingTrackData=" + callbacks.isLoadingTrackData());
         try {
             callbacks.stopPlayback();
 
@@ -339,7 +340,7 @@ public class TrackDateHelper {
             today.set(Calendar.SECOND, 59);
 
             if (selectedDate.after(today)) {
-                Log.d(TAG, "[DATE_LIMIT] Selected date after today, reverting");
+                LogUtil.d(TAG, "[DATE_LIMIT] Selected date after today, reverting");
                 selectedDate.add(Calendar.DAY_OF_MONTH, -1);
                 return;
             }
@@ -358,10 +359,10 @@ public class TrackDateHelper {
             endDate.set(Calendar.MILLISECOND, 999);
             callbacks.setEndDate(endDate);
 
-            Log.d(TAG, "[DATE_CHANGE] Next day: " + com.RockiotTag.tag.util.TimeFormatter.formatDate(selectedDate.getTimeInMillis()));
+            LogUtil.d(TAG, "[DATE_CHANGE] Next day: " + com.RockiotTag.tag.util.TimeFormatter.formatDate(selectedDate.getTimeInMillis()));
             callbacks.updateDateBtnText();
             callbacks.loadTrackData();
-            Log.d(TAG, "=== goToNextDay END ===");
+            LogUtil.d(TAG, "=== goToNextDay END ===");
         } catch (Exception e) {
             Log.e(TAG, "[EXCEPTION] goToNextDay: " + e.getMessage(), e);
             callbacks.setLoadingTrackData(false);

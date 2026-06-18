@@ -36,6 +36,7 @@ import com.RockiotTag.tag.model.LocationData;
 import com.RockiotTag.tag.util.MapMarkerHelper;
 import com.RockiotTag.tag.util.GoogleMapMarkerHelper;
 import com.RockiotTag.tag.util.GeocodeHelper;
+import com.RockiotTag.tag.util.LogUtil;
 import com.RockiotTag.tag.util.SafeExecutor;
 import com.RockiotTag.tag.helper.TrackDateHelper;
 import com.RockiotTag.tag.helper.TrackThemeHelper;
@@ -241,7 +242,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 if (selectedDevice == null) {
                     Log.e(TAG, "Selected device not found in database: " + selectedDeviceId);
                 } else {
-                    Log.d(TAG, "Selected device loaded: " + selectedDevice.getDeviceId());
+                    LogUtil.d(TAG, "Selected device loaded: " + selectedDevice.getDeviceId());
                 }
             } else {
                 Log.w(TAG, "No device selected in preferences");
@@ -404,7 +405,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             if (!isGoogleMapMode) {
                 // 高德地图模式 - 地图已初始化，可以加载数据
                 if (aMap != null) {
-                    Log.d(TAG, "AMap ready, loading track data immediately");
+                    LogUtil.d(TAG, "AMap ready, loading track data immediately");
                     // 关键修复：增加安全检查，确保有选中的设备
                     if (selectedDevice != null) {
                         // 首次进入轨迹界面，强制从服务器同步，确保显示最新正确轨迹
@@ -418,7 +419,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     // 如果地图仍未初始化，延迟重试
                     new Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                         if (aMap != null && !isFinishing() && !isDestroyed()) {
-                            Log.d(TAG, "Retrying loadTrackData after delay");
+                            LogUtil.d(TAG, "Retrying loadTrackData after delay");
                             if (selectedDevice != null) {
                                 loadTrackData(true);
                             } else {
@@ -603,7 +604,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             refreshBtn.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    Log.d(TAG, "Refresh button clicked, forcing sync from server");
+                    LogUtil.d(TAG, "Refresh button clicked, forcing sync from server");
                     loadTrackData(true);
                 }
             });
@@ -623,7 +624,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                     if (fromUser) {
                         currentAccuracyThreshold = 50 + progress;
-                        Log.d(TAG, "=== ACCURACY SWITCH === 阈值: " + currentAccuracyThreshold + "m, progress=" + progress);
+                        LogUtil.d(TAG, "=== ACCURACY SWITCH === 阈值: " + currentAccuracyThreshold + "m, progress=" + progress);
                         updateAccuracyValueText();
                         if (!allLocationRecords.isEmpty()) {
                             reloadTrackWithNewAccuracy();
@@ -682,7 +683,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         List<StayPoint> newStayPoints = viewModel.generateStayPointsFromRecordsWithAccuracy(
             allLocationRecords, currentAccuracyThreshold);
         
-        Log.d(TAG, "=== ACCURACY SWITCH === 阈值: " + currentAccuracyThreshold + "m | 生成停留点数量: " + newStayPoints.size());
+        LogUtil.d(TAG, "=== ACCURACY SWITCH === 阈值: " + currentAccuracyThreshold + "m | 生成停留点数量: " + newStayPoints.size());
         
         synchronized (stayPoints) {
             stayPoints.clear();
@@ -700,10 +701,10 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
      * MVVM - 设置 ViewModel 观察者
      */
     private void setupViewModelObservers() {
-        Log.d(TAG, "=== setupViewModelObservers() called ===");
+        LogUtil.d(TAG, "=== setupViewModelObservers() called ===");
         
         viewModel.getLocationRecords().observe(this, records -> {
-            Log.d(TAG, "[OBSERVER] locationRecords observer triggered, records=" + (records != null ? records.size() : "null"));
+            LogUtil.d(TAG, "[OBSERVER] locationRecords observer triggered, records=" + (records != null ? records.size() : "null"));
             if (records != null) {
                 List<LocationData> newRecords = new ArrayList<>();
                 for (LocationRecord record : records) {
@@ -720,17 +721,17 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     allLocationRecords.clear();
                     allLocationRecords.addAll(newRecords);
                 }
-                Log.d(TAG, "[OBSERVER] allLocationRecords updated, size=" + allLocationRecords.size());
+                LogUtil.d(TAG, "[OBSERVER] allLocationRecords updated, size=" + allLocationRecords.size());
             }
         });
         
         viewModel.getStayPoints().observe(this, stays -> {
-            Log.d(TAG, "[OBSERVER] stayPoints observer triggered, stays=" + (stays != null ? stays.size() : "null") + ", allLocationRecords=" + allLocationRecords.size());
+            LogUtil.d(TAG, "[OBSERVER] stayPoints observer triggered, stays=" + (stays != null ? stays.size() : "null") + ", allLocationRecords=" + allLocationRecords.size());
             if (stays != null) {
                 List<StayPoint> finalStayPoints;
                 finalStayPoints = viewModel.generateStayPointsFromRecordsWithAccuracy(
                     new ArrayList<>(allLocationRecords), currentAccuracyThreshold);
-                Log.d(TAG, "[OBSERVER] Generated stay points with threshold " + currentAccuracyThreshold + "m, count=" + finalStayPoints.size());
+                LogUtil.d(TAG, "[OBSERVER] Generated stay points with threshold " + currentAccuracyThreshold + "m, count=" + finalStayPoints.size());
                 
                 synchronized (stayPoints) {
                     stayPoints.clear();
@@ -740,50 +741,50 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 synchronized (allLocationRecords) {
                     if (!allLocationRecords.isEmpty()) {
                         if (!isFinishing() && !isDestroyed()) {
-                            Log.d(TAG, "[OBSERVER] Calling renderTrack with " + allLocationRecords.size() + " records");
+                            LogUtil.d(TAG, "[OBSERVER] Calling renderTrack with " + allLocationRecords.size() + " records");
                             List<LocationData> recordsCopy = new ArrayList<>(allLocationRecords);
                             renderTrack(recordsCopy);
                         } else {
                             Log.w(TAG, "[OBSERVER] Activity is finishing/destroyed, skip renderTrack");
                             isLoadingTrackData = false;
-                            Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (activity destroyed)");
+                            LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (activity destroyed)");
                         }
                     } else {
-                        Log.d(TAG, "[OBSERVER] No location records, clearing UI and hiding loading");
+                        LogUtil.d(TAG, "[OBSERVER] No location records, clearing UI and hiding loading");
                         if (!isFinishing() && !isDestroyed()) {
                             clearTrackUI();
                             updatePlaybackInfo(0);
                             hideLoading();
                         }
                         isLoadingTrackData = false;
-                        Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (no records)");
+                        LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (no records)");
                     }
                 }
             } else {
                 Log.w(TAG, "[OBSERVER] stays is null");
                 isLoadingTrackData = false;
-                Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (stays null)");
+                LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (stays null)");
             }
         });
         
         viewModel.getIsLoading().observe(this, isLoading -> {
-            Log.d(TAG, "[OBSERVER] isLoading observer triggered, isLoading=" + isLoading);
+            LogUtil.d(TAG, "[OBSERVER] isLoading observer triggered, isLoading=" + isLoading);
             if (loadingProgress != null) {
                 loadingProgress.setVisibility(isLoading ? View.VISIBLE : View.GONE);
             }
         });
         
         viewModel.getNeedsServerSync().observe(this, params -> {
-            Log.d(TAG, "[OBSERVER] needsServerSync observer triggered, params=" + (params != null ? params.deviceNum : "null"));
+            LogUtil.d(TAG, "[OBSERVER] needsServerSync observer triggered, params=" + (params != null ? params.deviceNum : "null"));
             if (params != null && selectedDevice != null) {
                 isLoadingTrackData = false;
-                Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (needsServerSync)");
+                LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (needsServerSync)");
                 showLoadingDialog();
                 String deviceNum = params.deviceNum;
                 if (selectedDevice.getDeviceNum() != null) {
                     deviceNum = selectedDevice.getDeviceNum();
                 }
-                Log.d(TAG, "[OBSERVER] Calling syncTrackDataFromServerAndReload for device=" + deviceNum);
+                LogUtil.d(TAG, "[OBSERVER] Calling syncTrackDataFromServerAndReload for device=" + deviceNum);
                 syncTrackDataFromServerAndReload(deviceNum, params.startTime, params.endTime);
             }
         });
@@ -795,7 +796,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         });
         
         viewModel.getIsSyncingFromServer().observe(this, isSyncing -> {
-            Log.d(TAG, "[OBSERVER] isSyncingFromServer observer triggered, isSyncing=" + isSyncing);
+            LogUtil.d(TAG, "[OBSERVER] isSyncingFromServer observer triggered, isSyncing=" + isSyncing);
         });
         
         viewModel.getIsPlaying().observe(this, playing -> {
@@ -881,7 +882,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             moveAnimator = null;
         }
         
-        Log.d(TAG, "Track UI cleared, data preserved for re-rendering");
+        LogUtil.d(TAG, "Track UI cleared, data preserved for re-rendering");
     }
 
     private void startPlayback() {
@@ -1167,7 +1168,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     }
                     
                     // 完全禁用谷歌地图播放时的相机移动
-                    Log.d(TAG, "Google Map - Camera move during playback COMPLETELY DISABLED");
+                    LogUtil.d(TAG, "Google Map - Camera move during playback COMPLETELY DISABLED");
                     
                     // 获取地址
                     if (currentPlayIndex % 10 == 0) {
@@ -1260,7 +1261,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 newSpeed = 1;
             }
             viewModel.setPlaySpeed(newSpeed);
-            Log.d(TAG, "Speed changed to: " + newSpeed + "x");
+            LogUtil.d(TAG, "Speed changed to: " + newSpeed + "x");
         } catch (Exception e) {
             Log.e(TAG, "Error in cycleSpeed: " + e.getMessage(), e);
         }
@@ -1336,12 +1337,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                                 if (cameraPosition != null) {
                                     currentZoomLevel = cameraPosition.zoom;
                                     hasSavedZoomLevel = true;
-                                    Log.d(TAG, "AMap - Saved zoom level: " + currentZoomLevel);
+                                    LogUtil.d(TAG, "AMap - Saved zoom level: " + currentZoomLevel);
                                 }
                             }
                         });
                         
-                        Log.d(TAG, "AMap initialized successfully");
+                        LogUtil.d(TAG, "AMap initialized successfully");
                     } else {
                         Log.e(TAG, "Failed to get AMap instance");
                     }
@@ -1356,7 +1357,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     @Override
     public void onMapReady(GoogleMap googleMap) {
         try {
-            Log.d(TAG, "Google Map is ready");
+            LogUtil.d(TAG, "Google Map is ready");
             this.googleMap = googleMap;
             
             if (googleMap != null) {
@@ -1378,14 +1379,14 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 }
                 
                 // 完全禁用初始相机移动，让用户完全控制地图位置
-                Log.d(TAG, "Google Map - Initial camera move COMPLETELY DISABLED");
+                LogUtil.d(TAG, "Google Map - Initial camera move COMPLETELY DISABLED");
                 // googleMap.moveCamera(com.google.android.gms.maps.CameraUpdateFactory.zoomTo(17));
                 
                 // 设置地图点击监听器
                 googleMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
                     @Override
                     public void onMapClick(com.google.android.gms.maps.model.LatLng latLng) {
-                        Log.d(TAG, "Google Map clicked at: " + latLng.latitude + ", " + latLng.longitude);
+                        LogUtil.d(TAG, "Google Map clicked at: " + latLng.latitude + ", " + latLng.longitude);
                     }
                 });
                 
@@ -1393,11 +1394,11 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 googleMap.setOnCameraMoveStartedListener(new GoogleMap.OnCameraMoveStartedListener() {
                     @Override
                     public void onCameraMoveStarted(int reason) {
-                        Log.d(TAG, "Camera move started, reason: " + reason);
+                        LogUtil.d(TAG, "Camera move started, reason: " + reason);
                         // REASON_GESTURE = 1 (用户手势)
                         if (reason == 1) {
                             googleMapUserInteracted = true;
-                            Log.d(TAG, "User manually interacted with Google Map in TrackActivity - auto camera moves disabled");
+                            LogUtil.d(TAG, "User manually interacted with Google Map in TrackActivity - auto camera moves disabled");
                         }
                     }
                 });
@@ -1409,12 +1410,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         if (googleMap != null && googleMapUserInteracted) {
                             currentZoomLevel = googleMap.getCameraPosition().zoom;
                             hasSavedZoomLevel = true;
-                            Log.d(TAG, "Google Map - Saved zoom level after idle: " + currentZoomLevel);
+                            LogUtil.d(TAG, "Google Map - Saved zoom level after idle: " + currentZoomLevel);
                         }
                     }
                 });
                 
-                Log.d(TAG, "Google Map initialized successfully");
+                LogUtil.d(TAG, "Google Map initialized successfully");
                 
                 // 关键修复：加载轨迹数据前检查是否有选中的设备
                 if (selectedDevice != null) {
@@ -1536,7 +1537,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     }
 
     private void loadTrackData() {
-        Log.d(TAG, "=== loadTrackData() called === isGoogleMapMode=" + isGoogleMapMode);
+        LogUtil.d(TAG, "=== loadTrackData() called === isGoogleMapMode=" + isGoogleMapMode);
         try {
             if (isGoogleMapMode && googleMap == null) {
                 Log.w(TAG, "[MAP_NOT_READY] Google Map not ready yet, skip loadTrackData");
@@ -1555,7 +1556,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     }
 
     private void loadTrackData(final boolean forceSync) {
-        Log.d(TAG, "=== loadTrackData(forceSync=" + forceSync + ") START === isLoadingTrackData=" + isLoadingTrackData);
+        LogUtil.d(TAG, "=== loadTrackData(forceSync=" + forceSync + ") START === isLoadingTrackData=" + isLoadingTrackData);
         try {
             if (isFinishing() || isDestroyed()) {
                 Log.w(TAG, "[ACTIVITY_STATE] Activity is finishing or destroyed, skip loadTrackData");
@@ -1567,12 +1568,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 return;
             }
             isLoadingTrackData = true;
-            Log.d(TAG, "[LOCK_SET] isLoadingTrackData set to TRUE");
+            LogUtil.d(TAG, "[LOCK_SET] isLoadingTrackData set to TRUE");
             
             if (selectedDevice == null) {
                 Log.e(TAG, "[NO_DEVICE] No device selected, skip loadTrackData");
                 isLoadingTrackData = false;
-                Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (no device)");
+                LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (no device)");
                 return;
             }
             
@@ -1582,54 +1583,54 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                                selectedDate.get(Calendar.DAY_OF_MONTH) == today.get(Calendar.DAY_OF_MONTH));
             
             String dateKey = com.RockiotTag.tag.util.TimeFormatter.formatDate(selectedDate.getTimeInMillis());
-            Log.d(TAG, "[DATE_CHECK] dateKey=" + dateKey + ", isToday=" + isToday);
+            LogUtil.d(TAG, "[DATE_CHECK] dateKey=" + dateKey + ", isToday=" + isToday);
             
             boolean shouldSyncFromServer = forceSync;
             
             if (!isToday && !forceSync) {
                 Boolean hasSynced = syncedDates.get(dateKey);
-                Log.d(TAG, "[SYNC_CHECK] hasSynced=" + hasSynced + " for dateKey=" + dateKey);
+                LogUtil.d(TAG, "[SYNC_CHECK] hasSynced=" + hasSynced + " for dateKey=" + dateKey);
                 if (hasSynced != null && hasSynced) {
-                    Log.d(TAG, "[CACHE_HIT] Date already synced, using local cache");
+                    LogUtil.d(TAG, "[CACHE_HIT] Date already synced, using local cache");
                     shouldSyncFromServer = false;
                 } else {
-                    Log.d(TAG, "[CACHE_MISS] First time viewing date, will sync from server");
+                    LogUtil.d(TAG, "[CACHE_MISS] First time viewing date, will sync from server");
                     shouldSyncFromServer = true;
                 }
             } else if (isToday && !forceSync) {
-                Log.d(TAG, "[TODAY_MODE] Today's date, will check for new data from server");
+                LogUtil.d(TAG, "[TODAY_MODE] Today's date, will check for new data from server");
                 shouldSyncFromServer = false;
                 checkServerForNewDataAsync();
             }
 
             if (shouldSyncFromServer) {
-                Log.d(TAG, "[SYNC_MODE] Need to sync from server, showing loading dialog");
+                LogUtil.d(TAG, "[SYNC_MODE] Need to sync from server, showing loading dialog");
                 try {
                     clearTrack();
                     showLoadingDialog();
-                    Log.d(TAG, "[DIALOG_SHOWN] Loading dialog shown");
+                    LogUtil.d(TAG, "[DIALOG_SHOWN] Loading dialog shown");
                 } catch (Exception e) {
                     Log.e(TAG, "[EXCEPTION] clearTrack/showLoadingDialog: " + e.getMessage(), e);
                 }
             } else {
-                Log.d(TAG, "[CACHE_MODE] Using cached data, showing loading progress");
+                LogUtil.d(TAG, "[CACHE_MODE] Using cached data, showing loading progress");
                 showLoading();
             }
 
             final Calendar startTime = (Calendar) startDate.clone();
             final Calendar endTime = (Calendar) endDate.clone();
             
-            Log.d(TAG, "[VIEWMODEL_CALL] Calling viewModel.loadTrackData for device=" + 
+            LogUtil.d(TAG, "[VIEWMODEL_CALL] Calling viewModel.loadTrackData for device=" + 
                   (selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId()) +
                   ", date=" + dateKey + ", shouldSync=" + shouldSyncFromServer);
 
             if (shouldSyncFromServer) {
                 try {
-                    Log.d(TAG, "[DB_CLEANUP] Clearing old data for device");
+                    LogUtil.d(TAG, "[DB_CLEANUP] Clearing old data for device");
                     int deleted = databaseHelper.deleteLocationRecordsByDevice(
                         selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId()
                     );
-                    Log.d(TAG, "[DB_CLEANUP] Deleted " + deleted + " old records");
+                    LogUtil.d(TAG, "[DB_CLEANUP] Deleted " + deleted + " old records");
                 } catch (Exception e) {
                     Log.e(TAG, "[EXCEPTION] deleteLocationRecordsByDevice: " + e.getMessage(), e);
                 }
@@ -1640,62 +1641,62 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             if (shouldSyncFromServer) {
                 syncedDates.put(dateKey, true);
                 lastSyncTimestamps.put(dateKey, System.currentTimeMillis());
-                Log.d(TAG, "[SYNC_RECORD] Recorded sync timestamp for " + dateKey);
+                LogUtil.d(TAG, "[SYNC_RECORD] Recorded sync timestamp for " + dateKey);
             }
             
             viewModel.loadTrackData(deviceNum, selectedDate);
-            Log.d(TAG, "=== loadTrackData(forceSync=" + forceSync + ") END (waiting for ViewModel callback) ===");
+            LogUtil.d(TAG, "=== loadTrackData(forceSync=" + forceSync + ") END (waiting for ViewModel callback) ===");
         } catch (Exception e) {
             Log.e(TAG, "[EXCEPTION] loadTrackData: " + e.getMessage(), e);
             isLoadingTrackData = false;
-            Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (exception)");
+            LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (exception)");
             hideLoading();
         }
     }
 
     private void renderTrack(List<LocationData> locationRecords) {
-        Log.d(TAG, "=== renderTrack() called === records=" + (locationRecords != null ? locationRecords.size() : "null"));
+        LogUtil.d(TAG, "=== renderTrack() called === records=" + (locationRecords != null ? locationRecords.size() : "null"));
         try {
             if (isFinishing() || isDestroyed()) {
                 Log.w(TAG, "[RENDER_SKIP] Activity is finishing/destroyed, aborting renderTrack");
                 hideLoading();
                 isLoadingTrackData = false;
-                Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (activity state)");
+                LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (activity state)");
                 return;
             }
             
-            Log.d(TAG, "[RENDER_START] Starting track rendering");
+            LogUtil.d(TAG, "[RENDER_START] Starting track rendering");
             showLoading();
             
             float zoomToPreserve = currentZoomLevel;
             boolean shouldPreserveZoom = hasSavedZoomLevel && googleMapUserInteracted;
             
             if (locationRecords == null || locationRecords.isEmpty()) {
-                Log.d(TAG, "[RENDER_EMPTY] No records to render, clearing UI");
+                LogUtil.d(TAG, "[RENDER_EMPTY] No records to render, clearing UI");
                 clearTrackUI();
                 hideLoading();
                 updatePlaybackInfo(0);
                 isLoadingTrackData = false;
-                Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (no records)");
+                LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (no records)");
                 return;
             }
 
-            Log.d(TAG, "[RENDER_DATA] Rendering " + locationRecords.size() + " records");
+            LogUtil.d(TAG, "[RENDER_DATA] Rendering " + locationRecords.size() + " records");
             clearTrackUI();
             
             // 始终使用精度阈值重新计算停留点
             if (viewModel != null) {
-                Log.d(TAG, "[RENDER_ACCURACY] Applying accuracy threshold: " + currentAccuracyThreshold + "m");
+                LogUtil.d(TAG, "[RENDER_ACCURACY] Applying accuracy threshold: " + currentAccuracyThreshold + "m");
                 List<StayPoint> recalculatedPoints = viewModel.generateStayPointsFromRecordsWithAccuracy(
                     new ArrayList<>(locationRecords), currentAccuracyThreshold);
                 synchronized (stayPoints) {
                     stayPoints.clear();
                     stayPoints.addAll(recalculatedPoints);
                 }
-                Log.d(TAG, "[RENDER_STAYPOINTS] Calculated stay points: " + stayPoints.size());
+                LogUtil.d(TAG, "[RENDER_STAYPOINTS] Calculated stay points: " + stayPoints.size());
             }
             
-            Log.d(TAG, "[RENDER_MAP] Map mode: " + (isGoogleMapMode ? "Google" : "AMap"));
+            LogUtil.d(TAG, "[RENDER_MAP] Map mode: " + (isGoogleMapMode ? "Google" : "AMap"));
             if (isGoogleMapMode) {
                 renderTrackOnGoogleMap(locationRecords, locationRecords, shouldPreserveZoom, zoomToPreserve);
             } else {
@@ -1703,7 +1704,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     Log.e(TAG, "[RENDER_ERROR] AMap is null, aborting render");
                     hideLoading();
                     isLoadingTrackData = false;
-                    Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (AMap null)");
+                    LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (AMap null)");
                     return;
                 }
                 
@@ -1711,7 +1712,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     Log.w(TAG, "[RENDER_SKIP] Activity is finishing/destroyed during render");
                     hideLoading();
                     isLoadingTrackData = false;
-                    Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (activity state)");
+                    LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (activity state)");
                     return;
                 }
                 
@@ -1738,7 +1739,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         currentAccuracyThreshold
                     );
                     
-                    Log.d(TAG, "[RENDER_COMPLETE] Track rendered on AMap, polyline=" + (trackPolyline != null ? "success" : "null"));
+                    LogUtil.d(TAG, "[RENDER_COMPLETE] Track rendered on AMap, polyline=" + (trackPolyline != null ? "success" : "null"));
                     
                     if (shouldPreserveZoom && aMap != null) {
                         com.amap.api.maps.model.CameraPosition currentPos = aMap.getCameraPosition();
@@ -1768,17 +1769,17 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     hideLoading();
                 } finally {
                     isLoadingTrackData = false;
-                    Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (render complete)");
+                    LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (render complete)");
                     hideLoading();
-                    Log.d(TAG, "[DIALOG_HIDE] hideLoading called in renderTrack finally");
-                    Log.d(TAG, "=== renderTrack() END ===");
+                    LogUtil.d(TAG, "[DIALOG_HIDE] hideLoading called in renderTrack finally");
+                    LogUtil.d(TAG, "=== renderTrack() END ===");
                 }
             }
         } catch (Exception e) {
             Log.e(TAG, "[RENDER_EXCEPTION] Error in renderTrack: " + e.getMessage(), e);
             hideLoading();
             isLoadingTrackData = false;
-            Log.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (exception)");
+            LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (exception)");
         } finally {
             isLoadingTrackData = false;
             hideLoading();
@@ -1809,7 +1810,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         double zoom = 17.0 - Math.log(diameterMeters / 300.0) / Math.log(2.0);
         // 限制在合理范围内
         zoom = Math.max(3.0f, Math.min(20.0f, zoom));
-        Log.d(TAG, "Calculated Google Map zoom for accuracy " + accuracyThreshold + "m: " + String.format("%.1f", zoom));
+        LogUtil.d(TAG, "Calculated Google Map zoom for accuracy " + accuracyThreshold + "m: " + String.format("%.1f", zoom));
         return (float) zoom;
     }
     
@@ -1832,13 +1833,13 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             
             // 检查Activity是否正在销毁
             if (isFinishing() || isDestroyed()) {
-                Log.d(TAG, "Activity is finishing/destroyed, skip rendering");
+                LogUtil.d(TAG, "Activity is finishing/destroyed, skip rendering");
                 hideLoading();
                 isLoadingTrackData = false; // 释放锁
                 return;
             }
             
-            Log.d(TAG, "Rendering track on Google Map with " + stayPoints.size() + " stay points");
+            LogUtil.d(TAG, "Rendering track on Google Map with " + stayPoints.size() + " stay points");
             
             // 轨迹线使用 stayPoints（经过合并处理的停留点），更清晰
             // Google 地图使用 WGS84 坐标，不需要转换
@@ -1858,7 +1859,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             }
             
             if (filteredInvalidCount > 0) {
-                Log.d(TAG, "Filtered " + filteredInvalidCount + " invalid coordinates from Google Map rendering");
+                LogUtil.d(TAG, "Filtered " + filteredInvalidCount + " invalid coordinates from Google Map rendering");
             }
 
             // 绘制轨迹线（使用 GoogleMapTrackRenderer）
@@ -1880,7 +1881,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 // 优化3：精简模式下只显示起点、终点和停留点，完全隐藏普通轨迹点
                 // isSimpleMode已移除，始终显示所有点
                 if (false && !stayPoint.isStayPoint() && i != 0 && i != stayPoints.size() - 1) {
-                    Log.d(TAG, "Skipping ordinary point " + i + " (simple mode)");
+                    LogUtil.d(TAG, "Skipping ordinary point " + i + " (simple mode)");
                     continue;
                 }
                 
@@ -1891,14 +1892,14 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 // 如果只有一个点：今天显示Start，历史日期显示End
                 if (stayPoints.size() == 1) {
                     if (isToday) {
-                        Log.d(TAG, "Only one point today on Google Map, showing Start marker");
+                        LogUtil.d(TAG, "Only one point today on Google Map, showing Start marker");
                         com.google.android.gms.maps.model.MarkerOptions markerOptions = 
                             com.RockiotTag.tag.util.GoogleMapTrackRenderer.createStartEndMarkerOption(
                                 this, stayPoint, true, false);
                         com.google.android.gms.maps.model.Marker marker = googleMap.addMarker(markerOptions);
                         googlePositionMarkers.add(marker);
                     } else {
-                        Log.d(TAG, "Only one point in history on Google Map, showing End marker");
+                        LogUtil.d(TAG, "Only one point in history on Google Map, showing End marker");
                         com.google.android.gms.maps.model.MarkerOptions markerOptions = 
                             com.RockiotTag.tag.util.GoogleMapTrackRenderer.createStartEndMarkerOption(
                                 this, stayPoint, false, true);
@@ -1944,7 +1945,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     try {
                         googleMap.animateCamera(
                             com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(firstPoint, accuracyZoom));
-                        Log.d(TAG, "Google Map - Auto-located to first track point with accuracy zoom: " + accuracyZoom);
+                        LogUtil.d(TAG, "Google Map - Auto-located to first track point with accuracy zoom: " + accuracyZoom);
                     } catch (Exception e) {
                         Log.e(TAG, "Error animating camera: " + e.getMessage(), e);
                     }
@@ -1955,7 +1956,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         float zoomToUse = shouldPreserveZoom ? zoomToPreserve : accuracyZoom;
                         googleMap.animateCamera(
                             com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(firstPoint, zoomToUse));
-                        Log.d(TAG, "Google Map - User interacted, keeping zoom level: " + zoomToUse);
+                        LogUtil.d(TAG, "Google Map - User interacted, keeping zoom level: " + zoomToUse);
                     } catch (Exception e) {
                         Log.e(TAG, "Error animating camera: " + e.getMessage(), e);
                     }
@@ -1999,14 +2000,14 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
      * 完整同步轨迹数据（首次加载或强制刷新时使用）
      */
     private void syncTrackDataFromServerAndReload(final String deviceNum, final long startTime, final long endTime) {
-        Log.d(TAG, "=== SYNC TRACK DATA START ===");
-        Log.d(TAG, "DeviceNum: " + deviceNum);
-        Log.d(TAG, "SelectedDevice ID: " + (selectedDevice != null ? selectedDevice.getDeviceId() : "null"));
-        Log.d(TAG, "Time range: " + startTime + " - " + endTime);
+        LogUtil.d(TAG, "=== SYNC TRACK DATA START ===");
+        LogUtil.d(TAG, "DeviceNum: " + deviceNum);
+        LogUtil.d(TAG, "SelectedDevice ID: " + (selectedDevice != null ? selectedDevice.getDeviceId() : "null"));
+        LogUtil.d(TAG, "Time range: " + startTime + " - " + endTime);
         
         // 获取设备的 customerCode
         final String savedCustomerCode = selectedDevice != null ? selectedDevice.getCustomerCode() : null;
-        Log.d(TAG, "savedCustomerCode: " + savedCustomerCode);
+        LogUtil.d(TAG, "savedCustomerCode: " + savedCustomerCode);
         
         // 根据设备号长度设置对应的API URL
         NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNum));
@@ -2023,13 +2024,13 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     
                     // 1. 优先使用设备保存的customerCode
                     if (savedCustomerCode != null && !savedCustomerCode.isEmpty()) {
-                        Log.d(TAG, "Trying getLocations with saved customerCode: " + savedCustomerCode);
+                        LogUtil.d(TAG, "Trying getLocations with saved customerCode: " + savedCustomerCode);
                         locations = apiService.getLocations(deviceNum, startTime, endTime, savedCustomerCode);
                         if (locations != null && !locations.isEmpty()) {
                             matchedCustomerCode = savedCustomerCode;
-                            Log.d(TAG, "Success with saved customerCode: " + savedCustomerCode + ", got " + locations.size() + " locations");
+                            LogUtil.d(TAG, "Success with saved customerCode: " + savedCustomerCode + ", got " + locations.size() + " locations");
                         } else {
-                            Log.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
+                            LogUtil.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
                             locations = null;
                         }
                     }
@@ -2043,11 +2044,11 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                                 continue; // 已经尝试过
                             }
                             
-                            Log.d(TAG, "Trying getLocations with customerCode: " + customerCode);
+                            LogUtil.d(TAG, "Trying getLocations with customerCode: " + customerCode);
                             locations = apiService.getLocations(deviceNum, startTime, endTime, customerCode);
                             if (locations != null && !locations.isEmpty()) {
                                 matchedCustomerCode = customerCode;
-                                Log.d(TAG, "Success with customerCode: " + customerCode + ", got " + locations.size() + " locations");
+                                LogUtil.d(TAG, "Success with customerCode: " + customerCode + ", got " + locations.size() + " locations");
                                 break;
                             }
                             locations = null;
@@ -2059,17 +2060,17 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         if (!matchedCustomerCode.equals(selectedDevice.getCustomerCode())) {
                             selectedDevice.setCustomerCode(matchedCustomerCode);
                             databaseHelper.addDevice(selectedDevice);
-                            Log.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
+                            LogUtil.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
                         }
                     }
                     
-                    Log.d(TAG, "Got " + (locations != null ? locations.size() : 0) + " locations from server");
+                    LogUtil.d(TAG, "Got " + (locations != null ? locations.size() : 0) + " locations from server");
                     
                     // 添加详细日志：打印服务器返回的前3条数据
                     if (locations != null && !locations.isEmpty()) {
                         for (int i = 0; i < Math.min(3, locations.size()); i++) {
                             NewApiService.LocationInfo loc = locations.get(i);
-                            Log.d(TAG, "Server location[" + i + "]: lat=" + loc.latitude + ", lng=" + loc.longitude + ", ts=" + loc.timestamp);
+                            LogUtil.d(TAG, "Server location[" + i + "]: lat=" + loc.latitude + ", lng=" + loc.longitude + ", ts=" + loc.timestamp);
                         }
                     }
                     
@@ -2079,7 +2080,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         int invalidCount = 0;
                         
                         for (NewApiService.LocationInfo loc : locations) {
-                            Log.d(TAG, "Processing location: lat=" + loc.latitude + ", lng=" + loc.longitude + ", ts=" + loc.timestamp);
+                            LogUtil.d(TAG, "Processing location: lat=" + loc.latitude + ", lng=" + loc.longitude + ", ts=" + loc.timestamp);
                             
                             if (loc.latitude != 0 && loc.longitude != 0 && loc.timestamp > 0) {
                                 // 关键修复：使用 deviceNum 而不是 deviceId，确保查询时能匹配
@@ -2102,14 +2103,14 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                                 if (existingRecords == null || existingRecords.isEmpty()) {
                                     databaseHelper.addLocationRecord(record);
                                     addedCount++;
-                                    Log.d(TAG, "Added location record: " + loc.latitude + ", " + loc.longitude + " at " + loc.timestamp);
+                                    LogUtil.d(TAG, "Added location record: " + loc.latitude + ", " + loc.longitude + " at " + loc.timestamp);
                                 } else {
                                     skippedCount++;
-                                    Log.d(TAG, "Skipped duplicate record at timestamp " + loc.timestamp);
+                                    LogUtil.d(TAG, "Skipped duplicate record at timestamp " + loc.timestamp);
                                 }
                             } else {
                                 invalidCount++;
-                                Log.d(TAG, "Skipped invalid record: lat=" + loc.latitude + ", lng=" + loc.longitude + ", ts=" + loc.timestamp);
+                                LogUtil.d(TAG, "Skipped invalid record: lat=" + loc.latitude + ", lng=" + loc.longitude + ", ts=" + loc.timestamp);
                             }
                         }
                         
@@ -2128,7 +2129,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                             for (NewApiService.LocationInfo loc : locations) {
                                 if (loc.latitude != 0 && loc.longitude != 0 && loc.timestamp > 0) {
                                     // 添加日志：记录有效数据
-                                    Log.d(TAG, "Valid location: lat=" + loc.latitude + ", lng=" + loc.longitude + ", ts=" + loc.timestamp);
+                                    LogUtil.d(TAG, "Valid location: lat=" + loc.latitude + ", lng=" + loc.longitude + ", ts=" + loc.timestamp);
                                     
                                     LocationData data = new LocationData();
                                     data.setDeviceId(finalDeviceNum); // 使用 finalDeviceNum 保持一致
@@ -2149,23 +2150,23 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         final int finalSyncedCount = syncedLocationData.size();
                         final int finalStayPointsCount = generatedStayPoints.size();
                         
-                        Log.d(TAG, "Sync summary: added=" + finalAddedCount + ", skipped=" + finalSkippedCount + ", invalid=" + finalInvalidCount + ", total=" + totalFromServer + ", syncedData=" + finalSyncedCount + ", stayPoints=" + finalStayPointsCount);
+                        LogUtil.d(TAG, "Sync summary: added=" + finalAddedCount + ", skipped=" + finalSkippedCount + ", invalid=" + finalInvalidCount + ", total=" + totalFromServer + ", syncedData=" + finalSyncedCount + ", stayPoints=" + finalStayPointsCount);
                         
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
                                 try {
-                                    Log.d(TAG, "=== SYNC RESULT DEBUG ===");
-                                    Log.d(TAG, "syncedData=" + finalSyncedCount + ", stayPoints=" + finalStayPointsCount);
-                                    Log.d(TAG, "addedCount=" + finalAddedCount + ", skippedCount=" + finalSkippedCount + ", invalidCount=" + finalInvalidCount);
-                                    Log.d(TAG, "totalFromServer=" + totalFromServer);
+                                    LogUtil.d(TAG, "=== SYNC RESULT DEBUG ===");
+                                    LogUtil.d(TAG, "syncedData=" + finalSyncedCount + ", stayPoints=" + finalStayPointsCount);
+                                    LogUtil.d(TAG, "addedCount=" + finalAddedCount + ", skippedCount=" + finalSkippedCount + ", invalidCount=" + finalInvalidCount);
+                                    LogUtil.d(TAG, "totalFromServer=" + totalFromServer);
                                     
                                     if (finalAddedCount > 0 || finalSyncedCount > 0) {
-                                        Log.d(TAG, "Server sync successful, added " + finalAddedCount + " new records");
+                                        LogUtil.d(TAG, "Server sync successful, added " + finalAddedCount + " new records");
                                         
                                         viewModel.setSyncingCompleted(true);
                                         
-                                        Log.d(TAG, "[RELOAD_FROM_DB] Reloading all data from database for accurate filtering");
+                                        LogUtil.d(TAG, "[RELOAD_FROM_DB] Reloading all data from database for accurate filtering");
                                         viewModel.loadTrackData(finalDeviceNum, selectedDate);
                                     } else {
                                         Log.e(TAG, "NO DATA TO RENDER! finalSyncedCount=0");
@@ -2173,7 +2174,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                                         viewModel.setSyncingCompleted(false);
                                         hideLoading();
                                         isLoadingTrackData = false;
-                                        Log.d(TAG, "No track data from server sync");
+                                        LogUtil.d(TAG, "No track data from server sync");
                                         updatePlaybackInfo(0);
                                     }
                                 } catch (Exception e) {
@@ -2184,7 +2185,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                             }
                         });
                     } else {
-                        Log.d(TAG, "No locations returned from server");
+                        LogUtil.d(TAG, "No locations returned from server");
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
@@ -2193,7 +2194,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                                     viewModel.setSyncingCompleted(false);
                                     hideLoading();
                                     isLoadingTrackData = false;
-                                    Log.d(TAG, "No locations returned from server");
+                                    LogUtil.d(TAG, "No locations returned from server");
                                     updatePlaybackInfo(0);
                                 } catch (Exception e) {
                                     Log.e(TAG, "Error in no data handling: " + e.getMessage(), e);
@@ -2329,7 +2330,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         allLocationRecords.clear();
         stayPoints.clear();
         
-        Log.d(TAG, "Track cleared, memory released");
+        LogUtil.d(TAG, "Track cleared, memory released");
     }
     
     // processStayPoints 已迁移到 TrackViewModel
@@ -2360,10 +2361,10 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
      * 从服务器同步轨迹数据
      */
     private void syncTrackFromServer(String deviceNum, long startTime, long endTime) {
-        Log.d(TAG, "syncTrackFromServer: deviceNum=" + deviceNum + ", startTime=" + startTime + ", endTime=" + endTime);
+        LogUtil.d(TAG, "syncTrackFromServer: deviceNum=" + deviceNum + ", startTime=" + startTime + ", endTime=" + endTime);
         
         if (isFinishing() || isDestroyed()) {
-            Log.d(TAG, "Activity is finishing/destroyed, skip sync");
+            LogUtil.d(TAG, "Activity is finishing/destroyed, skip sync");
             viewModel.setLoading(false);
             hideLoading();
             isLoadingTrackData = false;
@@ -2372,7 +2373,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         
         // 获取设备的 customerCode
         final String savedCustomerCode = selectedDevice != null ? selectedDevice.getCustomerCode() : null;
-        Log.d(TAG, "syncTrackFromServer savedCustomerCode: " + savedCustomerCode);
+        LogUtil.d(TAG, "syncTrackFromServer savedCustomerCode: " + savedCustomerCode);
         
         new Thread(() -> {
             try {
@@ -2384,13 +2385,13 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 
                 // 1. 优先使用设备保存的customerCode
                 if (savedCustomerCode != null && !savedCustomerCode.isEmpty()) {
-                    Log.d(TAG, "Trying getLocations with saved customerCode: " + savedCustomerCode);
+                    LogUtil.d(TAG, "Trying getLocations with saved customerCode: " + savedCustomerCode);
                     serverRecords = apiService.getLocations(deviceNum, startTime, endTime, savedCustomerCode);
                     if (serverRecords != null && !serverRecords.isEmpty()) {
                         matchedCustomerCode = savedCustomerCode;
-                        Log.d(TAG, "Success with saved customerCode: " + savedCustomerCode);
+                        LogUtil.d(TAG, "Success with saved customerCode: " + savedCustomerCode);
                     } else {
-                        Log.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
+                        LogUtil.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
                         serverRecords = null;
                     }
                 }
@@ -2404,11 +2405,11 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                             continue; // 已经尝试过
                         }
                         
-                        Log.d(TAG, "Trying getLocations with customerCode: " + customerCode);
+                        LogUtil.d(TAG, "Trying getLocations with customerCode: " + customerCode);
                         serverRecords = apiService.getLocations(deviceNum, startTime, endTime, customerCode);
                         if (serverRecords != null && !serverRecords.isEmpty()) {
                             matchedCustomerCode = customerCode;
-                            Log.d(TAG, "Success with customerCode: " + customerCode);
+                            LogUtil.d(TAG, "Success with customerCode: " + customerCode);
                             break;
                         }
                         serverRecords = null;
@@ -2420,11 +2421,11 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     if (!matchedCustomerCode.equals(selectedDevice.getCustomerCode())) {
                         selectedDevice.setCustomerCode(matchedCustomerCode);
                         databaseHelper.addDevice(selectedDevice);
-                        Log.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
+                        LogUtil.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
                     }
                 }
                 
-                Log.d(TAG, "Received " + (serverRecords != null ? serverRecords.size() : 0) + " records from server");
+                LogUtil.d(TAG, "Received " + (serverRecords != null ? serverRecords.size() : 0) + " records from server");
                 
                 if (serverRecords != null && !serverRecords.isEmpty()) {
                     // 保存到本地数据库
@@ -2437,7 +2438,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         );
                         databaseHelper.addLocationRecord(record);
                     }
-                    Log.d(TAG, "Saved " + serverRecords.size() + " records to local database");
+                    LogUtil.d(TAG, "Saved " + serverRecords.size() + " records to local database");
                     
                     // 更新同步状态
                     String dateKey = com.RockiotTag.tag.util.TimeFormatter.formatDate(selectedDate.getTimeInMillis());
@@ -2483,7 +2484,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         
         String deviceNum = selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId();
         final String savedCustomerCode = selectedDevice.getCustomerCode();
-        Log.d(TAG, "checkServerForNewDataAsync savedCustomerCode: " + savedCustomerCode);
+        LogUtil.d(TAG, "checkServerForNewDataAsync savedCustomerCode: " + savedCustomerCode);
         
         new Thread(() -> {
             try {
@@ -2494,7 +2495,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 long localLatestTime = 0;
                 if (localRecords != null && !localRecords.isEmpty()) {
                     localLatestTime = localRecords.get(localRecords.size() - 1).getTimestamp();
-                    Log.d(TAG, "Local latest time: " + localLatestTime);
+                    LogUtil.d(TAG, "Local latest time: " + localLatestTime);
                 }
                 
                 // 获取服务器最新数据的时间戳 - 使用与MainActivity相同的策略
@@ -2504,13 +2505,13 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 
                 // 1. 优先使用设备保存的customerCode
                 if (savedCustomerCode != null && !savedCustomerCode.isEmpty()) {
-                    Log.d(TAG, "Trying getDeviceLatest with saved customerCode: " + savedCustomerCode);
+                    LogUtil.d(TAG, "Trying getDeviceLatest with saved customerCode: " + savedCustomerCode);
                     latestInfo = apiService.getDeviceLatest(deviceNum, savedCustomerCode);
                     if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
                         matchedCustomerCode = savedCustomerCode;
-                        Log.d(TAG, "Success with saved customerCode: " + savedCustomerCode);
+                        LogUtil.d(TAG, "Success with saved customerCode: " + savedCustomerCode);
                     } else {
-                        Log.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
+                        LogUtil.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
                         latestInfo = null;
                     }
                 }
@@ -2524,11 +2525,11 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                             continue; // 已经尝试过
                         }
                         
-                        Log.d(TAG, "Trying getDeviceLatest with customerCode: " + customerCode);
+                        LogUtil.d(TAG, "Trying getDeviceLatest with customerCode: " + customerCode);
                         latestInfo = apiService.getDeviceLatest(deviceNum, customerCode);
                         if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
                             matchedCustomerCode = customerCode;
-                            Log.d(TAG, "Success with customerCode: " + customerCode);
+                            LogUtil.d(TAG, "Success with customerCode: " + customerCode);
                             break;
                         }
                         latestInfo = null;
@@ -2540,17 +2541,17 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     if (!matchedCustomerCode.equals(selectedDevice.getCustomerCode())) {
                         selectedDevice.setCustomerCode(matchedCustomerCode);
                         databaseHelper.addDevice(selectedDevice);
-                        Log.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
+                        LogUtil.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
                     }
                 }
                 
                 if (latestInfo != null && latestInfo.timestamp > 0) {
                     long serverLatestTime = latestInfo.timestamp;
-                    Log.d(TAG, "Server latest time: " + serverLatestTime + ", Local latest time: " + localLatestTime);
+                    LogUtil.d(TAG, "Server latest time: " + serverLatestTime + ", Local latest time: " + localLatestTime);
                     
                     // 如果服务器有新数据（时间戳比本地新）
                     if (serverLatestTime > localLatestTime) {
-                        Log.d(TAG, "Server has new data, syncing...");
+                        LogUtil.d(TAG, "Server has new data, syncing...");
                         runOnUiThread(() -> {
                             if (!isFinishing() && !isDestroyed()) {
                                 showLoadingDialog();
@@ -2558,7 +2559,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                             }
                         });
                     } else {
-                        Log.d(TAG, "Server has no new data, using local cache");
+                        LogUtil.d(TAG, "Server has no new data, using local cache");
                     }
                 } else {
                     Log.w(TAG, "Failed to get latest data from server or no timestamp");
@@ -2641,7 +2642,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                                 deviceTimestamp
                             );
                             databaseHelper.addLocationRecord(firstRecord);
-                            Log.d(TAG, "Added initial track point after cleanup: lat=" + 
+                            LogUtil.d(TAG, "Added initial track point after cleanup: lat=" + 
                                   selectedDevice.getLatitude() + ", lng=" + selectedDevice.getLongitude() +
                                   ", timestamp=" + deviceTimestamp);
                             
@@ -2687,12 +2688,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             String mapProvider = prefs.getString("map_provider", "amap");
             boolean shouldBeGoogleMap = "google".equals(mapProvider);
             
-            Log.d(TAG, "TrackActivity onResume - Current isGoogleMapMode: " + isGoogleMapMode + ", Should be: " + shouldBeGoogleMap);
-            Log.d(TAG, "TrackActivity onResume - Map provider from prefs: " + mapProvider);
+            LogUtil.d(TAG, "TrackActivity onResume - Current isGoogleMapMode: " + isGoogleMapMode + ", Should be: " + shouldBeGoogleMap);
+            LogUtil.d(TAG, "TrackActivity onResume - Map provider from prefs: " + mapProvider);
             
             // 如果地图提供商发生变化，需要重新启动Activity
             if (isGoogleMapMode != shouldBeGoogleMap) {
-                Log.d(TAG, "Map provider changed from " + (isGoogleMapMode ? "google" : "amap") + 
+                LogUtil.d(TAG, "Map provider changed from " + (isGoogleMapMode ? "google" : "amap") + 
                       " to " + (shouldBeGoogleMap ? "google" : "amap") + ", restarting TrackActivity...");
                 // 先停止播放，避免在重启过程中出现问题
                 stopPlayback();
@@ -2710,9 +2711,9 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 if (googleMapFragment != null && googleMapFragment.getView() != null) {
                     googleMapFragment.getView().setVisibility(View.VISIBLE);
                 }
-                Log.d(TAG, "onResume: Showing Google Map, hiding AMap");
-                Log.d(TAG, "onResume - MapView visibility: " + (mapView != null ? mapView.getVisibility() : "null"));
-                Log.d(TAG, "onResume - GoogleMap visibility: " + (googleMapFragment != null && googleMapFragment.getView() != null ? googleMapFragment.getView().getVisibility() : "null"));
+                LogUtil.d(TAG, "onResume: Showing Google Map, hiding AMap");
+                LogUtil.d(TAG, "onResume - MapView visibility: " + (mapView != null ? mapView.getVisibility() : "null"));
+                LogUtil.d(TAG, "onResume - GoogleMap visibility: " + (googleMapFragment != null && googleMapFragment.getView() != null ? googleMapFragment.getView().getVisibility() : "null"));
             } else {
                 if (mapView != null) {
                     mapView.setVisibility(View.VISIBLE);
@@ -2720,9 +2721,9 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 if (googleMapFragment != null && googleMapFragment.getView() != null) {
                     googleMapFragment.getView().setVisibility(View.GONE);
                 }
-                Log.d(TAG, "onResume: Showing AMap, hiding Google Map");
-                Log.d(TAG, "onResume - MapView visibility: " + (mapView != null ? mapView.getVisibility() : "null"));
-                Log.d(TAG, "onResume - GoogleMap visibility: " + (googleMapFragment != null && googleMapFragment.getView() != null ? googleMapFragment.getView().getVisibility() : "null"));
+                LogUtil.d(TAG, "onResume: Showing AMap, hiding Google Map");
+                LogUtil.d(TAG, "onResume - MapView visibility: " + (mapView != null ? mapView.getVisibility() : "null"));
+                LogUtil.d(TAG, "onResume - GoogleMap visibility: " + (googleMapFragment != null && googleMapFragment.getView() != null ? googleMapFragment.getView().getVisibility() : "null"));
             }
         } catch (Exception e) {
             Log.e(TAG, "Error in onResume: " + e.getMessage(), e);
@@ -2736,7 +2737,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             Device device = databaseHelper.getDevice(selectedDeviceId);
             if (device != null) {
                 selectedDevice = device;
-                Log.d(TAG, "Refreshed device: lat=" + device.getLatitude() + 
+                LogUtil.d(TAG, "Refreshed device: lat=" + device.getLatitude() + 
                       ", lng=" + device.getLongitude() + 
                       ", lastSeen=" + device.getLastSeen());
             }
@@ -2820,7 +2821,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             trackPointTime.setText(timeStr);
             
             // 完全禁用谷歌地图的相机移动
-            Log.d(TAG, "Google Map - Camera move in moveToNextPointOnGoogleMap COMPLETELY DISABLED");
+            LogUtil.d(TAG, "Google Map - Camera move in moveToNextPointOnGoogleMap COMPLETELY DISABLED");
             
             // 获取地址
             if (currentPlayIndex % 10 == 0) {
@@ -2903,9 +2904,9 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             if (isToday) {
                 // 延迟10秒后开始第一次自动刷新，然后每隔3分钟刷新一次
                 autoRefreshHandler.postDelayed(autoRefreshRunnable, 10000);
-                Log.d(TAG, "Auto refresh started for TODAY, interval: " + (AUTO_REFRESH_INTERVAL / 1000 / 60) + " minutes");
+                LogUtil.d(TAG, "Auto refresh started for TODAY, interval: " + (AUTO_REFRESH_INTERVAL / 1000 / 60) + " minutes");
             } else {
-                Log.d(TAG, "Auto refresh skipped: selected date is not today");
+                LogUtil.d(TAG, "Auto refresh skipped: selected date is not today");
             }
         }
     }
@@ -2916,7 +2917,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     private void stopAutoRefresh() {
         if (autoRefreshHandler != null && autoRefreshRunnable != null) {
             autoRefreshHandler.removeCallbacks(autoRefreshRunnable);
-            Log.d(TAG, "Auto refresh stopped");
+            LogUtil.d(TAG, "Auto refresh stopped");
         }
     }
     
@@ -2925,11 +2926,11 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
      */
     private void performAutoRefresh() {
         try {
-            Log.d(TAG, "Performing auto refresh for current date...");
+            LogUtil.d(TAG, "Performing auto refresh for current date...");
             
             // 安全检查：确认Activity仍然有效
             if (isFinishing() || isDestroyed()) {
-                Log.d(TAG, "Activity is finishing or destroyed, skip auto refresh");
+                LogUtil.d(TAG, "Activity is finishing or destroyed, skip auto refresh");
                 stopAutoRefresh();
                 return;
             }
@@ -2951,12 +2952,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                         }
                         
                         // 静默刷新，不显示Toast（优化用户体验）
-                        Log.d(TAG, "Auto refresh: loading track data silently");
+                        LogUtil.d(TAG, "Auto refresh: loading track data silently");
                         
                         // 只刷新当前日期的轨迹数据（非强制同步，优先使用本地缓存）
                         loadTrackData(false);
                         
-                        Log.d(TAG, "Auto refresh completed for date: " + selectedDate.getTime());
+                        LogUtil.d(TAG, "Auto refresh completed for date: " + selectedDate.getTime());
                     } catch (Exception e) {
                         Log.e(TAG, "Error during auto refresh: " + e.getMessage(), e);
                     }
@@ -3028,12 +3029,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 data.setLongitude(latest.getLongitude());
                 data.setTimestamp(latest.getTimestamp());
                 
-                Log.d(TAG, "Latest device location: " + latest.getLatitude() + ", " + 
+                LogUtil.d(TAG, "Latest device location: " + latest.getLatitude() + ", " + 
                     latest.getLongitude() + " at " + latest.getTimestamp());
                 
                 return data;
             } else {
-                Log.d(TAG, "No location records found for device: " + deviceId);
+                LogUtil.d(TAG, "No location records found for device: " + deviceId);
                 return null;
             }
         } catch (Exception e) {
@@ -3060,18 +3061,18 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
      */
     private void correctTrackEndpointForToday() {
         try {
-            Log.d(TAG, "Correcting track endpoint for today...");
+            LogUtil.d(TAG, "Correcting track endpoint for today...");
             
             // 获取设备最新位置
             LocationData latestLocation = getLatestDeviceLocation();
             if (latestLocation == null) {
-                Log.d(TAG, "No device location available for endpoint correction");
+                LogUtil.d(TAG, "No device location available for endpoint correction");
                 return;
             }
             
             // 检查是否有停留点
             if (stayPoints.isEmpty()) {
-                Log.d(TAG, "No stay points to correct");
+                LogUtil.d(TAG, "No stay points to correct");
                 return;
             }
             
@@ -3088,12 +3089,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     latestLocation.getLatitude(), latestLocation.getLongitude()
                 );
                 
-                Log.d(TAG, "Device location is newer than last stay point, distance=" + 
+                LogUtil.d(TAG, "Device location is newer than last stay point, distance=" + 
                     String.format("%.1f", distanceToLastPoint) + "m, accuracyThreshold=" + currentAccuracyThreshold + "m");
                 
                 if (distanceToLastPoint >= currentAccuracyThreshold) {
                     // 距离超过精度阈值，添加为新的终点
-                    Log.d(TAG, "Distance >= threshold, adding as new endpoint");
+                    LogUtil.d(TAG, "Distance >= threshold, adding as new endpoint");
                     
                     StayPoint newEndPoint = new StayPoint(
                         latestLocation.getLatitude(),
@@ -3109,7 +3110,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     allLocationRecords.add(latestLocation);
                 } else {
                     // 距离在精度阈值内，不添加新点，仅更新最后一个停留点的离开时间
-                    Log.d(TAG, "Distance < threshold, updating last stay point leave time instead of adding new point");
+                    LogUtil.d(TAG, "Distance < threshold, updating last stay point leave time instead of adding new point");
                     lastStayPoint.setLeaveTime(latestLocation.getTimestamp());
                     
                     // 添加到位置记录列表（保留原始数据用于回放）
@@ -3119,7 +3120,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 // 重新渲染轨迹（增量更新）
                 runOnUiThread(() -> {
                     try {
-                        Log.d(TAG, "Re-rendering track with corrected endpoint");
+                        LogUtil.d(TAG, "Re-rendering track with corrected endpoint");
                         
                         if (!isGoogleMapMode && aMap != null) {
                             // 高德地图模式：清除旧标记和轨迹线
@@ -3151,7 +3152,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                             updatePlaybackInfo(allLocationRecords.size());
                             
                             // 静默更新，不显示Toast
-                            Log.d(TAG, "Track endpoint updated silently");
+                            LogUtil.d(TAG, "Track endpoint updated silently");
                         } else if (isGoogleMapMode && googleMap != null) {
                             // Google 地图模式：清除旧标记和轨迹线
                             clearTrackUI();
@@ -3162,14 +3163,14 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                             renderTrackOnGoogleMap(new ArrayList<>(allLocationRecords), new ArrayList<>(allLocationRecords), shouldPreserveZoom, zoomToPreserve);
                             
                             // 静默更新，不显示Toast
-                            Log.d(TAG, "Track endpoint updated silently (Google Map)");
+                            LogUtil.d(TAG, "Track endpoint updated silently (Google Map)");
                         }
                     } catch (Exception e) {
                         Log.e(TAG, "Error re-rendering track: " + e.getMessage(), e);
                     }
                 });
             } else {
-                Log.d(TAG, "Device location is not newer than last stay point, no correction needed");
+                LogUtil.d(TAG, "Device location is not newer than last stay point, no correction needed");
             }
         } catch (Exception e) {
             Log.e(TAG, "Error in correctTrackEndpointForToday: " + e.getMessage(), e);

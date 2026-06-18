@@ -2,6 +2,7 @@ package com.RockiotTag.tag.viewmodel;
 
 import android.app.Application;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
@@ -70,7 +71,7 @@ public class BleViewModel extends AndroidViewModel {
             @Override
             public void onScanFinished() {
                 isScanning.postValue(false);
-                Log.d(TAG, "BLE scan finished");
+                LogUtil.d(TAG, "BLE scan finished");
             }
         });
     }

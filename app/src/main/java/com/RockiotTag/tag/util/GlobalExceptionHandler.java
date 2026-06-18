@@ -2,6 +2,7 @@ package com.RockiotTag.tag.util;
 
 import android.content.Context;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -84,7 +85,7 @@ public class GlobalExceptionHandler implements Thread.UncaughtExceptionHandler {
             writer.write(sb.toString());
             writer.close();
             
-            Log.d(TAG, "Crash log saved to: " + logFile.getAbsolutePath());
+            LogUtil.d(TAG, "Crash log saved to: " + logFile.getAbsolutePath());
             
         } catch (IOException e) {
             Log.e(TAG, "Failed to save crash log", e);

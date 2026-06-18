@@ -3,6 +3,7 @@ package com.RockiotTag.tag.manager;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
@@ -68,7 +69,7 @@ public class TrackPlaybackManager {
         }
         
         scheduleNextMove();
-        Log.d(TAG, "Playback started");
+        LogUtil.d(TAG, "Playback started");
     }
     
     /**
@@ -79,7 +80,7 @@ public class TrackPlaybackManager {
         if (playbackHandler != null) {
             playbackHandler.removeCallbacksAndMessages(null);
         }
-        Log.d(TAG, "Playback paused at index " + currentIndex);
+        LogUtil.d(TAG, "Playback paused at index " + currentIndex);
     }
     
     /**
@@ -129,7 +130,7 @@ public class TrackPlaybackManager {
      */
     public void setPlaySpeed(int speed) {
         this.playSpeed = speed;
-        Log.d(TAG, "Play speed set to " + speed + "x");
+        LogUtil.d(TAG, "Play speed set to " + speed + "x");
     }
     
     /**
@@ -145,7 +146,7 @@ public class TrackPlaybackManager {
                 listener.onPlaybackProgress(currentIndex, currentPoint);
             }
             
-            Log.d(TAG, "Seeked to index " + index);
+            LogUtil.d(TAG, "Seeked to index " + index);
         }
     }
     

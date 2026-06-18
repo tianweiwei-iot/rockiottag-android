@@ -13,6 +13,7 @@ import com.RockiotTag.tag.Device;
 import com.RockiotTag.tag.DeviceApiService;
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.repository.DeviceRepository;
+import com.RockiotTag.tag.util.LogUtil;
 import com.google.gson.Gson;
 
 import java.util.ArrayList;
@@ -67,7 +68,7 @@ public class AddDeviceViewModel extends AndroidViewModel {
     public void bindDevice(String deviceNum, String nickname, String tag, BindCallback callback) {
         final String finalDeviceNum = (deviceNum != null) ? deviceNum.trim().replaceAll("\\s+", "") : "";
         
-        Log.d(TAG, "Binding device: [" + finalDeviceNum + "], nickname: " + nickname);
+        LogUtil.d(TAG, "Binding device: [" + finalDeviceNum + "], nickname: " + nickname);
         
         isBinding.setValue(true);
         statusMessage.postValue("正在查找设备...");
@@ -95,7 +96,7 @@ public class AddDeviceViewModel extends AndroidViewModel {
                 Map<String, ApiConfig.CustomerConfig> configs = ApiConfig.getAllCustomerConfigs();
                 for (Map.Entry<String, ApiConfig.CustomerConfig> entry : configs.entrySet()) {
                     String customerCode = entry.getKey();
-                    Log.d(TAG, "Trying customer: " + customerCode + " for device: " + finalDeviceNum);
+                    LogUtil.d(TAG, "Trying customer: " + customerCode + " for device: " + finalDeviceNum);
                     
                     statusMessage.postValue("正在尝试 " + entry.getValue().name + "...");
                     
@@ -103,7 +104,7 @@ public class AddDeviceViewModel extends AndroidViewModel {
                     if (info != null && info.deviceNum != null && !info.deviceNum.isEmpty()) {
                         deviceInfo = info;
                         foundCustomerCode = customerCode;
-                        Log.d(TAG, "Device found with customer: " + customerCode);
+                        LogUtil.d(TAG, "Device found with customer: " + customerCode);
                         break;
                     }
                 }
@@ -114,10 +115,10 @@ public class AddDeviceViewModel extends AndroidViewModel {
                 }
                 
                 final String finalCustomerCode = foundCustomerCode;
-                Log.d(TAG, "Device found with customerCode: " + finalCustomerCode);
+                LogUtil.d(TAG, "Device found with customerCode: " + finalCustomerCode);
                 
                 String actualDeviceNum = deviceInfo.deviceNum;
-                Log.d(TAG, "Device info from server - deviceNum: " + actualDeviceNum + ", mac: " + deviceInfo.mac + ", nickName: " + deviceInfo.nickName);
+                LogUtil.d(TAG, "Device info from server - deviceNum: " + actualDeviceNum + ", mac: " + deviceInfo.mac + ", nickName: " + deviceInfo.nickName);
                 
                 String macAddress = deviceInfo.mac;
                 String finalNickname;
@@ -154,7 +155,7 @@ public class AddDeviceViewModel extends AndroidViewModel {
                 
                 deviceRepository.saveDevice(newDevice);
                 
-                Log.d(TAG, "Device bound successfully: " + newDevice.getDeviceId() + ", customerCode: " + finalCustomerCode);
+                LogUtil.d(TAG, "Device bound successfully: " + newDevice.getDeviceId() + ", customerCode: " + finalCustomerCode);
                 
                 // 如果用户已登录，将设备绑定到账号
                 bindDeviceToUserAccount(actualDeviceNum, finalNickname);
@@ -164,7 +165,7 @@ public class AddDeviceViewModel extends AndroidViewModel {
                         NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(actualDeviceNum));
                         NewApiService.ApiResponse updateResponse = apiService.updateDevice(actualDeviceNum, finalNickname, finalCustomerCode);
                         if (updateResponse != null && updateResponse.isSuccess()) {
-                            Log.d(TAG, "Nickname synced to server successfully");
+                            LogUtil.d(TAG, "Nickname synced to server successfully");
                         } else {
                             Log.e(TAG, "Failed to sync nickname to server: " + (updateResponse != null ? updateResponse.getMessage() : "null response"));
                         }
@@ -214,18 +215,18 @@ public class AddDeviceViewModel extends AndroidViewModel {
             String token = prefs.getString("auth_token", null);
             
             if (token == null || token.isEmpty()) {
-                Log.d(TAG, "User not logged in, skip binding to account");
+                LogUtil.d(TAG, "User not logged in, skip binding to account");
                 return;
             }
             
-            Log.d(TAG, "User logged in, binding device to account: " + deviceNum + " with alias: " + alias);
+            LogUtil.d(TAG, "User logged in, binding device to account: " + deviceNum + " with alias: " + alias);
             
             // 调用后端API绑定设备到账号（传递昵称）
             DeviceApiService deviceApiService = DeviceApiService.getInstance();
             DeviceApiService.DeviceApiResponse response = deviceApiService.bindDevice(token, deviceNum, alias);
             
             if (response.isSuccess()) {
-                Log.d(TAG, "Device bound to account successfully: " + deviceNum);
+                LogUtil.d(TAG, "Device bound to account successfully: " + deviceNum);
                 
                 // 更新本地bound_devices列表
                 updateBoundDevicesList(prefs, deviceNum, alias);
@@ -279,7 +280,7 @@ public class AddDeviceViewModel extends AndroidViewModel {
             // 保存更新后的列表
             String updatedJson = gson.toJson(boundDevices);
             prefs.edit().putString("bound_devices", updatedJson).apply();
-            Log.d(TAG, "Updated bound_devices list, total: " + boundDevices.size());
+            LogUtil.d(TAG, "Updated bound_devices list, total: " + boundDevices.size());
         } catch (Exception e) {
             Log.e(TAG, "Error updating bound_devices list: " + e.getMessage(), e);
         }

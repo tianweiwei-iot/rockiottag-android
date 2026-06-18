@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.Application;
 import android.os.Bundle;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -37,35 +38,35 @@ public class MemoryLeakDetector implements Application.ActivityLifecycleCallback
      */
     public void register(Application application) {
         application.registerActivityLifecycleCallbacks(this);
-        Log.d(TAG, "MemoryLeakDetector registered");
+        LogUtil.d(TAG, "MemoryLeakDetector registered");
     }
     
     @Override
     public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
         activityReferences.add(new WeakReference<>(activity));
         activeActivityCount++;
-        Log.d(TAG, "Activity created: " + activity.getClass().getSimpleName() + 
+        LogUtil.d(TAG, "Activity created: " + activity.getClass().getSimpleName() + 
               " (active: " + activeActivityCount + ")");
     }
     
     @Override
     public void onActivityStarted(Activity activity) {
-        Log.d(TAG, "Activity started: " + activity.getClass().getSimpleName());
+        LogUtil.d(TAG, "Activity started: " + activity.getClass().getSimpleName());
     }
     
     @Override
     public void onActivityResumed(Activity activity) {
-        Log.d(TAG, "Activity resumed: " + activity.getClass().getSimpleName());
+        LogUtil.d(TAG, "Activity resumed: " + activity.getClass().getSimpleName());
     }
     
     @Override
     public void onActivityPaused(Activity activity) {
-        Log.d(TAG, "Activity paused: " + activity.getClass().getSimpleName());
+        LogUtil.d(TAG, "Activity paused: " + activity.getClass().getSimpleName());
     }
     
     @Override
     public void onActivityStopped(Activity activity) {
-        Log.d(TAG, "Activity stopped: " + activity.getClass().getSimpleName());
+        LogUtil.d(TAG, "Activity stopped: " + activity.getClass().getSimpleName());
     }
     
     @Override
@@ -76,7 +77,7 @@ public class MemoryLeakDetector implements Application.ActivityLifecycleCallback
     @Override
     public void onActivityDestroyed(Activity activity) {
         activeActivityCount--;
-        Log.d(TAG, "Activity destroyed: " + activity.getClass().getSimpleName() + 
+        LogUtil.d(TAG, "Activity destroyed: " + activity.getClass().getSimpleName() + 
               " (active: " + activeActivityCount + ")");
         
         // 清理已销毁的 Activity 引用
@@ -122,7 +123,7 @@ public class MemoryLeakDetector implements Application.ActivityLifecycleCallback
      * 强制垃圾回收并检查泄漏（仅用于调试）
      */
     public void forceGcAndCheck() {
-        Log.d(TAG, "Forcing GC and checking for leaks...");
+        LogUtil.d(TAG, "Forcing GC and checking for leaks...");
         
         System.gc();
         System.runFinalization();
@@ -131,7 +132,7 @@ public class MemoryLeakDetector implements Application.ActivityLifecycleCallback
         cleanupDestroyedActivities();
         checkForLeaks();
         
-        Log.d(TAG, "After GC - Active: " + activeActivityCount + 
+        LogUtil.d(TAG, "After GC - Active: " + activeActivityCount + 
               ", References: " + activityReferences.size());
     }
     
@@ -139,15 +140,15 @@ public class MemoryLeakDetector implements Application.ActivityLifecycleCallback
      * 打印当前状态（用于调试）
      */
     public void printStatus() {
-        Log.d(TAG, "=== Memory Leak Detector Status ===");
-        Log.d(TAG, "Active activities: " + activeActivityCount);
-        Log.d(TAG, "Total references: " + activityReferences.size());
+        LogUtil.d(TAG, "=== Memory Leak Detector Status ===");
+        LogUtil.d(TAG, "Active activities: " + activeActivityCount);
+        LogUtil.d(TAG, "Total references: " + activityReferences.size());
         
         int leakedCount = 0;
         for (WeakReference<Activity> ref : activityReferences) {
             Activity activity = ref.get();
             if (activity != null) {
-                Log.d(TAG, "  - " + activity.getClass().getSimpleName() + 
+                LogUtil.d(TAG, "  - " + activity.getClass().getSimpleName() + 
                       " (" + (activity.isFinishing() ? "finishing" : "active") + ")");
                 if (activity.isFinishing()) {
                     leakedCount++;
@@ -158,6 +159,6 @@ public class MemoryLeakDetector implements Application.ActivityLifecycleCallback
         if (leakedCount > 0) {
             Log.w(TAG, "Warning: " + leakedCount + " activities are finishing but not garbage collected");
         }
-        Log.d(TAG, "=====================================");
+        LogUtil.d(TAG, "=====================================");
     }
 }

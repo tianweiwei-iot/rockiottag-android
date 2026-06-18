@@ -2,6 +2,7 @@ package com.RockiotTag.tag.map.google;
 
 import android.content.Context;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 import android.view.View;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -35,7 +36,7 @@ public class GoogleMapManager implements OnMapReadyCallback {
     public GoogleMapManager(Context context, SupportMapFragment mapFragment) {
         this.context = context;
         this.mapFragment = mapFragment;
-        Log.d(TAG, "GoogleMapManager initialized for international version");
+        LogUtil.d(TAG, "GoogleMapManager initialized for international version");
     }
     
     public void setCallback(MapCallback callback) {
@@ -46,7 +47,7 @@ public class GoogleMapManager implements OnMapReadyCallback {
      * 初始化谷歌地图
      */
     public void initMap() {
-        Log.d(TAG, "Initializing Google Map...");
+        LogUtil.d(TAG, "Initializing Google Map...");
         if (mapFragment != null) {
             mapFragment.getMapAsync(this);
         } else {
@@ -56,7 +57,7 @@ public class GoogleMapManager implements OnMapReadyCallback {
     
     @Override
     public void onMapReady(GoogleMap googleMap) {
-        Log.d(TAG, "Google Map is ready");
+        LogUtil.d(TAG, "Google Map is ready");
         this.googleMap = googleMap;
         this.isMapReady = true;
         
@@ -84,7 +85,7 @@ public class GoogleMapManager implements OnMapReadyCallback {
         googleMap.setPadding(0, mapPaddingTop, 0, 0);
         
         // 完全禁用初始相机移动，让用户完全控制地图位置
-        Log.d(TAG, "Google Map - Initial camera move COMPLETELY DISABLED in GoogleMapManager");
+        LogUtil.d(TAG, "Google Map - Initial camera move COMPLETELY DISABLED in GoogleMapManager");
         // LatLng defaultLocation = new LatLng(22.543611, 113.881944);
         // googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(defaultLocation, 17));
         
@@ -107,7 +108,7 @@ public class GoogleMapManager implements OnMapReadyCallback {
      */
     public void moveCamera(double latitude, double longitude, float zoom) {
         // 完全禁用谷歌地图的自动相机移动
-        Log.d(TAG, "Google Map - moveCamera COMPLETELY DISABLED in GoogleMapManager. Requested: " + latitude + ", " + longitude);
+        LogUtil.d(TAG, "Google Map - moveCamera COMPLETELY DISABLED in GoogleMapManager. Requested: " + latitude + ", " + longitude);
         // 不再移动相机，让用户完全控制地图位置
         /*
         if (googleMap != null) {

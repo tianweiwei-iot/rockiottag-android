@@ -1,6 +1,7 @@
 package com.RockiotTag.tag.util;
 
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import com.RockiotTag.tag.CoordinateUtils;
 import com.RockiotTag.tag.LocationRecord;
@@ -72,7 +73,7 @@ public class BLETagFilter {
         // 第1层：绝对速度检查
         double speedMs = distanceMeters / (timeDiffMs / 1000.0);
         if (speedMs > MAX_REALISTIC_SPEED_MS) {
-            Log.d(TAG, String.format("Filtered by speed: %.1f m/s (%.1f km/h) > %.1f m/s",
+            LogUtil.d(TAG, String.format("Filtered by speed: %.1f m/s (%.1f km/h) > %.1f m/s",
                 speedMs, speedMs * 3.6, MAX_REALISTIC_SPEED_MS));
             return true;
         }
@@ -89,11 +90,11 @@ public class BLETagFilter {
             // 但要排除一种情况：设备确实在快速移动
             // 如果速度合理（< 120km/h），即使距离大于3倍精度，也可能是真实的
             if (speedMs <= MAX_REALISTIC_SPEED_MS) {
-                Log.d(TAG, String.format("Large jump but reasonable speed: %.0fm in %dms (%.1f km/h)",
+                LogUtil.d(TAG, String.format("Large jump but reasonable speed: %.0fm in %dms (%.1f km/h)",
                     distanceMeters, timeDiffMs, speedMs * 3.6));
                 return false; // 速度合理，不是异常
             }
-            Log.d(TAG, String.format("Filtered by precision-aware distance: %.0fm > %.0fm (3x accuracy)",
+            LogUtil.d(TAG, String.format("Filtered by precision-aware distance: %.0fm > %.0fm (3x accuracy)",
                 distanceMeters, expectedDrift * 3.0));
             return true;
         }
@@ -165,7 +166,7 @@ public class BLETagFilter {
             result.add(createRepresentativePoint(cluster, clusterCenterLat, clusterCenterLng));
         }
         
-        Log.d(TAG, String.format("Stationary drift filter: %d -> %d points (reduced %.1f%%)",
+        LogUtil.d(TAG, String.format("Stationary drift filter: %d -> %d points (reduced %.1f%%)",
             records.size(), result.size(),
             (1.0 - (double)result.size() / records.size()) * 100));
         

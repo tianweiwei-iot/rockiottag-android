@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.RockiotTag.tag.Device;
 import com.RockiotTag.tag.repository.DeviceRepository;
+import com.RockiotTag.tag.util.LogUtil;
 
 /**
  * 选择设备的UseCase
@@ -25,7 +26,7 @@ public class SelectDeviceUseCase extends BaseUseCase<String, Device> {
     
     @Override
     protected Device executeSync(String deviceId) throws Exception {
-        Log.d(TAG, "Selecting device: " + deviceId);
+        LogUtil.d(TAG, "Selecting device: " + deviceId);
         
         // 1. 参数验证
         if (deviceId == null || deviceId.isEmpty()) {
@@ -37,7 +38,7 @@ public class SelectDeviceUseCase extends BaseUseCase<String, Device> {
         
         // 如果通过 deviceId 找不到，尝试通过 deviceNum 查询
         if (device == null) {
-            Log.d(TAG, "Device not found by deviceId, trying deviceNum: " + deviceId);
+            LogUtil.d(TAG, "Device not found by deviceId, trying deviceNum: " + deviceId);
             device = deviceRepository.getDeviceByNum(deviceId);
         }
         
@@ -51,7 +52,7 @@ public class SelectDeviceUseCase extends BaseUseCase<String, Device> {
             throw new RuntimeException("设备数据不完整");
         }
         
-        Log.d(TAG, "Device selected successfully: " + device.getName() + ", deviceId=" + device.getDeviceId());
+        LogUtil.d(TAG, "Device selected successfully: " + device.getName() + ", deviceId=" + device.getDeviceId());
         
         return device;
     }

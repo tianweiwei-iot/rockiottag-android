@@ -11,6 +11,7 @@ import androidx.cardview.widget.CardView;
 import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.RockiotTag.tag.R;
+import com.RockiotTag.tag.util.LogUtil;
 
 /**
  * MainActivity 主题辅助类
@@ -51,7 +52,7 @@ public class MainThemeHelper {
             android.content.SharedPreferences prefs = activity.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE);
             boolean isDarkMode = prefs.getBoolean("dark_mode", false);
 
-            Log.d(TAG, "setupStatusBar called, isDarkMode: " + isDarkMode);
+            LogUtil.d(TAG, "setupStatusBar called, isDarkMode: " + isDarkMode);
 
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
                 android.view.Window window = activity.getWindow();
@@ -70,13 +71,13 @@ public class MainThemeHelper {
                         window.setStatusBarColor(Color.parseColor("#000000"));
                         // 设置浅色图标（白色）
                         controller.setAppearanceLightStatusBars(false);
-                        Log.d(TAG, "Night mode: black background with white icons");
+                        LogUtil.d(TAG, "Night mode: black background with white icons");
                     } else {
                         // 日间模式：白色背景
                         window.setStatusBarColor(Color.parseColor("#FFFFFF"));
                         // 设置深色图标（黑色）
                         controller.setAppearanceLightStatusBars(true);
-                        Log.d(TAG, "Day mode: white background with dark icons");
+                        LogUtil.d(TAG, "Day mode: white background with dark icons");
                     }
                 } else {
                     Log.w(TAG, "WindowInsetsControllerCompat is null, using fallback method");

@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.RockiotTag.tag.Device;
 import com.RockiotTag.tag.DeviceApiService;
 import com.RockiotTag.tag.R;
+import com.RockiotTag.tag.util.LogUtil;
 import com.google.gson.Gson;
 
 import java.util.List;
@@ -50,14 +51,14 @@ public class MainAuthHelper {
      * @param token Bearer Token
      */
     public void fetchBoundDevicesAfterLogin(String token) {
-        Log.d(TAG, "Fetching bound devices after login...");
+        LogUtil.d(TAG, "Fetching bound devices after login...");
         new Thread(() -> {
             try {
                 DeviceApiService.DeviceApiResponse response = DeviceApiService.getInstance().getBoundDevices(token);
                 activity.runOnUiThread(() -> {
                     if (response.isSuccess() && response.getDevices() != null) {
                         List<DeviceApiService.BoundDevice> boundDevices = response.getDevices();
-                        Log.d(TAG, "Got " + boundDevices.size() + " bound devices from server");
+                        LogUtil.d(TAG, "Got " + boundDevices.size() + " bound devices from server");
 
                         // 存储绑定设备列表到SharedPreferences（JSON格式）
                         Gson gson = new Gson();
@@ -74,7 +75,7 @@ public class MainAuthHelper {
                         android.content.SharedPreferences prefs = activity.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE);
                         String savedDeviceId = prefs.getString("selected_device_id", null);
                         if (savedDeviceId == null || savedDeviceId.isEmpty()) {
-                            Log.d(TAG, "No saved device, auto-selecting first device");
+                            LogUtil.d(TAG, "No saved device, auto-selecting first device");
                             callbacks.selectFirstDeviceAndRefresh();
                         }
 
@@ -116,7 +117,7 @@ public class MainAuthHelper {
                 // 更新别名（如果服务器有实际别名且与本地不同）
                 if (displayName != null && !displayName.isEmpty() && !displayName.equals(existingDevice.getName())) {
                     callbacks.getDatabaseHelper().updateDeviceNameAndTag(existingDevice.getDeviceId(), deviceNum, displayName, existingDevice.getTag());
-                    Log.d(TAG, "Updated device alias: " + deviceNum + " -> " + displayName);
+                    LogUtil.d(TAG, "Updated device alias: " + deviceNum + " -> " + displayName);
                 }
             } else {
                 // 本地没有此设备，添加新设备（使用 deviceNum 作为 deviceId）
@@ -124,7 +125,7 @@ public class MainAuthHelper {
                 Device newDevice = new Device(deviceNum, deviceName);
                 newDevice.setDeviceNum(deviceNum);
                 callbacks.getDatabaseHelper().addDevice(newDevice);
-                Log.d(TAG, "Added new bound device: " + deviceNum + " (" + deviceName + ")");
+                LogUtil.d(TAG, "Added new bound device: " + deviceNum + " (" + deviceName + ")");
             }
         }
     }
@@ -134,7 +135,7 @@ public class MainAuthHelper {
      * 清除选中设备，刷新DeviceListFragment显示空列表
      */
     public void refreshDeviceListAfterLogout() {
-        Log.d(TAG, "Refreshing device list after logout");
+        LogUtil.d(TAG, "Refreshing device list after logout");
         // 使正在进行的刷新请求失效，防止退出后仍更新UI
         callbacks.invalidateRefreshRequests();
         // 清除选中设备（使用clearSelectedDevice使正在进行的请求失效）

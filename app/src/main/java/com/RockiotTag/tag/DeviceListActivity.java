@@ -8,6 +8,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowManager;
@@ -69,7 +70,7 @@ public class DeviceListActivity extends AppCompatActivity {
             titleBar.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
                 @Override
                 public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-                    android.util.Log.d(TAG, "statusBarInsets: " + insets.getInsets(WindowInsets.Type.statusBars()).top);
+                    LogUtil.d(TAG, "statusBarInsets: " + insets.getInsets(WindowInsets.Type.statusBars()).top);
                     v.setPadding(0, insets.getInsets(WindowInsets.Type.statusBars()).top, 0, 0);
                     return insets;
                 }
@@ -167,13 +168,13 @@ public class DeviceListActivity extends AppCompatActivity {
         boundDeviceListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                Log.d(TAG, "=== onItemClick called, position: " + position + " ===");
+                LogUtil.d(TAG, "=== onItemClick called, position: " + position + " ===");
                 if (isMultiSelectMode) {
                     toggleSelection(position);
                 } else {
                     if (position >= 0 && position < boundDeviceList.size()) {
                         Device device = boundDeviceList.get(position);
-                        Log.d(TAG, "Clicked device: " + (device != null ? device.getName() : "null"));
+                        LogUtil.d(TAG, "Clicked device: " + (device != null ? device.getName() : "null"));
                         selectDeviceAndFinish(device);
                     } else {
                         Log.e(TAG, "Invalid position: " + position + ", list size: " + boundDeviceList.size());
@@ -469,12 +470,12 @@ public class DeviceListActivity extends AppCompatActivity {
                 final String finalNickName = newNickName;
                 final String finalTag = newTag;
 
-                Log.d(TAG, "=== Save button clicked ===");
-                Log.d(TAG, "deviceIdFromDevice: " + deviceIdFromDevice);
-                Log.d(TAG, "deviceNumFromDevice: " + deviceNumFromDevice);
-                Log.d(TAG, "deviceNumFromUI: " + deviceNumFromUI);
-                Log.d(TAG, "newName: " + finalNickName);
-                Log.d(TAG, "newTag: " + finalTag);
+                LogUtil.d(TAG, "=== Save button clicked ===");
+                LogUtil.d(TAG, "deviceIdFromDevice: " + deviceIdFromDevice);
+                LogUtil.d(TAG, "deviceNumFromDevice: " + deviceNumFromDevice);
+                LogUtil.d(TAG, "deviceNumFromUI: " + deviceNumFromUI);
+                LogUtil.d(TAG, "newName: " + finalNickName);
+                LogUtil.d(TAG, "newTag: " + finalTag);
 
                 new Thread(new Runnable() {
                     @Override
@@ -485,7 +486,7 @@ public class DeviceListActivity extends AppCompatActivity {
                                 NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNumFromUI));
                                 String customerCode = device.getCustomerCode();
                                 NewApiService.ApiResponse response = apiService.updateDevice(deviceNumFromUI, finalNickName, customerCode);
-                                Log.d(TAG, "Server update response: " + (response != null ? response.isSuccess() : "null"));
+                                LogUtil.d(TAG, "Server update response: " + (response != null ? response.isSuccess() : "null"));
                                 if (response != null && !response.isSuccess()) {
                                     Log.e(TAG, "Server update failed: " + response.getMessage());
                                 }
@@ -499,12 +500,12 @@ public class DeviceListActivity extends AppCompatActivity {
                                 finalTag
                             );
                             
-                            Log.d(TAG, "Database update result: " + updated);
+                            LogUtil.d(TAG, "Database update result: " + updated);
                             
                             // 验证更新是否成功
                             Device verifyDevice = databaseHelper.getDevice(deviceIdFromDevice);
                             if (verifyDevice != null) {
-                                Log.d(TAG, "VERIFICATION: After update, device name = " + verifyDevice.getName() + ", tag = " + verifyDevice.getTag());
+                                LogUtil.d(TAG, "VERIFICATION: After update, device name = " + verifyDevice.getName() + ", tag = " + verifyDevice.getTag());
                             }
                             
                             // 更新 device 对象
@@ -516,7 +517,7 @@ public class DeviceListActivity extends AppCompatActivity {
                                 public void run() {
                                     BoundDevicesHelper.updateNickName(
                                             DeviceListActivity.this, deviceNumFromUI, finalNickName);
-                                    Log.d(TAG, "=== UI Thread: Reloading devices ===");
+                                    LogUtil.d(TAG, "=== UI Thread: Reloading devices ===");
                                                                         
                                     // 方法1：直接更新列表中的设备对象
                                     boolean found = false;
@@ -525,7 +526,7 @@ public class DeviceListActivity extends AppCompatActivity {
                                         if (d.getDeviceId().equals(deviceIdFromDevice)) {
                                             d.setName(finalNickName);
                                             d.setTag(finalTag);
-                                            Log.d(TAG, "✅ Updated device in list at position " + i + ": " + d.getName());
+                                            LogUtil.d(TAG, "✅ Updated device in list at position " + i + ": " + d.getName());
                                             found = true;
                                             break;
                                         }
@@ -544,7 +545,7 @@ public class DeviceListActivity extends AppCompatActivity {
                                     String selectedDeviceId = prefs.getString("selected_device_id", "");
                                     if (selectedDeviceId.equals(deviceIdFromDevice)) {
                                         prefs.edit().putString("selected_device_id", deviceIdFromDevice).apply();
-                                        Log.d(TAG, "Updated selected device in preferences");
+                                        LogUtil.d(TAG, "Updated selected device in preferences");
                                     }
                                                                         
                                     setResult(RESULT_OK);
@@ -603,14 +604,14 @@ public class DeviceListActivity extends AppCompatActivity {
             @Override
             public void run() {
                 try {
-                    Log.d(TAG, "Starting local unbind for device: " + device.getName());
-                    Log.d(TAG, "Device ID: " + device.getDeviceId());
-                    Log.d(TAG, "Device Num: " + device.getDeviceNum());
+                    LogUtil.d(TAG, "Starting local unbind for device: " + device.getName());
+                    LogUtil.d(TAG, "Device ID: " + device.getDeviceId());
+                    LogUtil.d(TAG, "Device Num: " + device.getDeviceNum());
                     
                     String deviceNum = device.getDeviceNum();
                     if (deviceNum != null && !deviceNum.isEmpty()) {
                         unboundDeviceManager.addUnboundDevice(deviceNum);
-                        Log.d(TAG, "Added to unbound list: " + deviceNum);
+                        LogUtil.d(TAG, "Added to unbound list: " + deviceNum);
                     }
                     
                     runOnUiThread(new Runnable() {
@@ -619,7 +620,7 @@ public class DeviceListActivity extends AppCompatActivity {
                             String selectedDeviceId = prefs.getString("selected_device_id", "");
                             if (selectedDeviceId.equals(device.getDeviceId())) {
                                 prefs.edit().remove("selected_device_id").apply();
-                                Log.d(TAG, "Removed selected_device_id from preferences");
+                                LogUtil.d(TAG, "Removed selected_device_id from preferences");
                             }
                             
                             databaseHelper.deleteDevice(device.getDeviceId());
@@ -646,12 +647,12 @@ public class DeviceListActivity extends AppCompatActivity {
     }
 
     private void loadBoundDevices() {
-        Log.d(TAG, "=== loadBoundDevices called ===");
+        LogUtil.d(TAG, "=== loadBoundDevices called ===");
         
         boundDeviceList.clear();
         
         List<Device> devices = databaseHelper.getAllDevices();
-        Log.d(TAG, "Loaded " + (devices != null ? devices.size() : 0) + " devices from database");
+        LogUtil.d(TAG, "Loaded " + (devices != null ? devices.size() : 0) + " devices from database");
         
         if (devices != null) {
             java.util.Collections.sort(devices, new java.util.Comparator<Device>() {
@@ -672,7 +673,7 @@ public class DeviceListActivity extends AppCompatActivity {
             
             for (Device d : devices) {
                 if (d != null) {
-                    Log.d(TAG, "  Device: " + d.getName() + ", id=" + d.getDeviceId() + ", num=" + d.getDeviceNum() + ", tag=" + d.getTag());
+                    LogUtil.d(TAG, "  Device: " + d.getName() + ", id=" + d.getDeviceId() + ", num=" + d.getDeviceNum() + ", tag=" + d.getTag());
                 }
             }
             boundDeviceList.addAll(devices);
@@ -681,8 +682,8 @@ public class DeviceListActivity extends AppCompatActivity {
         boundDeviceAdapter.notifyDataSetChanged();
         updateEmptyView();
         
-        Log.d(TAG, "Adapter count: " + boundDeviceAdapter.getCount());
-        Log.d(TAG, "=== loadBoundDevices completed ===");
+        LogUtil.d(TAG, "Adapter count: " + boundDeviceAdapter.getCount());
+        LogUtil.d(TAG, "=== loadBoundDevices completed ===");
     }
 
     private void updateEmptyView() {
@@ -696,8 +697,8 @@ public class DeviceListActivity extends AppCompatActivity {
     }
 
     private void selectDeviceAndFinish(Device device) {
-        Log.d(TAG, "=== selectDeviceAndFinish called ===");
-        Log.d(TAG, "Device: " + device.getName() + ", deviceId: " + device.getDeviceId() + ", deviceNum: " + device.getDeviceNum());
+        LogUtil.d(TAG, "=== selectDeviceAndFinish called ===");
+        LogUtil.d(TAG, "Device: " + device.getName() + ", deviceId: " + device.getDeviceId() + ", deviceNum: " + device.getDeviceNum());
         
         if (device == null) {
             Log.e(TAG, "Device is null, cannot select");
@@ -716,7 +717,7 @@ public class DeviceListActivity extends AppCompatActivity {
         }
         
         prefs.edit().putString("selected_device_id", deviceId).apply();
-        Log.d(TAG, "Saved selected_device_id: " + deviceId);
+        LogUtil.d(TAG, "Saved selected_device_id: " + deviceId);
         
         setResult(RESULT_OK);
         finish();

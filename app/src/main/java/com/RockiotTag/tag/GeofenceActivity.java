@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -223,7 +224,7 @@ public class GeofenceActivity extends AppCompatActivity {
     }
     
     private void simulateGeofenceViolation() {
-        Log.d(TAG, "模拟设备超出安全范围");
+        LogUtil.d(TAG, "模拟设备超出安全范围");
         sendGeofenceNotification(getString(R.string.test_device), getString(R.string.device_out_of_geofence));
     }
     

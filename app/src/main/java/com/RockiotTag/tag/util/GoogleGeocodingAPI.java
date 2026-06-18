@@ -1,6 +1,7 @@
 package com.RockiotTag.tag.util;
 
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -47,7 +48,7 @@ public class GoogleGeocodingAPI {
             }
             
             String urlString = urlBuilder.toString();
-            Log.d(TAG, "Requesting Google Geocoding: " + urlString);
+            LogUtil.d(TAG, "Requesting Google Geocoding: " + urlString);
             
             // 发送HTTP请求
             URL url = new URL(urlString);
@@ -75,7 +76,7 @@ public class GoogleGeocodingAPI {
                     if (results.length() > 0) {
                         JSONObject firstResult = results.getJSONObject(0);
                         String formattedAddress = firstResult.getString("formatted_address");
-                        Log.d(TAG, "Geocoding success: " + formattedAddress);
+                        LogUtil.d(TAG, "Geocoding success: " + formattedAddress);
                         return formattedAddress;
                     }
                 } else {

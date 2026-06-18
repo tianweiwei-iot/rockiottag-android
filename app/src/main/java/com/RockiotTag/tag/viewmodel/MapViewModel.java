@@ -2,6 +2,7 @@ package com.RockiotTag.tag.viewmodel;
 
 import android.app.Application;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
@@ -31,11 +32,11 @@ public class MapViewModel extends AndroidViewModel {
     public void updateDeviceLocation(TagDevice device) {
         if (device != null && (device.getLatitude() != 0 || device.getLongitude() != 0)) {
             deviceLocation.setValue(device);
-            Log.d(TAG, "Device location updated: " + device.getName() + " at " + device.getLatitude() + ", " + device.getLongitude());
+            LogUtil.d(TAG, "Device location updated: " + device.getName() + " at " + device.getLatitude() + ", " + device.getLongitude());
         } else if (device != null) {
             // 即使坐标为0，也要更新（可能是新选择的设备，等待服务器返回坐标）
             deviceLocation.setValue(device);
-            Log.d(TAG, "Device selected (waiting for coordinates): " + device.getName());
+            LogUtil.d(TAG, "Device selected (waiting for coordinates): " + device.getName());
         }
     }
     
@@ -44,7 +45,7 @@ public class MapViewModel extends AndroidViewModel {
      */
     public void clearDeviceLocation() {
         deviceLocation.setValue(null);
-        Log.d(TAG, "Device location cleared");
+        LogUtil.d(TAG, "Device location cleared");
     }
     
     /**
@@ -53,7 +54,7 @@ public class MapViewModel extends AndroidViewModel {
     public void moveCamera(double latitude, double longitude, float zoom) {
         isCameraMoving.setValue(true);
         // 具体的相机移动逻辑需要在 Activity/Fragment 中观察 LiveData 后执行
-        Log.d(TAG, "Requesting camera move to: " + latitude + ", " + longitude);
+        LogUtil.d(TAG, "Requesting camera move to: " + latitude + ", " + longitude);
     }
     
     /**

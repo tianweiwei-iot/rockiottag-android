@@ -7,6 +7,7 @@ import com.RockiotTag.tag.DatabaseHelper;
 import com.RockiotTag.tag.LocationRecord;
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.model.LocationData;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +39,7 @@ public class LocationRepository {
      * 保存位置记录到本地数据库
      */
     public void saveLocationRecord(LocationRecord record) {
-        Log.d(TAG, "Saving location record for device: " + record.getDeviceId());
+        LogUtil.d(TAG, "Saving location record for device: " + record.getDeviceId());
         databaseHelper.addLocationRecord(record);
     }
     
@@ -46,7 +47,7 @@ public class LocationRepository {
      * 获取指定设备和时间范围的位置记录（转换为新模型）
      */
     public List<LocationData> getLocationRecords(String deviceId, long startTime, long endTime) {
-        Log.d(TAG, "Getting location records for device: " + deviceId);
+        LogUtil.d(TAG, "Getting location records for device: " + deviceId);
         List<LocationRecord> oldRecords = databaseHelper.getLocationRecords(deviceId, startTime, endTime);
         List<LocationData> newRecords = new ArrayList<>();
         for (LocationRecord lr : oldRecords) {
@@ -60,7 +61,7 @@ public class LocationRepository {
      * 获取轨迹数据（返回LocationRecord，用于UseCase）
      */
     public List<LocationRecord> getTrackData(String deviceNum, long startTime, long endTime) {
-        Log.d(TAG, "Getting track data for device: " + deviceNum);
+        LogUtil.d(TAG, "Getting track data for device: " + deviceNum);
         return databaseHelper.getLocationRecords(deviceNum, startTime, endTime);
     }
     
@@ -82,7 +83,7 @@ public class LocationRepository {
      * 获取指定设备和日期范围的位置记录（按天，转换为新模型）
      */
     public List<LocationData> getLocationRecordsByDateRange(String deviceId, java.util.Date startDate, java.util.Date endDate) {
-        Log.d(TAG, "Getting location records by date range for device: " + deviceId);
+        LogUtil.d(TAG, "Getting location records by date range for device: " + deviceId);
         long startTime = startDate.getTime();
         long endTime = endDate.getTime();
         List<LocationRecord> oldRecords = databaseHelper.getLocationRecords(deviceId, startTime, endTime);
@@ -98,7 +99,7 @@ public class LocationRepository {
      * 从服务器获取位置记录
      */
     public List<NewApiService.LocationInfo> getRemoteLocations(String deviceNum, long startTime, long endTime) {
-        Log.d(TAG, "Getting remote locations for device: " + deviceNum);
+        LogUtil.d(TAG, "Getting remote locations for device: " + deviceNum);
         try {
             return apiService.getLocations(deviceNum, startTime, endTime);
         } catch (Exception e) {
@@ -116,14 +117,14 @@ public class LocationRepository {
     }
     
     public void syncLocationToServer(String deviceNum, double latitude, double longitude, int battery, long timestamp, SyncCallback callback) {
-        Log.d(TAG, "Syncing location to server for device: " + deviceNum);
+        LogUtil.d(TAG, "Syncing location to server for device: " + deviceNum);
         
         new Thread(() -> {
             try {
                 NewApiService.ApiResponse response = apiService.syncLocation(deviceNum, latitude, longitude, battery, timestamp);
                 
                 if (response != null && response.isSuccess()) {
-                    Log.d(TAG, "Location synced successfully");
+                    LogUtil.d(TAG, "Location synced successfully");
                     if (callback != null) {
                         new android.os.Handler(android.os.Looper.getMainLooper()).post(callback::onSuccess);
                     }
@@ -148,7 +149,7 @@ public class LocationRepository {
      * 清理旧的位置记录（超过一个月）
      */
     public void cleanOldLocationRecords() {
-        Log.d(TAG, "Cleaning old location records");
+        LogUtil.d(TAG, "Cleaning old location records");
         databaseHelper.cleanOldLocationRecords();
     }
     
@@ -156,7 +157,7 @@ public class LocationRepository {
      * 删除所有位置记录
      */
     public int deleteAllLocationRecords() {
-        Log.d(TAG, "Deleting all location records");
+        LogUtil.d(TAG, "Deleting all location records");
         return databaseHelper.deleteAllLocationRecords();
     }
     
@@ -164,7 +165,7 @@ public class LocationRepository {
      * 删除指定设备的位置记录
      */
     public int deleteLocationRecordsByDevice(String deviceId) {
-        Log.d(TAG, "Deleting location records for device: " + deviceId);
+        LogUtil.d(TAG, "Deleting location records for device: " + deviceId);
         return databaseHelper.deleteLocationRecordsByDevice(deviceId);
     }
     

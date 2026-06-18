@@ -6,6 +6,7 @@ import android.location.Geocoder;
 import android.util.Log;
 
 import com.RockiotTag.tag.DatabaseHelper;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.io.IOException;
 import java.util.List;
@@ -91,7 +92,7 @@ public class ReverseGeocodeUseCase extends BaseUseCase<ReverseGeocodeUseCase.Par
      */
     @Override
     protected String executeSync(Params params) throws Exception {
-        Log.d(TAG, "Reverse geocoding: " + params.latitude + ", " + params.longitude);
+        LogUtil.d(TAG, "Reverse geocoding: " + params.latitude + ", " + params.longitude);
         
         // 1. 检查缓存（如果不是强制刷新）
         if (!params.forceRefresh) {
@@ -104,10 +105,10 @@ public class ReverseGeocodeUseCase extends BaseUseCase<ReverseGeocodeUseCase.Par
             );
             
             if (cachedAddress != null && !cachedAddress.isEmpty()) {
-                Log.d(TAG, "Cache hit: " + cachedAddress);
+                LogUtil.d(TAG, "Cache hit: " + cachedAddress);
                 return cachedAddress;
             }
-            Log.d(TAG, "Cache miss, performing geocoding");
+            LogUtil.d(TAG, "Cache miss, performing geocoding");
         }
         
         // 2. 验证坐标有效性
@@ -123,7 +124,7 @@ public class ReverseGeocodeUseCase extends BaseUseCase<ReverseGeocodeUseCase.Par
             throw new RuntimeException("无法获取地址信息");
         }
         
-        Log.d(TAG, "Geocoding success: " + address);
+        LogUtil.d(TAG, "Geocoding success: " + address);
         
         // 4. 保存到缓存
         try {
@@ -134,7 +135,7 @@ public class ReverseGeocodeUseCase extends BaseUseCase<ReverseGeocodeUseCase.Par
                 params.mapMode,
                 address
             );
-            Log.d(TAG, "Address saved to cache");
+            LogUtil.d(TAG, "Address saved to cache");
         } catch (Exception e) {
             Log.w(TAG, "Failed to save address to cache: " + e.getMessage());
             // 缓存失败不影响主流程
@@ -155,7 +156,7 @@ public class ReverseGeocodeUseCase extends BaseUseCase<ReverseGeocodeUseCase.Par
             // Google地图模式：使用Android原生Geocoder
             // 注：Google Geocoding REST API需要Billing账号，暂时使用Android Geocoder
             // Android Geocoder已有地址验证逻辑，会过滤错误的深圳地址
-            Log.d(TAG, "Using Android native Geocoder for Google Map mode");
+            LogUtil.d(TAG, "Using Android native Geocoder for Google Map mode");
             return performAndroidGeocoding(latitude, longitude, languageCode);
         }
     }
@@ -172,7 +173,7 @@ public class ReverseGeocodeUseCase extends BaseUseCase<ReverseGeocodeUseCase.Par
             String address = aMapGeocoder.getAddressFromLocationSync(latitude, longitude);
             
             if (address != null && !address.isEmpty()) {
-                Log.d(TAG, "AMap geocoding success: " + address);
+                LogUtil.d(TAG, "AMap geocoding success: " + address);
                 return address;
             }
             
@@ -200,7 +201,7 @@ public class ReverseGeocodeUseCase extends BaseUseCase<ReverseGeocodeUseCase.Par
             if (addresses != null && !addresses.isEmpty()) {
                 Address address = addresses.get(0);
                 String result = formatAddress(address);
-                Log.d(TAG, "Android Geocoder result: " + result);
+                LogUtil.d(TAG, "Android Geocoder result: " + result);
                 
                 // 关键修复：验证返回的地址是否与坐标匹配
                 // Android Geocoder可能受VPN影响返回错误地址
@@ -229,7 +230,7 @@ public class ReverseGeocodeUseCase extends BaseUseCase<ReverseGeocodeUseCase.Par
                 // 支持多个国家：阿尔及利亚、乌克兰、俄罗斯、巴西、土耳其、印度
                 String countryName = address.getCountryName();
                 if (countryName != null && !countryName.isEmpty()) {
-                    Log.d(TAG, "Geocoder countryName: " + countryName + ", lat: " + latitude + ", lng: " + longitude);
+                    LogUtil.d(TAG, "Geocoder countryName: " + countryName + ", lat: " + latitude + ", lng: " + longitude);
                     
                     // 阿尔及利亚的坐标范围
                     boolean isAlgeriaCoords = latitude > 19 && latitude < 38 && longitude > -9 && longitude < 12;

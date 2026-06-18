@@ -2,6 +2,7 @@ package com.RockiotTag.tag.viewmodel;
 
 import android.app.Application;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
@@ -50,7 +51,7 @@ public class GeofenceViewModel extends AndroidViewModel {
     public void setGeofenceRadius(float radius) {
         if (radius > 0) {
             geofenceRadius.setValue(radius);
-            Log.d(TAG, "Geofence radius set to: " + radius);
+            LogUtil.d(TAG, "Geofence radius set to: " + radius);
         } else {
             Log.w(TAG, "Invalid radius: " + radius);
         }
@@ -65,7 +66,7 @@ public class GeofenceViewModel extends AndroidViewModel {
     }
     
     public void saveGeofenceSettings(float radius, SaveCallback callback) {
-        Log.d(TAG, "Saving geofence settings, radius: " + radius);
+        LogUtil.d(TAG, "Saving geofence settings, radius: " + radius);
         
         if (radius <= 0) {
             String error = "无效的半径值";
@@ -88,7 +89,7 @@ public class GeofenceViewModel extends AndroidViewModel {
                 // - 保存到数据库
                 // - 同步到服务器
                 
-                Log.d(TAG, "Geofence settings saved successfully");
+                LogUtil.d(TAG, "Geofence settings saved successfully");
                 
                 new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                     statusMessage.postValue("保存成功");

@@ -12,6 +12,7 @@ import android.widget.TextView;
 import java.util.List;
 
 import com.RockiotTag.tag.model.DeviceTag;
+import com.RockiotTag.tag.util.LogUtil;
 
 public class BoundDeviceAdapter extends ArrayAdapter<Device> {
 
@@ -102,7 +103,7 @@ public class BoundDeviceAdapter extends ArrayAdapter<Device> {
             String mac = device.getMac();
             
             // 【调试】打印MAC地址信息
-            android.util.Log.d("BoundDeviceAdapter", "Displaying device: name=" + device.getName() + ", address=" + address + ", mac=" + mac);
+            LogUtil.d("BoundDeviceAdapter", "Displaying device: name=" + device.getName() + ", address=" + address + ", mac=" + mac);
             
             if (mac != null && !mac.isEmpty()) {
                 holder.deviceAddressText.setText(address + " (" + mac + ")");

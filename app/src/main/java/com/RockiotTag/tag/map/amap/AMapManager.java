@@ -2,6 +2,7 @@ package com.RockiotTag.tag.map.amap;
 
 import android.content.Context;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 import android.view.View;
 
 import com.amap.api.maps.AMap;
@@ -33,7 +34,7 @@ public class AMapManager {
     public AMapManager(Context context, MapView mapView) {
         this.context = context;
         this.mapView = mapView;
-        Log.d(TAG, "AMapManager initialized for domestic version");
+        LogUtil.d(TAG, "AMapManager initialized for domestic version");
     }
     
     public void setCallback(MapCallback callback) {
@@ -44,12 +45,12 @@ public class AMapManager {
      * 初始化高德地图
      */
     public void initMap() {
-        Log.d(TAG, "Initializing AMap...");
+        LogUtil.d(TAG, "Initializing AMap...");
         if (mapView != null) {
             aMap = mapView.getMap();
             if (aMap != null) {
                 configureMap();
-                Log.d(TAG, "AMap initialized successfully");
+                LogUtil.d(TAG, "AMap initialized successfully");
                 
                 if (callback != null) {
                     callback.onMapReady();

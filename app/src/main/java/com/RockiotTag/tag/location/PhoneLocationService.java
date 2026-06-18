@@ -6,6 +6,7 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationManager;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import androidx.core.app.ActivityCompat;
 
@@ -42,7 +43,7 @@ public class PhoneLocationService {
         // 2. 尝试GPS定位（优先级高）
         Location gpsLocation = getLastKnownLocation(LocationManager.GPS_PROVIDER);
         if (gpsLocation != null && isLocationFresh(gpsLocation)) {
-            Log.d(TAG, String.format(
+            LogUtil.d(TAG, String.format(
                 "Using GPS location: lat=%.6f, lng=%.6f, accuracy=%.1fm",
                 gpsLocation.getLatitude(),
                 gpsLocation.getLongitude(),
@@ -54,7 +55,7 @@ public class PhoneLocationService {
         // 3. 降级到网络定位
         Location networkLocation = getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
         if (networkLocation != null && isLocationFresh(networkLocation)) {
-            Log.d(TAG, String.format(
+            LogUtil.d(TAG, String.format(
                 "Using network location: lat=%.6f, lng=%.6f, accuracy=%.1fm",
                 networkLocation.getLatitude(),
                 networkLocation.getLongitude(),

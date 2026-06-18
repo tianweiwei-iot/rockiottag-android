@@ -2,6 +2,7 @@ package com.RockiotTag.tag.fragment;
 
 import android.os.Bundle;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -115,7 +116,7 @@ public class TrackMapFragment extends Fragment implements OnMapReadyCallback {
         // 启用我的位置按钮（如果需要）
         // googleMap.setMyLocationEnabled(true);
         
-        Log.d(TAG, "Google Map is ready");
+        LogUtil.d(TAG, "Google Map is ready");
     }
     
     /**

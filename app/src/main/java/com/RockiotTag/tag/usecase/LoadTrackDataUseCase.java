@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.RockiotTag.tag.LocationRecord;
 import com.RockiotTag.tag.repository.LocationRepository;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.List;
 
@@ -39,7 +40,7 @@ public class LoadTrackDataUseCase extends BaseUseCase<LoadTrackDataUseCase.Param
     
     @Override
     protected List<LocationRecord> executeSync(Params params) throws Exception {
-        Log.d(TAG, "Loading track data for device: " + params.deviceNum);
+        LogUtil.d(TAG, "Loading track data for device: " + params.deviceNum);
         
         // 1. 参数验证
         if (params.deviceNum == null || params.deviceNum.isEmpty()) {
@@ -65,7 +66,7 @@ public class LoadTrackDataUseCase extends BaseUseCase<LoadTrackDataUseCase.Param
             throw new RuntimeException("无法获取轨迹数据");
         }
         
-        Log.d(TAG, "Loaded " + records.size() + " location records");
+        LogUtil.d(TAG, "Loaded " + records.size() + " location records");
         
         // 3. 按时间排序（升序）
         records.sort((a, b) -> Long.compare(a.getTimestamp(), b.getTimestamp()));

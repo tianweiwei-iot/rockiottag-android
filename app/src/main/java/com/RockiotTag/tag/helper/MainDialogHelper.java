@@ -21,6 +21,7 @@ import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.R;
 import com.RockiotTag.tag.UserApiService;
 import com.RockiotTag.tag.DeviceApiService;
+import com.RockiotTag.tag.util.LogUtil;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
@@ -205,7 +206,7 @@ public class MainDialogHelper {
                         // 关键修复：切换地图时清除目标地图模式的旧缓存，防止地址污染
                         if (callbacks.getDatabaseHelper() != null) {
                             callbacks.getDatabaseHelper().cleanMapModeAddressCache(newMapProvider);
-                            android.util.Log.d("MainDialogHelper", "Cleared address cache for map mode: " + newMapProvider);
+                            LogUtil.d("MainDialogHelper", "Cleared address cache for map mode: " + newMapProvider);
                         }
 
                         int toastMessage = R.string.switched_to_amap;
@@ -373,7 +374,7 @@ public class MainDialogHelper {
                 .setSingleChoiceItems(options, currentLevel, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        android.util.Log.d("MainDialogHelper", "Scan intensity changed: " + currentLevel + " -> " + which);
+                        LogUtil.d("MainDialogHelper", "Scan intensity changed: " + currentLevel + " -> " + which);
 
                         // 先停止当前扫描
                         if (callbacks.getLocationOptimizationManager() != null) {
@@ -386,13 +387,13 @@ public class MainDialogHelper {
                         // 根据新强度启动扫描
                         switch (which) {
                             case 0: // 关闭
-                                android.util.Log.d("MainDialogHelper", "Scan intensity: OFF");
+                                LogUtil.d("MainDialogHelper", "Scan intensity: OFF");
                                 break;
                             case 1: // 低 - 单次扫描
-                                android.util.Log.d("MainDialogHelper", "Scan intensity: LOW (single scan)");
+                                LogUtil.d("MainDialogHelper", "Scan intensity: LOW (single scan)");
                                 break;
                             case 2: // 高 - 持续循环扫描
-                                android.util.Log.d("MainDialogHelper", "Scan intensity: HIGH (continuous)");
+                                LogUtil.d("MainDialogHelper", "Scan intensity: HIGH (continuous)");
                                 break;
                         }
 

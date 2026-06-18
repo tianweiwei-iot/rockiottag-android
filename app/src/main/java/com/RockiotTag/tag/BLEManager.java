@@ -16,6 +16,8 @@ import android.content.Context;
 import android.os.Handler;
 import android.util.Log;
 
+import com.RockiotTag.tag.util.LogUtil;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -54,7 +56,7 @@ public class BLEManager {
     }
 
     public void startScanning(final DeviceScanCallback callback) {
-        Log.d(TAG, "=== BLE Scanning Starting ===");
+        LogUtil.d(TAG, "=== BLE Scanning Starting ===");
         
         if (bluetoothAdapter == null) {
             Log.e(TAG, "Bluetooth adapter is null - device may not support BLE");
@@ -71,9 +73,9 @@ public class BLEManager {
             return;
         }
         
-        Log.d(TAG, "Bluetooth adapter: OK");
-        Log.d(TAG, "Bluetooth enabled: YES");
-        Log.d(TAG, "BLE scanner: OK");
+        LogUtil.d(TAG, "Bluetooth adapter: OK");
+        LogUtil.d(TAG, "Bluetooth enabled: YES");
+        LogUtil.d(TAG, "BLE scanner: OK");
 
         this.userCallback = callback;
 
@@ -86,8 +88,8 @@ public class BLEManager {
         List<ScanFilter> filters = new ArrayList<>();
         // 这里可以添加特定设备的过滤条件
 
-        Log.d(TAG, "Scan settings configured: LOW_LATENCY mode");
-        Log.d(TAG, "Starting BLE scan...");
+        LogUtil.d(TAG, "Scan settings configured: LOW_LATENCY mode");
+        LogUtil.d(TAG, "Starting BLE scan...");
 
         // 开始扫描
         scanCallback = new ScanCallback() {
@@ -180,30 +182,30 @@ public class BLEManager {
     }
 
     public void stopScanning() {
-        Log.d(TAG, "=== Stopping BLE Scanning ===");
+        LogUtil.d(TAG, "=== Stopping BLE Scanning ===");
         
         // 移除停止扫描的回调，防止内存泄漏
         if (stopScanRunnable != null && handler != null) {
             handler.removeCallbacks(stopScanRunnable);
             stopScanRunnable = null;
-            Log.d(TAG, "Removed stop scan runnable");
+            LogUtil.d(TAG, "Removed stop scan runnable");
         }
         
         if (bluetoothLeScanner != null && scanCallback != null) {
             try {
                 bluetoothLeScanner.stopScan(scanCallback);
                 scanCallback = null;
-                Log.d(TAG, "✓ BLE scan stopped");
+                LogUtil.d(TAG, "✓ BLE scan stopped");
             } catch (Exception e) {
                 Log.e(TAG, "Error stopping scan", e);
             }
         } else {
-            Log.d(TAG, "Scan already stopped or not started");
+            LogUtil.d(TAG, "Scan already stopped or not started");
         }
         
         // 关键修复：不要清空userCallback，让调用者决定何时清理
         // userCallback = null;  // 注释掉这行，保持回调有效
-        Log.d(TAG, "Keep user callback for restart");
+        LogUtil.d(TAG, "Keep user callback for restart");
     }
 
     // 连接到设备

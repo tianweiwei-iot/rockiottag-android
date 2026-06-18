@@ -8,6 +8,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
 
+import com.RockiotTag.tag.util.LogUtil;
 import com.amap.api.maps.AMap;
 import com.amap.api.maps.CameraUpdateFactory;
 import com.amap.api.maps.MapView;
@@ -59,8 +60,8 @@ public class MapManager implements OnMapReadyCallback {
         
         android.content.SharedPreferences prefs = this.context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         this.currentProvider = prefs.getString("map_provider", MAP_PROVIDER_AMAP);
-        Log.d(TAG, "MapManager initialized, current provider: " + currentProvider);
-        Log.d(TAG, "googleMapFragment: " + googleMapFragment);
+        LogUtil.d(TAG, "MapManager initialized, current provider: " + currentProvider);
+        LogUtil.d(TAG, "googleMapFragment: " + googleMapFragment);
         checkNetworkStatus();
     }
     
@@ -70,7 +71,7 @@ public class MapManager implements OnMapReadyCallback {
             if (cm != null) {
                 NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
                 boolean isConnected = activeNetwork != null && activeNetwork.isConnectedOrConnecting();
-                Log.d(TAG, "Network status: " + (isConnected ? "Connected" : "Disconnected"));
+                LogUtil.d(TAG, "Network status: " + (isConnected ? "Connected" : "Disconnected"));
                 if (!isConnected) {
                     Log.w(TAG, "No network connection - Google Maps may not load!");
                 }
@@ -85,10 +86,10 @@ public class MapManager implements OnMapReadyCallback {
     }
     
     public void initAmap() {
-        Log.d(TAG, "initAmap called, amapView: " + amapView);
+        LogUtil.d(TAG, "initAmap called, amapView: " + amapView);
         if (amapView != null) {
             amap = amapView.getMap();
-            Log.d(TAG, "AMap instance: " + amap);
+            LogUtil.d(TAG, "AMap instance: " + amap);
             if (amap != null) {
                 amap.getUiSettings().setMyLocationButtonEnabled(false);
                 amap.setMyLocationEnabled(false);
@@ -104,16 +105,16 @@ public class MapManager implements OnMapReadyCallback {
                         }
                     }
                 });
-                Log.d(TAG, "AMap initialized successfully");
+                LogUtil.d(TAG, "AMap initialized successfully");
             }
         }
     }
     
     public void initGoogleMap() {
-        Log.d(TAG, "initGoogleMap called, googleMapFragment: " + googleMapFragment);
+        LogUtil.d(TAG, "initGoogleMap called, googleMapFragment: " + googleMapFragment);
         if (googleMapFragment != null) {
             googleMapFragment.getMapAsync(this);
-            Log.d(TAG, "Google Map getMapAsync called");
+            LogUtil.d(TAG, "Google Map getMapAsync called");
         } else {
             Log.e(TAG, "googleMapFragment is null!");
         }
@@ -121,13 +122,13 @@ public class MapManager implements OnMapReadyCallback {
     
     @Override
     public void onMapReady(GoogleMap googleMap) {
-        Log.d(TAG, "onMapReady called, googleMap: " + googleMap);
+        LogUtil.d(TAG, "onMapReady called, googleMap: " + googleMap);
         this.googleMap = googleMap;
         this.googleMapReady = true;
         
         if (googleMap != null) {
             try {
-                Log.d(TAG, "Configuring Google Map UI settings...");
+                LogUtil.d(TAG, "Configuring Google Map UI settings...");
                 googleMap.getUiSettings().setMyLocationButtonEnabled(false);
                 googleMap.getUiSettings().setCompassEnabled(true); // 启用指南针
                 googleMap.getUiSettings().setMapToolbarEnabled(false);
@@ -138,20 +139,20 @@ public class MapManager implements OnMapReadyCallback {
                 // 设置地图语言和地区
                 String languageCode = getMapLanguageCode();
                 String regionCode = getRegionCode();
-                Log.d(TAG, "Setting map language: " + languageCode + ", region: " + regionCode);
+                LogUtil.d(TAG, "Setting map language: " + languageCode + ", region: " + regionCode);
                 
                 // Google地图没有内置标尺控件，但可以通过其他方式显示
                 // 注意：Google Maps Android API 不直接提供标尺UI控件
                 
                 // 设置默认地图类型为普通地图
                 googleMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
-                Log.d(TAG, "Map type set to NORMAL");
+                LogUtil.d(TAG, "Map type set to NORMAL");
                 
                 // 添加地图加载完成监听
                 googleMap.setOnMapLoadedCallback(new GoogleMap.OnMapLoadedCallback() {
                     @Override
                     public void onMapLoaded() {
-                        Log.d(TAG, "Google Map loaded successfully!");
+                        LogUtil.d(TAG, "Google Map loaded successfully!");
                         isCheckingMapLoad = false;
                         if (context != null) {
                             Toast.makeText(context, R.string.google_map_loaded, Toast.LENGTH_SHORT).show();
@@ -163,7 +164,7 @@ public class MapManager implements OnMapReadyCallback {
                 googleMap.setOnCameraIdleListener(new GoogleMap.OnCameraIdleListener() {
                     @Override
                     public void onCameraIdle() {
-                        Log.d(TAG, "Camera is idle at: " + googleMap.getCameraPosition().target);
+                        LogUtil.d(TAG, "Camera is idle at: " + googleMap.getCameraPosition().target);
                     }
                 });
                 
@@ -171,35 +172,35 @@ public class MapManager implements OnMapReadyCallback {
                 googleMap.setOnCameraMoveStartedListener(new GoogleMap.OnCameraMoveStartedListener() {
                     @Override
                     public void onCameraMoveStarted(int reason) {
-                        Log.d(TAG, "Camera move started, reason: " + reason);
+                        LogUtil.d(TAG, "Camera move started, reason: " + reason);
                         // REASON_GESTURE = 1 (用户手势)
                         // REASON_API_ANIMATION = 2 (API动画)
                         // REASON_DEVELOPER_ANIMATION = 3 (开发者动画)
                         if (reason == 1) {
                             userHasInteractedWithMap = true;
-                            Log.d(TAG, "User manually interacted with map - disabling auto camera moves");
+                            LogUtil.d(TAG, "User manually interacted with map - disabling auto camera moves");
                         }
                     }
                 });
                 
-                Log.d(TAG, "Setting initial location: lat=" + defaultLat + ", lng=" + defaultLng);
+                LogUtil.d(TAG, "Setting initial location: lat=" + defaultLat + ", lng=" + defaultLng);
                 com.google.android.gms.maps.model.LatLng defaultLatLng =
                     new com.google.android.gms.maps.model.LatLng(defaultLat, defaultLng);
                 // 完全禁用自动移动相机，由用户手动控制地图位置
-                Log.d(TAG, "Auto camera movement disabled - user controls map position");
+                LogUtil.d(TAG, "Auto camera movement disabled - user controls map position");
                 
                 // 添加地图点击事件监听以确保地图已激活
                 googleMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
                     @Override
                     public void onMapClick(com.google.android.gms.maps.model.LatLng latLng) {
-                        Log.d(TAG, "Google Map clicked at: " + latLng.latitude + ", " + latLng.longitude);
+                        LogUtil.d(TAG, "Google Map clicked at: " + latLng.latitude + ", " + latLng.longitude);
                         if (callback != null) {
                             callback.onMapClick(latLng.latitude, latLng.longitude);
                         }
                     }
                 });
                 
-                Log.d(TAG, "Google Map initialized successfully");
+                LogUtil.d(TAG, "Google Map initialized successfully");
                 
                 if (callback != null) {
                     callback.onMapReady();
@@ -207,10 +208,10 @@ public class MapManager implements OnMapReadyCallback {
                 
                 // 如果当前是谷歌地图，立即确保视图可见
                 if (isGoogleMap()) {
-                    Log.d(TAG, "Current provider is Google Map, ensuring view is visible...");
+                    LogUtil.d(TAG, "Current provider is Google Map, ensuring view is visible...");
                     if (googleMapFragment != null && googleMapFragment.getView() != null) {
                         googleMapFragment.getView().setVisibility(View.VISIBLE);
-                        Log.d(TAG, "Google Map view visibility set to VISIBLE");
+                        LogUtil.d(TAG, "Google Map view visibility set to VISIBLE");
                     }
                 }
                 
@@ -232,12 +233,12 @@ public class MapManager implements OnMapReadyCallback {
     
     private void startMapLoadMonitoring() {
         if (isCheckingMapLoad) {
-            Log.d(TAG, "Map load monitoring already in progress");
+            LogUtil.d(TAG, "Map load monitoring already in progress");
             return;
         }
         
         isCheckingMapLoad = true;
-        Log.d(TAG, "Starting map load monitoring (timeout in 15 seconds)");
+        LogUtil.d(TAG, "Starting map load monitoring (timeout in 15 seconds)");
         
         handler.postDelayed(new Runnable() {
             @Override
@@ -253,10 +254,10 @@ public class MapManager implements OnMapReadyCallback {
                     // 尝试多种方法来触发地图重新加载
                     if (googleMap != null) {
                         try {
-                            Log.d(TAG, "Attempting map reload strategies...");
+                            LogUtil.d(TAG, "Attempting map reload strategies...");
                             
                             // 策略1：切换地图类型
-                            Log.d(TAG, "Strategy 1: Toggle map type");
+                            LogUtil.d(TAG, "Strategy 1: Toggle map type");
                             int currentType = googleMap.getMapType();
                             googleMap.setMapType(GoogleMap.MAP_TYPE_SATELLITE);
                             handler.postDelayed(new Runnable() {
@@ -264,23 +265,23 @@ public class MapManager implements OnMapReadyCallback {
                                 public void run() {
                                     if (googleMap != null) {
                                         googleMap.setMapType(currentType);
-                                        Log.d(TAG, "Map type restored");
+                                        LogUtil.d(TAG, "Map type restored");
                                     }
                                 }
                             }, 1000);
                             
                             // 策略2：禁用（不再强制移动相机，避免干扰用户）
                             // 之前的策略会强制移动相机到错误位置，导致用户体验差
-                            Log.d(TAG, "Strategy 2: Disabled - do not force camera movement");
+                            LogUtil.d(TAG, "Strategy 2: Disabled - do not force camera movement");
                             
                             // 策略3：尝试清除并重新设置
                             handler.postDelayed(new Runnable() {
                                 @Override
                                 public void run() {
                                     if (googleMap != null) {
-                                        Log.d(TAG, "Strategy 3: Attempting map reset");
+                                        LogUtil.d(TAG, "Strategy 3: Attempting map reset");
                                         googleMap.clear();
-                                        Log.d(TAG, "Map cleared");
+                                        LogUtil.d(TAG, "Map cleared");
                                     }
                                 }
                             }, 5000);
@@ -308,7 +309,7 @@ public class MapManager implements OnMapReadyCallback {
         int resultCode = apiAvailability.isGooglePlayServicesAvailable(context);
         
         if (resultCode == ConnectionResult.SUCCESS) {
-            Log.d(TAG, "Google Play Services is available");
+            LogUtil.d(TAG, "Google Play Services is available");
             return true;
         } else {
             Log.e(TAG, "Google Play Services not available, result code: " + resultCode);
@@ -319,36 +320,36 @@ public class MapManager implements OnMapReadyCallback {
     }
     
     public void switchToAmap() {
-        Log.d(TAG, "switchToAmap called");
+        LogUtil.d(TAG, "switchToAmap called");
         currentProvider = MAP_PROVIDER_AMAP;
         saveMapProvider();
         
         if (amapView != null) {
             amapView.setVisibility(View.VISIBLE);
-            Log.d(TAG, "AMap view set to VISIBLE");
+            LogUtil.d(TAG, "AMap view set to VISIBLE");
         }
         if (googleMapFragment != null && googleMapFragment.getView() != null) {
             googleMapFragment.getView().setVisibility(View.GONE);
-            Log.d(TAG, "Google Map view set to GONE");
+            LogUtil.d(TAG, "Google Map view set to GONE");
         } else {
             Log.w(TAG, "Google Map fragment or view is null when switching to AMap");
         }
     }
     
     public void switchToGoogleMap() {
-        Log.d(TAG, "switchToGoogleMap called, googleMapReady: " + googleMapReady);
+        LogUtil.d(TAG, "switchToGoogleMap called, googleMapReady: " + googleMapReady);
         currentProvider = MAP_PROVIDER_GOOGLE;
         saveMapProvider();
         
         if (amapView != null) {
             amapView.setVisibility(View.GONE);
-            Log.d(TAG, "AMap view set to GONE");
+            LogUtil.d(TAG, "AMap view set to GONE");
         }
         
         if (googleMapFragment != null) {
             if (googleMapFragment.getView() != null) {
                 googleMapFragment.getView().setVisibility(View.VISIBLE);
-                Log.d(TAG, "Google Map view set to VISIBLE");
+                LogUtil.d(TAG, "Google Map view set to VISIBLE");
             } else {
                 Log.w(TAG, "Google Map fragment view is null, fragment: " + googleMapFragment);
             }
@@ -357,7 +358,7 @@ public class MapManager implements OnMapReadyCallback {
                 Log.w(TAG, "Google Map not ready yet, re-initializing...");
                 initGoogleMap();
             } else {
-                Log.d(TAG, "Google Map is already ready, re-applying UI settings...");
+                LogUtil.d(TAG, "Google Map is already ready, re-applying UI settings...");
                 // 重新应用UI设置，确保指南针等控件启用
                 if (googleMap != null) {
                     try {
@@ -365,10 +366,10 @@ public class MapManager implements OnMapReadyCallback {
                         googleMap.getUiSettings().setRotateGesturesEnabled(true);
                         googleMap.getUiSettings().setTiltGesturesEnabled(true);
                         googleMap.getUiSettings().setZoomControlsEnabled(true);
-                        Log.d(TAG, "Google Map UI settings re-applied");
+                        LogUtil.d(TAG, "Google Map UI settings re-applied");
                         
                         // 禁用自动旋转地图以显示指南针，避免地图跳转
-                        Log.d(TAG, "Auto rotation disabled to prevent map jumping");
+                        LogUtil.d(TAG, "Auto rotation disabled to prevent map jumping");
                     } catch (Exception e) {
                         Log.e(TAG, "Error re-applying Google Map UI settings: " + e.getMessage(), e);
                     }
@@ -400,7 +401,7 @@ public class MapManager implements OnMapReadyCallback {
             amap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, zoom));
         } else if (isGoogleMap() && googleMap != null) {
             // 完全禁用谷歌地图的自动相机移动
-            Log.d(TAG, "Google Map - Auto camera move COMPLETELY DISABLED. Requested: " + latitude + ", " + longitude);
+            LogUtil.d(TAG, "Google Map - Auto camera move COMPLETELY DISABLED. Requested: " + latitude + ", " + longitude);
             // 不执行任何相机移动操作
         } else {
             Log.w(TAG, "moveCamera called but map is null, provider: " + currentProvider);
@@ -488,7 +489,7 @@ public class MapManager implements OnMapReadyCallback {
             amap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 17));
         } else if (isGoogleMap() && googleMap != null) {
             // 完全禁用谷歌地图的自动相机移动
-            Log.d(TAG, "Google Map - setDefaultLocation COMPLETELY DISABLED. Requested: " + lat + ", " + lng);
+            LogUtil.d(TAG, "Google Map - setDefaultLocation COMPLETELY DISABLED. Requested: " + lat + ", " + lng);
             // 不执行任何相机移动操作
         }
     }
@@ -498,10 +499,10 @@ public class MapManager implements OnMapReadyCallback {
         this.targetLng = lng;
         this.targetZoom = zoom;
         
-        Log.d(TAG, "Target location set: lat=" + lat + ", lng=" + lng + ", zoom=" + zoom);
+        LogUtil.d(TAG, "Target location set: lat=" + lat + ", lng=" + lng + ", zoom=" + zoom);
         
         // 完全禁用自动移动相机，由用户手动控制地图位置
-        Log.d(TAG, "Auto camera movement disabled - user controls map position");
+        LogUtil.d(TAG, "Auto camera movement disabled - user controls map position");
     }
     
     /**
@@ -509,7 +510,7 @@ public class MapManager implements OnMapReadyCallback {
      */
     public void resetUserInteractionState() {
         this.userHasInteractedWithMap = false;
-        Log.d(TAG, "User interaction state reset");
+        LogUtil.d(TAG, "User interaction state reset");
     }
     
     /**

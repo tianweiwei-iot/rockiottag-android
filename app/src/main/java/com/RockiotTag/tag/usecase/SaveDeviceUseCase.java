@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.RockiotTag.tag.Device;
 import com.RockiotTag.tag.repository.DeviceRepository;
+import com.RockiotTag.tag.util.LogUtil;
 
 /**
  * 保存设备的UseCase
@@ -24,7 +25,7 @@ public class SaveDeviceUseCase extends BaseUseCase<Device, Boolean> {
     
     @Override
     protected Boolean executeSync(Device device) throws Exception {
-        Log.d(TAG, "Saving device: " + (device != null ? device.getName() : "null"));
+        LogUtil.d(TAG, "Saving device: " + (device != null ? device.getName() : "null"));
         
         // 1. 参数验证
         if (device == null) {
@@ -38,7 +39,7 @@ public class SaveDeviceUseCase extends BaseUseCase<Device, Boolean> {
         // 2. 保存到数据库
         try {
             deviceRepository.saveDevice(device);
-            Log.d(TAG, "Device saved successfully: " + device.getDeviceId());
+            LogUtil.d(TAG, "Device saved successfully: " + device.getDeviceId());
             return true;
             
         } catch (Exception e) {

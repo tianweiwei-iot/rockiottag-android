@@ -1,6 +1,7 @@
 package com.RockiotTag.tag.network;
 
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import com.RockiotTag.tag.ApiConfig;
 
@@ -46,8 +47,8 @@ public class HttpHelper {
         HttpURLConnection conn = null;
         try {
             String apiKey = ApiConfig.getApiKeyForCustomer(customerCode);
-            Log.d(TAG, "GET request URL: " + urlString);
-            Log.d(TAG, "GET request API Key: " + apiKey);
+            LogUtil.d(TAG, "GET request URL: " + urlString);
+            LogUtil.d(TAG, "GET request API Key: " + apiKey);
             
             URL url = new URL(urlString);
             conn = (HttpURLConnection) url.openConnection();
@@ -95,7 +96,7 @@ public class HttpHelper {
             conn.setReadTimeout(READ_TIMEOUT);
             conn.setDoOutput(true);
             
-            Log.d(TAG, "Request body: " + jsonBody);
+            LogUtil.d(TAG, "Request body: " + jsonBody);
             
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(jsonBody.getBytes(StandardCharsets.UTF_8));
@@ -118,7 +119,7 @@ public class HttpHelper {
      */
     private static HttpResponse executeRequest(HttpURLConnection conn) throws Exception {
         int responseCode = conn.getResponseCode();
-        Log.d(TAG, "Response code: " + responseCode);
+        LogUtil.d(TAG, "Response code: " + responseCode);
         
         BufferedReader in;
         try {
@@ -139,7 +140,7 @@ public class HttpHelper {
         
         String responseString = response.toString();
         if (responseCode >= 200 && responseCode < 300) {
-            Log.d(TAG, "Response: " + responseString);
+            LogUtil.d(TAG, "Response: " + responseString);
         } else {
             Log.e(TAG, "Error response: " + responseString);
         }

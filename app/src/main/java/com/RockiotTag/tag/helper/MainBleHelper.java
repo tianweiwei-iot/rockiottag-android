@@ -7,6 +7,7 @@ import android.widget.Toast;
 import com.RockiotTag.tag.BLEManager;
 import com.RockiotTag.tag.Device;
 import com.RockiotTag.tag.R;
+import com.RockiotTag.tag.util.LogUtil;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -49,7 +50,7 @@ public class MainBleHelper {
         }
         callbacks.getLocationOptimizationManager().autoSelectFirstDevice();
         callbacks.getLocationOptimizationManager().startSingleBluetoothScan();
-        Log.d(TAG, "Single scan started (low intensity)");
+        LogUtil.d(TAG, "Single scan started (low intensity)");
     }
 
     /**
@@ -63,7 +64,7 @@ public class MainBleHelper {
         }
         callbacks.getLocationOptimizationManager().autoSelectFirstDevice();
         callbacks.getLocationOptimizationManager().startBluetoothScanning();
-        Log.d(TAG, "Continuous scan started (high intensity)");
+        LogUtil.d(TAG, "Continuous scan started (high intensity)");
     }
 
     /**
@@ -80,7 +81,7 @@ public class MainBleHelper {
 
         switch (scanIntensityLevel) {
             case 0: // 关闭
-                Log.d(TAG, "Scan intensity: OFF");
+                LogUtil.d(TAG, "Scan intensity: OFF");
                 break;
             case 1: // 低
                 startSingleScanWithCheck();
@@ -103,7 +104,7 @@ public class MainBleHelper {
             callbacks.getBleManager().startScanning(new BLEManager.DeviceScanCallback() {
                 @Override
                 public void onDeviceFound(Device device) {
-                    Log.d(TAG, "Found device: " + device.getName() + " - " + device.getDeviceId());
+                    LogUtil.d(TAG, "Found device: " + device.getName() + " - " + device.getDeviceId());
                     if (callbacks.getDatabaseHelper() != null) {
                         callbacks.getDatabaseHelper().addDevice(device);
                     }
@@ -116,7 +117,7 @@ public class MainBleHelper {
 
                 @Override
                 public void onScanComplete() {
-                    Log.d(TAG, "BLE scanning completed");
+                    LogUtil.d(TAG, "BLE scanning completed");
                     Toast.makeText(activity, R.string.scan_complete, Toast.LENGTH_SHORT).show();
                 }
             });

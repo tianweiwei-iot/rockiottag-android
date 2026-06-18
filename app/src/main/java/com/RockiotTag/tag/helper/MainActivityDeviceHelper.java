@@ -6,6 +6,7 @@ import android.widget.Toast;
 
 import com.RockiotTag.tag.Device;
 import com.RockiotTag.tag.DatabaseHelper;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.List;
 
@@ -45,7 +46,7 @@ public class MainActivityDeviceHelper {
                         callback.onDeviceListLoaded(devices);
                     }
                     
-                    Log.d(TAG, "Loaded " + devices.size() + " devices from database");
+                    LogUtil.d(TAG, "Loaded " + devices.size() + " devices from database");
                 } else {
                     if (callback != null) {
                         callback.onDeviceListLoaded(new java.util.ArrayList<>());

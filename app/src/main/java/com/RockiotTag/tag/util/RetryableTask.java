@@ -3,6 +3,7 @@ package com.RockiotTag.tag.util;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
@@ -85,7 +86,7 @@ public class RetryableTask {
             
             for (int i = 0; i <= maxRetry; i++) {
                 try {
-                    Log.d(TAG, "Executing task, attempt " + (i + 1) + "/" + (maxRetry + 1));
+                    LogUtil.d(TAG, "Executing task, attempt " + (i + 1) + "/" + (maxRetry + 1));
                     
                     T data = task.get();
                     
@@ -120,7 +121,7 @@ public class RetryableTask {
                         // 还有重试机会，等待后重试（指数退避 + 抖动）
                         long delay = calculateRetryDelay(i);
                         try {
-                            Log.d(TAG, "Retrying after " + delay + "ms (attempt " + (i + 1) + ")");
+                            LogUtil.d(TAG, "Retrying after " + delay + "ms (attempt " + (i + 1) + ")");
                             Thread.sleep(delay);
                         } catch (InterruptedException ie) {
                             Thread.currentThread().interrupt();

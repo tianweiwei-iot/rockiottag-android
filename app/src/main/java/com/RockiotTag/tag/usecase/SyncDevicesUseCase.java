@@ -5,6 +5,7 @@ import android.util.Log;
 import com.RockiotTag.tag.ApiConfig;
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.repository.DeviceRepository;
+import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.List;
 
@@ -27,7 +28,7 @@ public class SyncDevicesUseCase extends BaseUseCase<Void, List<NewApiService.Dev
     
     @Override
     protected List<NewApiService.DeviceInfo> executeSync(Void params) throws Exception {
-        Log.d(TAG, "Starting device sync");
+        LogUtil.d(TAG, "Starting device sync");
         
         try {
             // 设置API地址
@@ -41,7 +42,7 @@ public class SyncDevicesUseCase extends BaseUseCase<Void, List<NewApiService.Dev
                 throw new RuntimeException("无法获取设备列表");
             }
             
-            Log.d(TAG, "Fetched " + devices.size() + " devices from server");
+            LogUtil.d(TAG, "Fetched " + devices.size() + " devices from server");
             
             // 更新本地数据库
             for (NewApiService.DeviceInfo deviceInfo : devices) {
@@ -52,7 +53,7 @@ public class SyncDevicesUseCase extends BaseUseCase<Void, List<NewApiService.Dev
                 }
             }
             
-            Log.d(TAG, "Device sync completed successfully");
+            LogUtil.d(TAG, "Device sync completed successfully");
             return devices;
             
         } catch (Exception e) {

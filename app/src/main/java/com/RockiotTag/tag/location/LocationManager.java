@@ -2,6 +2,7 @@ package com.RockiotTag.tag.location;
 
 import android.content.Context;
 import android.util.Log;
+import com.RockiotTag.tag.util.LogUtil;
 
 import com.RockiotTag.tag.map.amap.AMapLocationService;
 import com.RockiotTag.tag.map.google.GoogleLocationService;
@@ -73,7 +74,7 @@ public class LocationManager {
      * 启动高德定位服务
      */
     private void startAmapLocation() {
-        Log.d(TAG, "Initializing AMap Location Service");
+        LogUtil.d(TAG, "Initializing AMap Location Service");
         
         // 清理旧的实例
         if (amapLocationService != null) {
@@ -84,7 +85,7 @@ public class LocationManager {
         amapLocationService.setLocationCallback(new AMapLocationService.LocationCallback() {
             @Override
             public void onLocationSuccess(double latitude, double longitude, float accuracy, String address) {
-                Log.d(TAG, "AMap location success: lat=" + latitude + ", lng=" + longitude);
+                LogUtil.d(TAG, "AMap location success: lat=" + latitude + ", lng=" + longitude);
                 if (callback != null) {
                     callback.onLocationSuccess(latitude, longitude, accuracy);
                 }
@@ -106,7 +107,7 @@ public class LocationManager {
      * 启动谷歌定位服务
      */
     private void startGoogleLocation() {
-        Log.d(TAG, "Initializing Google Location Service");
+        LogUtil.d(TAG, "Initializing Google Location Service");
         
         // 清理旧的实例
         if (googleLocationService != null) {
@@ -117,7 +118,7 @@ public class LocationManager {
         googleLocationService.setLocationCallback(new GoogleLocationService.ServiceCallback() {
             @Override
             public void onLocationSuccess(double latitude, double longitude, float accuracy) {
-                Log.d(TAG, "Google location success: lat=" + latitude + ", lng=" + longitude);
+                LogUtil.d(TAG, "Google location success: lat=" + latitude + ", lng=" + longitude);
                 if (callback != null) {
                     callback.onLocationSuccess(latitude, longitude, accuracy);
                 }
