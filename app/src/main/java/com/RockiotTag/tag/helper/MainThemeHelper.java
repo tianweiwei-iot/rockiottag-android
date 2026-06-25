@@ -12,6 +12,8 @@ import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.RockiotTag.tag.R;
 import com.RockiotTag.tag.util.LogUtil;
+import com.RockiotTag.tag.util.MapFloatingButtonHelper;
+import com.RockiotTag.tag.util.ToastHelper;
 
 /**
  * MainActivity 主题辅助类
@@ -48,50 +50,7 @@ public class MainThemeHelper {
      * 设置状态栏样式
      */
     public void setupStatusBar() {
-        try {
-            android.content.SharedPreferences prefs = activity.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE);
-            boolean isDarkMode = prefs.getBoolean("dark_mode", false);
-
-            LogUtil.d(TAG, "setupStatusBar called, isDarkMode: " + isDarkMode);
-
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                android.view.Window window = activity.getWindow();
-                if (window == null) {
-                    Log.e(TAG, "Window is null!");
-                    return;
-                }
-
-                // 使用 WindowInsetsControllerCompat 兼容库来设置状态栏
-                WindowInsetsControllerCompat controller =
-                    androidx.core.view.ViewCompat.getWindowInsetsController(window.getDecorView());
-
-                if (controller != null) {
-                    if (isDarkMode) {
-                        // 夜间模式：黑色背景
-                        window.setStatusBarColor(Color.parseColor("#000000"));
-                        // 设置浅色图标（白色）
-                        controller.setAppearanceLightStatusBars(false);
-                        LogUtil.d(TAG, "Night mode: black background with white icons");
-                    } else {
-                        // 日间模式：白色背景
-                        window.setStatusBarColor(Color.parseColor("#FFFFFF"));
-                        // 设置深色图标（黑色）
-                        controller.setAppearanceLightStatusBars(true);
-                        LogUtil.d(TAG, "Day mode: white background with dark icons");
-                    }
-                } else {
-                    Log.w(TAG, "WindowInsetsControllerCompat is null, using fallback method");
-                    // Fallback: 直接设置颜色
-                    if (isDarkMode) {
-                        window.setStatusBarColor(Color.parseColor("#000000"));
-                    } else {
-                        window.setStatusBarColor(Color.parseColor("#FFFFFF"));
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error setting up status bar: " + e.getMessage());
-        }
+        com.RockiotTag.tag.util.StatusBarHelper.setupStatusBar(activity);
     }
 
     /**
@@ -107,11 +66,11 @@ public class MainThemeHelper {
         if (isDarkMode) {
             androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO);
             editor.putBoolean("dark_mode", false);
-            android.widget.Toast.makeText(activity, R.string.light_mode, android.widget.Toast.LENGTH_SHORT).show();
+            ToastHelper.show(activity, R.string.light_mode);
         } else {
             androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES);
             editor.putBoolean("dark_mode", true);
-            android.widget.Toast.makeText(activity, R.string.dark_mode, android.widget.Toast.LENGTH_SHORT).show();
+            ToastHelper.show(activity, R.string.dark_mode);
         }
         editor.apply();
 
@@ -157,7 +116,7 @@ public class MainThemeHelper {
             activity.getResources().getColor(R.color.text_secondary, null);
 
         // 选中/未选中Tab颜色
-        int selectedColor = activity.getResources().getColor(R.color.purple_500, null);
+        int selectedColor = activity.getResources().getColor(R.color.brand_primary, null);
         int unselectedColor = isDarkMode ?
             activity.getResources().getColor(R.color.dark_text_secondary, null) :
             activity.getResources().getColor(R.color.text_secondary, null);
@@ -189,21 +148,7 @@ public class MainThemeHelper {
         if (callbacks.getUpdateTimeText() != null) callbacks.getUpdateTimeText().setTextColor(onSurfaceColor);
 
         // 更新状态栏
-        if (isDarkMode) {
-            activity.getWindow().setStatusBarColor(activity.getResources().getColor(R.color.dark_surface, null));
-            WindowInsetsControllerCompat controller =
-                androidx.core.view.ViewCompat.getWindowInsetsController(activity.getWindow().getDecorView());
-            if (controller != null) {
-                controller.setAppearanceLightStatusBars(false); // 白色图标
-            }
-        } else {
-            activity.getWindow().setStatusBarColor(activity.getResources().getColor(R.color.top_bar_background, null));
-            WindowInsetsControllerCompat controller =
-                androidx.core.view.ViewCompat.getWindowInsetsController(activity.getWindow().getDecorView());
-            if (controller != null) {
-                controller.setAppearanceLightStatusBars(true); // 黑色图标
-            }
-        }
+        com.RockiotTag.tag.util.StatusBarHelper.setupStatusBar(activity, isDarkMode);
 
         // 深色模式：设置地图样式（添加完善的异常处理）
         try {
@@ -234,6 +179,8 @@ public class MainThemeHelper {
 
         // 通知Fragment更新
         callbacks.notifyFragmentsThemeChanged(isDarkMode);
+
+        MapFloatingButtonHelper.applyMainScreenButtons(activity, isDarkMode);
     }
 
     /**

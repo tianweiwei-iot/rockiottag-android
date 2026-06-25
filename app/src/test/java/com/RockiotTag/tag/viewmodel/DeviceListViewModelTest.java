@@ -3,11 +3,19 @@ package com.RockiotTag.tag.viewmodel;
 import static org.junit.Assert.*;
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule;
+import androidx.test.core.app.ApplicationProvider;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
 
+import android.app.Application;
+
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = {33})
 public class DeviceListViewModelTest {
 
     @Rule
@@ -17,25 +25,22 @@ public class DeviceListViewModelTest {
 
     @Before
     public void setUp() {
-        // 注意：实际测试需要 Application context
-        // 这里只是示例，实际运行时需要 Robolectric 或 Instrumentation Test
+        Application app = ApplicationProvider.getApplicationContext();
+        viewModel = new DeviceListViewModel(app);
     }
 
     @Test
     public void testViewModelCreation() {
-        // 测试 ViewModel 创建
         assertNotNull(viewModel);
     }
 
     @Test
     public void testGetDeviceList() {
-        // 测试获取设备列表 LiveData
         assertNotNull(viewModel.getDeviceList());
     }
 
     @Test
     public void testGetIsEmpty() {
-        // 测试获取空状态 LiveData
         assertNotNull(viewModel.getIsEmpty());
     }
 }

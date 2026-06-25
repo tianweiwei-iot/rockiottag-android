@@ -2,6 +2,7 @@ package com.RockiotTag.tag.provider;
 
 import android.content.Context;
 import android.util.Log;
+import com.RockiotTag.tag.ApiConfig;
 import com.RockiotTag.tag.util.LogUtil;
 
 import com.RockiotTag.tag.NewApiService;
@@ -164,7 +165,7 @@ public class LocationProvider {
     private DeviceLocation fetchFromServer(String deviceNum) {
         try {
             // 调用服务器API获取最新位置
-            NewApiService.DeviceInfo deviceInfo = serverApiService.getDeviceLatest(deviceNum);
+            NewApiService.DeviceInfo deviceInfo = serverApiService.getDeviceLatest(ApiConfig.getMyServerUrl(deviceNum), deviceNum);
             
             if (deviceInfo != null) {
                 DeviceLocation loc = new DeviceLocation();

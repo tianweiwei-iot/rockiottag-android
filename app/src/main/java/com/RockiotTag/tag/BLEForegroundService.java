@@ -13,6 +13,8 @@ import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 
+import com.RockiotTag.tag.model.TagDevice;
+
 public class BLEForegroundService extends Service {
     private static final String TAG = "BLEForegroundService";
     private static final String CHANNEL_ID = "ble_scanning_channel";
@@ -36,7 +38,7 @@ public class BLEForegroundService extends Service {
 
 
         bleManager = new BLEManager(this);
-        databaseHelper = new DatabaseHelper(this);
+        databaseHelper = DatabaseHelper.getInstance(this);
         crowdSourcingManager = new CrowdSourcingManager();
 
         createNotificationChannel();
@@ -72,6 +74,8 @@ public class BLEForegroundService extends Service {
         if (bleManager != null) {
             bleManager.stopScanning();
         }
+        // 释放数据库引用（单例不 close，随进程生命周期存在）
+        databaseHelper = null;
     }
 
     private void createNotificationChannel() {
@@ -109,7 +113,7 @@ public class BLEForegroundService extends Service {
         if (bleManager.isBluetoothEnabled()) {
             bleManager.startScanning(new BLEManager.DeviceScanCallback() {
                 @Override
-                public void onDeviceFound(Device device) {
+                public void onDeviceFound(TagDevice device) {
 
                     databaseHelper.addDevice(device);
                     
@@ -134,13 +138,13 @@ public class BLEForegroundService extends Service {
         }
     }
 
-    private boolean isDeviceBound(Device device) {
+    private boolean isDeviceBound(TagDevice device) {
         // 检查设备是否已绑定
         // 实际实现中应该从数据库或SharedPreferences中查询
         return databaseHelper.isDeviceBound(device.getDeviceId());
     }
 
-    private void connectToBoundDevice(Device device) {
+    private void connectToBoundDevice(TagDevice device) {
         // 尝试连接已绑定的设备
         // 这里需要获取BluetoothDevice对象
         // 实际实现中应该通过BluetoothAdapter.getRemoteDevice(deviceId)获取

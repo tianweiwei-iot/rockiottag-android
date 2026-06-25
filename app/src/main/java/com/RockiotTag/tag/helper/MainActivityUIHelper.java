@@ -5,7 +5,7 @@ import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
-import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.R;
 
 import java.text.SimpleDateFormat;
@@ -44,7 +44,7 @@ public class MainActivityUIHelper {
     /**
      * 更新设备卡片 UI
      */
-    public static void updateDeviceCard(View cardView, Device device) {
+    public static void updateDeviceCard(View cardView, TagDevice device) {
         if (cardView == null || device == null) {
             return;
         }

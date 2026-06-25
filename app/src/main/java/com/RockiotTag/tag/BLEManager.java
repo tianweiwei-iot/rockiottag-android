@@ -1,5 +1,6 @@
 package com.RockiotTag.tag;
 
+import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -13,9 +14,14 @@ import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Handler;
 import android.util.Log;
 
+import androidx.core.app.ActivityCompat;
+
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.ArrayList;
@@ -48,7 +54,7 @@ public class BLEManager {
         } else {
             Log.w(TAG, "Bluetooth adapter is not available on this device");
         }
-        this.handler = new Handler();
+        this.handler = new Handler(android.os.Looper.getMainLooper());
     }
 
     public boolean isBluetoothEnabled() {
@@ -91,6 +97,14 @@ public class BLEManager {
         LogUtil.d(TAG, "Scan settings configured: LOW_LATENCY mode");
         LogUtil.d(TAG, "Starting BLE scan...");
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN)
+                    != PackageManager.PERMISSION_GRANTED) {
+                Log.e(TAG, "Missing BLUETOOTH_SCAN permission");
+                return;
+            }
+        }
+
         // 开始扫描
         scanCallback = new ScanCallback() {
             @Override
@@ -98,11 +112,20 @@ public class BLEManager {
                 try {
                     BluetoothDevice device = result.getDevice();
                     int rssi = result.getRssi();
-                    String deviceName = device.getName() != null ? device.getName() : "Unknown";
+                    String deviceName = "Unknown";
+                    try {
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                                || ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT)
+                                == PackageManager.PERMISSION_GRANTED) {
+                            deviceName = device.getName() != null ? device.getName() : "Unknown";
+                        }
+                    } catch (SecurityException e) {
+                        Log.w(TAG, "Cannot read device name: " + e.getMessage());
+                    }
                     String deviceAddress = device.getAddress();
 
                     // 创建设备对象
-                    Device deviceObj = new Device(deviceAddress, deviceName);
+                    TagDevice deviceObj = new TagDevice(deviceAddress, deviceName);
                     deviceObj.setSignalStrength(rssi);
 
                     // 调用用户回调
@@ -120,10 +143,19 @@ public class BLEManager {
                     for (ScanResult result : results) {
                         BluetoothDevice device = result.getDevice();
                         int rssi = result.getRssi();
-                        String deviceName = device.getName() != null ? device.getName() : "Unknown";
+                        String deviceName = "Unknown";
+                        try {
+                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                                    || ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT)
+                                    == PackageManager.PERMISSION_GRANTED) {
+                                deviceName = device.getName() != null ? device.getName() : "Unknown";
+                            }
+                        } catch (SecurityException e) {
+                            Log.w(TAG, "Cannot read device name: " + e.getMessage());
+                        }
                         String deviceAddress = device.getAddress();
 
-                        Device deviceObj = new Device(deviceAddress, deviceName);
+                        TagDevice deviceObj = new TagDevice(deviceAddress, deviceName);
                         deviceObj.setSignalStrength(rssi);
 
                         if (userCallback != null) {
@@ -440,7 +472,7 @@ public class BLEManager {
 
     // 回调接口
     public interface DeviceScanCallback {
-        void onDeviceFound(Device device);
+        void onDeviceFound(TagDevice device);
         void onScanComplete();
     }
 

@@ -8,7 +8,11 @@ import com.RockiotTag.tag.StayPoint;
 import com.RockiotTag.tag.model.LocationData;
 import com.RockiotTag.tag.util.LogUtil;
 
+import com.RockiotTag.tag.DatabaseHelper;
+import com.RockiotTag.tag.model.TagDevice;
+
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 
@@ -168,5 +172,42 @@ public class TrackDataProcessor {
         
         LogUtil.d(TAG, "Generated " + stayPoints.size() + " stay points from " + records.size() + " records");
         return stayPoints;
+    }
+
+    public static LocationData convertToLocationData(LocationRecord record) {
+        if (record == null) return null;
+        LocationData ld = new LocationData();
+        ld.setId(record.getId());
+        ld.setDeviceId(record.getDeviceId());
+        ld.setLatitude(record.getLatitude());
+        ld.setLongitude(record.getLongitude());
+        ld.setTimestamp(record.getTimestamp());
+        return ld;
+    }
+
+    public static boolean isToday(Calendar calendar) {
+        if (calendar == null) return false;
+        Calendar today = Calendar.getInstance();
+        return calendar.get(Calendar.YEAR) == today.get(Calendar.YEAR)
+                && calendar.get(Calendar.MONTH) == today.get(Calendar.MONTH)
+                && calendar.get(Calendar.DAY_OF_MONTH) == today.get(Calendar.DAY_OF_MONTH);
+    }
+
+    public static LocationData getLatestDeviceLocation(DatabaseHelper db, TagDevice selectedDevice) {
+        if (db == null || selectedDevice == null) return null;
+        try {
+            String deviceId = selectedDevice.getDeviceNum() != null
+                    ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId();
+            long endTime = System.currentTimeMillis();
+            long startTime = endTime - (24 * 60 * 60 * 1000L);
+            List<LocationRecord> records = db.getLocationRecords(deviceId, startTime, endTime);
+            if (records == null || records.isEmpty()) return null;
+            java.util.Collections.sort(records,
+                    (r1, r2) -> Long.compare(r2.getTimestamp(), r1.getTimestamp()));
+            return convertToLocationData(records.get(0));
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting latest device location: " + e.getMessage(), e);
+            return null;
+        }
     }
 }

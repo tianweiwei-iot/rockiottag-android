@@ -410,4 +410,34 @@
     <string name="navi_nearby_suggest_walk">Sadece %s mesafede, yürüyerek gitmenizi öneririz</string>
     <string name="navi_already_nearby">Cihazın yakınında, navigasyon gerekmez</string>
     <string name="navi_layer_toggle">Katman Geçişi</string>
+
+    <!-- Profil -->
+    <string name="edit_profile">Profili Düzenle</string>
+    <string name="change_password">Şifre Değiştir</string>
+    <string name="bind_email">E-posta Bağla</string>
+    <string name="nickname">Takma ad</string>
+    <string name="email">E-posta</string>
+    <string name="old_password">Eski şifre</string>
+    <string name="new_password">Yeni şifre</string>
+    <string name="not_logged_in">Giriş yapılmadı</string>
+    <string name="save_failed">Kaydetme başarısız</string>
+    <string name="current_avatar">Mevcut avatar</string>
+    <string name="select_avatar">Avatar seç</string>
+    <string name="nickname_hint">Takma ad girin</string>
+    <string name="profile_saved">Profil kaydedildi</string>
+    <string name="profile_nickname_empty">Takma ad boş olamaz</string>
+    <string name="old_password_empty">Eski şifreyi girin</string>
+    <string name="password_changed">Şifre başarıyla değiştirildi</string>
+    <string name="password_change_failed">Şifre değiştirilemedi</string>
+    <string name="confirm_new_password">Yeni şifreyi onayla</string>
+    <string name="input_old_password">Eski şifreyi girin</string>
+    <string name="email_invalid">Geçersiz e-posta formatı</string>
+    <string name="email_bind_failed">E-posta bağlanamadı</string>
+    <string name="email_hint">E-posta adresi girin</string>
+    <string name="email_empty">E-posta boş olamaz</string>
+    <string name="email_bound">E-posta bağlandı</string>
+    <string name="confirm_password">Şifreyi onayla</string>
+    <string name="password_rule">En az 8 karakter, büyük/küçük harf ve rakam</string>
+    <string name="password_invalid">Geçersiz şifre formatı</string>
+    <string name="password_not_match">Şifreler eşleşmiyor</string>
 </resources>

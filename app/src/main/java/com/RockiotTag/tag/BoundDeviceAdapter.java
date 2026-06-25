@@ -12,9 +12,10 @@ import android.widget.TextView;
 import java.util.List;
 
 import com.RockiotTag.tag.model.DeviceTag;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.util.LogUtil;
 
-public class BoundDeviceAdapter extends ArrayAdapter<Device> {
+public class BoundDeviceAdapter extends ArrayAdapter<TagDevice> {
 
     private OnDeviceEditListener editListener;
     private OnCheckedChangeListener checkedChangeListener;
@@ -23,7 +24,7 @@ public class BoundDeviceAdapter extends ArrayAdapter<Device> {
     private java.util.Set<Integer> selectedPositions = new java.util.HashSet<>();
 
     public interface OnDeviceEditListener {
-        void onEditDevice(Device device, int position);
+        void onEditDevice(TagDevice device, int position);
     }
 
     public interface OnCheckedChangeListener {
@@ -38,7 +39,7 @@ public class BoundDeviceAdapter extends ArrayAdapter<Device> {
         this.checkedChangeListener = listener;
     }
 
-    public BoundDeviceAdapter(Context context, List<Device> devices) {
+    public BoundDeviceAdapter(Context context, List<TagDevice> devices) {
         super(context, 0, devices);
     }
 
@@ -93,7 +94,7 @@ public class BoundDeviceAdapter extends ArrayAdapter<Device> {
             holder = (ViewHolder) convertView.getTag();
         }
 
-        Device device = (Device) getItem(position);
+        TagDevice device = (TagDevice) getItem(position);
         if (device != null) {
             String name = device.getName();
             holder.deviceNameText.setText(name != null && !name.isEmpty() ? name : getContext().getString(R.string.unknown_device));
@@ -143,7 +144,7 @@ public class BoundDeviceAdapter extends ArrayAdapter<Device> {
             }
             
             final int pos = position;
-            final Device finalDevice = device;
+            final TagDevice finalDevice = device;
             
             holder.editBtn.setOnClickListener(new View.OnClickListener() {
                 @Override

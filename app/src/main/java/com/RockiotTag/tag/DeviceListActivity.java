@@ -1,5 +1,7 @@
 package com.RockiotTag.tag;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -8,6 +10,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.util.LogUtil;
 import android.view.View;
 import android.view.WindowInsets;
@@ -21,7 +24,6 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.Spinner;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -43,7 +45,7 @@ public class DeviceListActivity extends AppCompatActivity {
     private ListView boundDeviceListView;
     private TextView emptyText;
     private BoundDeviceAdapter boundDeviceAdapter;
-    private List<Device> boundDeviceList;
+    private List<TagDevice> boundDeviceList;
     private DatabaseHelper databaseHelper;
     private NewApiService apiService;
     private Handler handler;
@@ -66,78 +68,94 @@ public class DeviceListActivity extends AppCompatActivity {
         setContentView(R.layout.activity_device_list);
 
         LinearLayout titleBar = findViewById(R.id.title_bar);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            titleBar.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
-                @Override
-                public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-                    LogUtil.d(TAG, "statusBarInsets: " + insets.getInsets(WindowInsets.Type.statusBars()).top);
-                    v.setPadding(0, insets.getInsets(WindowInsets.Type.statusBars()).top, 0, 0);
-                    return insets;
-                }
-            });
-        } else {
-            int statusBarHeight = getStatusBarHeight();
-            titleBar.setPadding(0, statusBarHeight, 0, 0);
+        if (titleBar != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                titleBar.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                    @Override
+                    public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                        LogUtil.d(TAG, "statusBarInsets: " + insets.getInsets(WindowInsets.Type.statusBars()).top);
+                        v.setPadding(0, insets.getInsets(WindowInsets.Type.statusBars()).top, 0, 0);
+                        return insets;
+                    }
+                });
+            } else {
+                int statusBarHeight = getStatusBarHeight();
+                titleBar.setPadding(0, statusBarHeight, 0, 0);
+            }
         }
 
-        databaseHelper = new DatabaseHelper(this);
+        databaseHelper = DatabaseHelper.getInstance(this);
         apiService = NewApiService.getInstance();
         SharedPreferencesManager.loadAuth(this);
-        handler = new Handler();
+        handler = new Handler(android.os.Looper.getMainLooper());
         
         prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
         unboundDeviceManager = UnboundDeviceManager.getInstance(this);
 
         ImageButton backBtn = findViewById(R.id.back_btn);
-        backBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (isMultiSelectMode) {
-                    exitMultiSelectMode();
-                } else {
-                    finish();
+        if (backBtn != null) {
+            backBtn.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (isMultiSelectMode) {
+                        exitMultiSelectMode();
+                    } else {
+                        finish();
+                    }
                 }
-            }
-        });
+            });
+        }
 
         Button addDeviceBtn = findViewById(R.id.add_device_btn);
-        addDeviceBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(DeviceListActivity.this, AddDeviceActivity.class);
-                startActivity(intent);
-            }
-        });
+        if (addDeviceBtn != null) {
+            addDeviceBtn.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (!BoundDevicesHelper.isLoggedIn(DeviceListActivity.this)) {
+                        ToastHelper.show(DeviceListActivity.this, R.string.please_login_first);
+                        return;
+                    }
+                    Intent intent = new Intent(DeviceListActivity.this, AddDeviceActivity.class);
+                    startActivity(intent);
+                }
+            });
+        }
         
         multiSelectBtn = findViewById(R.id.multi_select_btn);
         selectAllBtn = findViewById(R.id.select_all_btn);
         unbindSelectedBtn = findViewById(R.id.unbind_selected_btn);
         multiSelectPanel = findViewById(R.id.multi_select_panel);
         
-        multiSelectBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (isMultiSelectMode) {
-                    exitMultiSelectMode();
-                } else {
-                    enterMultiSelectMode();
+        if (multiSelectBtn != null) {
+            multiSelectBtn.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (isMultiSelectMode) {
+                        exitMultiSelectMode();
+                    } else {
+                        enterMultiSelectMode();
+                    }
                 }
-            }
-        });
+            });
+        }
         
-        selectAllBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                toggleSelectAll();
-            }
-        });
+        if (selectAllBtn != null) {
+            selectAllBtn.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    toggleSelectAll();
+                }
+            });
+        }
         
-        unbindSelectedBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showBatchUnbindDialog();
-            }
-        });
+        if (unbindSelectedBtn != null) {
+            unbindSelectedBtn.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showBatchUnbindDialog();
+                }
+            });
+        }
 
         boundDeviceListView = findViewById(R.id.bound_device_list);
         emptyText = findViewById(R.id.empty_text);
@@ -146,7 +164,7 @@ public class DeviceListActivity extends AppCompatActivity {
         boundDeviceAdapter = new BoundDeviceAdapter(this, boundDeviceList);
         boundDeviceAdapter.setOnDeviceEditListener(new BoundDeviceAdapter.OnDeviceEditListener() {
             @Override
-            public void onEditDevice(Device device, int position) {
+            public void onEditDevice(TagDevice device, int position) {
                 if (!isMultiSelectMode) {
                     showEditDeviceDialog(device, position);
                 }
@@ -173,7 +191,7 @@ public class DeviceListActivity extends AppCompatActivity {
                     toggleSelection(position);
                 } else {
                     if (position >= 0 && position < boundDeviceList.size()) {
-                        Device device = boundDeviceList.get(position);
+                        TagDevice device = boundDeviceList.get(position);
                         LogUtil.d(TAG, "Clicked device: " + (device != null ? device.getName() : "null"));
                         selectDeviceAndFinish(device);
                     } else {
@@ -187,7 +205,7 @@ public class DeviceListActivity extends AppCompatActivity {
             @Override
             public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
                 if (!isMultiSelectMode) {
-                    Device device = boundDeviceList.get(position);
+                    TagDevice device = boundDeviceList.get(position);
                     showUnbindDialog(device, position);
                 }
                 return true;
@@ -257,7 +275,7 @@ public class DeviceListActivity extends AppCompatActivity {
     
     private void showBatchUnbindDialog() {
         if (selectedPositions.isEmpty()) {
-            Toast.makeText(this, R.string.please_select_devices, Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, R.string.please_select_devices);
             return;
         }
         
@@ -275,7 +293,7 @@ public class DeviceListActivity extends AppCompatActivity {
     }
     
     private void batchUnbindDevices() {
-        final List<Device> devicesToUnbind = new ArrayList<>();
+        final List<TagDevice> devicesToUnbind = new ArrayList<>();
         for (Integer position : selectedPositions) {
             if (position >= 0 && position < boundDeviceList.size()) {
                 devicesToUnbind.add(boundDeviceList.get(position));
@@ -288,14 +306,31 @@ public class DeviceListActivity extends AppCompatActivity {
                 try {
                     final List<String> failedDevices = new ArrayList<>();
                     final List<String> successDevices = new ArrayList<>();
+                    String token = prefs.getString("auth_token", null);
                     
-                    for (Device device : devicesToUnbind) {
+                    for (TagDevice device : devicesToUnbind) {
                         try {
                             String deviceNum = device.getDeviceNum();
+                            
+                            // 1. 先调用后端解绑 API
+                            if (deviceNum != null && !deviceNum.isEmpty() && token != null && !token.isEmpty()) {
+                                DeviceApiService.DeviceApiResponse apiResponse = 
+                                    DeviceApiService.getInstance().unbindDevice(token, deviceNum);
+                                if (!apiResponse.isSuccess()) {
+                                    failedDevices.add(device.getName() + "(" + apiResponse.getMessage() + ")");
+                                    Log.e(TAG, "Server unbind failed for " + device.getName() + ": " + apiResponse.getMessage());
+                                    continue;
+                                }
+                                // 2. 更新 bound_devices SharedPreferences
+                                BoundDevicesHelper.removeDevice(DeviceListActivity.this, deviceNum);
+                            }
+                            
+                            // 3. 记录到已解绑列表
                             if (deviceNum != null && !deviceNum.isEmpty()) {
                                 unboundDeviceManager.addUnboundDevice(deviceNum);
                             }
                             
+                            // 4. 删除本地数据库记录
                             String selectedDeviceId = prefs.getString("selected_device_id", "");
                             if (selectedDeviceId.equals(device.getDeviceId())) {
                                 prefs.edit().remove("selected_device_id").apply();
@@ -322,7 +357,7 @@ public class DeviceListActivity extends AppCompatActivity {
                             if (!failedDevices.isEmpty()) {
                                 message += getString(R.string.unbind_failed_count, failedDevices.size());
                             }
-                            Toast.makeText(DeviceListActivity.this, message, Toast.LENGTH_LONG).show();
+                            ToastHelper.showLong(DeviceListActivity.this, message);
                             
                             setResult(RESULT_OK);
                         }
@@ -333,7 +368,7 @@ public class DeviceListActivity extends AppCompatActivity {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            Toast.makeText(DeviceListActivity.this, getString(R.string.batch_unbind_failed, e.getMessage()), Toast.LENGTH_SHORT).show();
+                            ToastHelper.show(DeviceListActivity.this, getString(R.string.batch_unbind_failed, e.getMessage()));
                         }
                     });
                 }
@@ -374,19 +409,7 @@ public class DeviceListActivity extends AppCompatActivity {
             emptyText.setBackgroundColor(bgColor);
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (isDarkMode) {
-                getWindow().setStatusBarColor(topBarColor);
-                getWindow().getDecorView().setSystemUiVisibility(
-                    getWindow().getDecorView().getSystemUiVisibility()
-                    & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            } else {
-                getWindow().setStatusBarColor(Color.parseColor("#FFFFFF"));
-                getWindow().getDecorView().setSystemUiVisibility(
-                    getWindow().getDecorView().getSystemUiVisibility()
-                    | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            }
-        }
+        com.RockiotTag.tag.util.StatusBarHelper.setupStatusBar(this, isDarkMode, topBarColor);
 
         if (boundDeviceAdapter != null) {
             boundDeviceAdapter.setDarkMode(isDarkMode);
@@ -394,17 +417,24 @@ public class DeviceListActivity extends AppCompatActivity {
         }
     }
 
-    private void showEditDeviceDialog(final Device device, final int position) {
+    private void showEditDeviceDialog(final TagDevice device, final int position) {
         final boolean darkMode = ThemedDialogHelper.isDarkModeEnabled(this);
         int labelColor = getResources().getColor(darkMode ? R.color.dark_text_secondary : R.color.text_secondary, null);
         int valueColor = getResources().getColor(darkMode ? R.color.dark_onSurface : R.color.onSurface, null);
 
         AlertDialog.Builder builder = ThemedDialogHelper.createBuilder(this);
-        builder.setTitle(getString(R.string.edit_device));
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(50, 40, 50, 10);
+
+        final AlertDialog[] dialogHolder = new AlertDialog[1];
+        layout.addView(ThemedDialogHelper.createEditDeviceTitleBar(this, v -> {
+            if (dialogHolder[0] != null) {
+                dialogHolder[0].dismiss();
+            }
+            showUnbindDialog(device, position);
+        }));
 
         TextView deviceNumLabel = new TextView(this);
         deviceNumLabel.setText(getString(R.string.device_num));
@@ -456,7 +486,7 @@ public class DeviceListActivity extends AppCompatActivity {
                 String newNickName = nickNameEditText.getText().toString().trim();
 
                 if (newNickName.isEmpty()) {
-                    Toast.makeText(DeviceListActivity.this, R.string.nickname_empty, Toast.LENGTH_SHORT).show();
+                    ToastHelper.show(DeviceListActivity.this, R.string.nickname_empty);
                     return;
                 }
 
@@ -483,9 +513,8 @@ public class DeviceListActivity extends AppCompatActivity {
                         try {
                             // 更新服务器（传递customerCode以确保使用正确的API Key）
                             if (!deviceNumFromUI.isEmpty()) {
-                                NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNumFromUI));
                                 String customerCode = device.getCustomerCode();
-                                NewApiService.ApiResponse response = apiService.updateDevice(deviceNumFromUI, finalNickName, customerCode);
+                                NewApiService.ApiResponse response = apiService.updateDevice(ApiConfig.getMyServerUrl(deviceNumFromUI), deviceNumFromUI, finalNickName, customerCode);
                                 LogUtil.d(TAG, "Server update response: " + (response != null ? response.isSuccess() : "null"));
                                 if (response != null && !response.isSuccess()) {
                                     Log.e(TAG, "Server update failed: " + response.getMessage());
@@ -503,7 +532,7 @@ public class DeviceListActivity extends AppCompatActivity {
                             LogUtil.d(TAG, "Database update result: " + updated);
                             
                             // 验证更新是否成功
-                            Device verifyDevice = databaseHelper.getDevice(deviceIdFromDevice);
+                            TagDevice verifyDevice = databaseHelper.getDevice(deviceIdFromDevice);
                             if (verifyDevice != null) {
                                 LogUtil.d(TAG, "VERIFICATION: After update, device name = " + verifyDevice.getName() + ", tag = " + verifyDevice.getTag());
                             }
@@ -522,7 +551,7 @@ public class DeviceListActivity extends AppCompatActivity {
                                     // 方法1：直接更新列表中的设备对象
                                     boolean found = false;
                                     for (int i = 0; i < boundDeviceList.size(); i++) {
-                                        Device d = boundDeviceList.get(i);
+                                        TagDevice d = boundDeviceList.get(i);
                                         if (d.getDeviceId().equals(deviceIdFromDevice)) {
                                             d.setName(finalNickName);
                                             d.setTag(finalTag);
@@ -551,11 +580,11 @@ public class DeviceListActivity extends AppCompatActivity {
                                     setResult(RESULT_OK);
                                                                         
                                     if (updated) {
-                                        Toast.makeText(DeviceListActivity.this,
-                                            "保存成功", Toast.LENGTH_SHORT).show();
+                                        ToastHelper.show(DeviceListActivity.this,
+                                            "保存成功");
                                     } else {
-                                        Toast.makeText(DeviceListActivity.this,
-                                            "保存可能失败，请检查日志", Toast.LENGTH_LONG).show();
+                                        ToastHelper.showLong(DeviceListActivity.this,
+                                            "保存可能失败，请检查日志");
                                     }
                                 }
                             });
@@ -564,8 +593,8 @@ public class DeviceListActivity extends AppCompatActivity {
                             runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
-                                    Toast.makeText(DeviceListActivity.this, 
-                                        "❌ 更新失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                                    ToastHelper.showLong(DeviceListActivity.this, 
+                                        "❌ 更新失败: " + e.getMessage());
                                 }
                             });
                         }
@@ -574,18 +603,12 @@ public class DeviceListActivity extends AppCompatActivity {
             }
         });
 
-        builder.setNeutralButton(getString(R.string.unbind), new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                showUnbindDialog(device, position);
-            }
-        });
-
         builder.setNegativeButton(getString(R.string.cancel), null);
-        builder.show();
+
+        dialogHolder[0] = builder.show();
     }
 
-    private void showUnbindDialog(final Device device, final int position) {
+    private void showUnbindDialog(final TagDevice device, final int position) {
         AlertDialog.Builder builder = ThemedDialogHelper.createBuilder(this);
         builder.setTitle(getString(R.string.unbind_device));
         builder.setMessage(getString(R.string.unbind_confirm_message, device.getName()));
@@ -599,21 +622,49 @@ public class DeviceListActivity extends AppCompatActivity {
         builder.show();
     }
 
-    private void unbindDeviceLocal(final Device device, final int position) {
+    private void unbindDeviceLocal(final TagDevice device, final int position) {
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    LogUtil.d(TAG, "Starting local unbind for device: " + device.getName());
+                    LogUtil.d(TAG, "Starting unbind for device: " + device.getName());
                     LogUtil.d(TAG, "Device ID: " + device.getDeviceId());
                     LogUtil.d(TAG, "Device Num: " + device.getDeviceNum());
                     
+                    // 1. 先调用后端解绑 API
                     String deviceNum = device.getDeviceNum();
+                    if (deviceNum != null && !deviceNum.isEmpty()) {
+                        String token = prefs.getString("auth_token", null);
+                        if (token != null && !token.isEmpty()) {
+                            DeviceApiService.DeviceApiResponse apiResponse = 
+                                DeviceApiService.getInstance().unbindDevice(token, deviceNum);
+                            LogUtil.d(TAG, "Server unbind response: success=" + apiResponse.isSuccess() 
+                                + ", message=" + apiResponse.getMessage());
+                            
+                            if (!apiResponse.isSuccess()) {
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        ToastHelper.showLong(DeviceListActivity.this, 
+                                            getString(R.string.unbind_failed, apiResponse.getMessage()));
+                                    }
+                                });
+                                return;
+                            }
+                            
+                            // 2. 更新 bound_devices SharedPreferences
+                            BoundDevicesHelper.removeDevice(DeviceListActivity.this, deviceNum);
+                            LogUtil.d(TAG, "Removed from bound_devices: " + deviceNum);
+                        }
+                    }
+                    
+                    // 3. 记录到已解绑列表（防止自动重新绑定）
                     if (deviceNum != null && !deviceNum.isEmpty()) {
                         unboundDeviceManager.addUnboundDevice(deviceNum);
                         LogUtil.d(TAG, "Added to unbound list: " + deviceNum);
                     }
                     
+                    // 4. 删除本地数据库记录
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
@@ -629,7 +680,7 @@ public class DeviceListActivity extends AppCompatActivity {
                             updateEmptyView();
                             
                             setResult(RESULT_OK);
-                            Toast.makeText(DeviceListActivity.this, R.string.device_unbound, Toast.LENGTH_SHORT).show();
+                            ToastHelper.show(DeviceListActivity.this, R.string.device_unbound);
                         }
                     });
                     
@@ -638,7 +689,7 @@ public class DeviceListActivity extends AppCompatActivity {
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            Toast.makeText(DeviceListActivity.this, getString(R.string.unbind_failed, e.getMessage()), Toast.LENGTH_SHORT).show();
+                            ToastHelper.show(DeviceListActivity.this, getString(R.string.unbind_failed, e.getMessage()));
                         }
                     });
                 }
@@ -648,19 +699,20 @@ public class DeviceListActivity extends AppCompatActivity {
 
     private void loadBoundDevices() {
         LogUtil.d(TAG, "=== loadBoundDevices called ===");
-        
+
         boundDeviceList.clear();
-        
-        List<Device> devices = databaseHelper.getAllDevices();
-        LogUtil.d(TAG, "Loaded " + (devices != null ? devices.size() : 0) + " devices from database");
-        
-        if (devices != null) {
-            java.util.Collections.sort(devices, new java.util.Comparator<Device>() {
+
+        List<TagDevice> devices = BoundDevicesHelper.loadDisplayedDevices(this, databaseHelper);
+        LogUtil.d(TAG, "Loaded " + devices.size() + " displayed devices (loggedIn="
+                + BoundDevicesHelper.isLoggedIn(this) + ")");
+
+        if (!devices.isEmpty()) {
+            java.util.Collections.sort(devices, new java.util.Comparator<TagDevice>() {
                 @Override
-                public int compare(Device d1, Device d2) {
+                public int compare(TagDevice d1, TagDevice d2) {
                     String num1 = d1.getDeviceNum() != null ? d1.getDeviceNum() : d1.getDeviceId();
                     String num2 = d2.getDeviceNum() != null ? d2.getDeviceNum() : d2.getDeviceId();
-                    
+
                     try {
                         long n1 = Long.parseLong(num1);
                         long n2 = Long.parseLong(num2);
@@ -670,18 +722,38 @@ public class DeviceListActivity extends AppCompatActivity {
                     }
                 }
             });
-            
-            for (Device d : devices) {
+
+            for (TagDevice d : devices) {
                 if (d != null) {
-                    LogUtil.d(TAG, "  Device: " + d.getName() + ", id=" + d.getDeviceId() + ", num=" + d.getDeviceNum() + ", tag=" + d.getTag());
+                    LogUtil.d(TAG, "  Device: " + d.getName() + ", id=" + d.getDeviceId()
+                            + ", num=" + d.getDeviceNum() + ", tag=" + d.getTag());
                 }
             }
             boundDeviceList.addAll(devices);
         }
-        
+
+        // 已登录但无缓存时尝试拉取（与 DeviceListFragment 共用防重试逻辑）
+        String token = BoundDevicesHelper.getAuthToken(this);
+        if (token != null && !token.isEmpty() && BoundDevicesHelper.needsServerFetch(this)) {
+            BoundDevicesHelper.fetchBoundDevicesFromServer(this, token,
+                    new BoundDevicesHelper.FetchCallback() {
+                        @Override
+                        public void onSuccess(List<DeviceApiService.BoundDevice> boundDevices) {
+                            runOnUiThread(() -> {
+                                loadBoundDevices();
+                            });
+                        }
+
+                        @Override
+                        public void onFailure(String message) {
+                            LogUtil.e(TAG, "fetchBoundDevices failed in Activity: " + message);
+                        }
+                    });
+        }
+
         boundDeviceAdapter.notifyDataSetChanged();
         updateEmptyView();
-        
+
         LogUtil.d(TAG, "Adapter count: " + boundDeviceAdapter.getCount());
         LogUtil.d(TAG, "=== loadBoundDevices completed ===");
     }
@@ -696,7 +768,7 @@ public class DeviceListActivity extends AppCompatActivity {
         }
     }
 
-    private void selectDeviceAndFinish(Device device) {
+    private void selectDeviceAndFinish(TagDevice device) {
         LogUtil.d(TAG, "=== selectDeviceAndFinish called ===");
         LogUtil.d(TAG, "Device: " + device.getName() + ", deviceId: " + device.getDeviceId() + ", deviceNum: " + device.getDeviceNum());
         
@@ -712,7 +784,7 @@ public class DeviceListActivity extends AppCompatActivity {
         
         if (deviceId == null || deviceId.isEmpty()) {
             Log.e(TAG, "Device ID is null or empty, cannot select");
-            Toast.makeText(this, R.string.invalid_device_id, Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, R.string.invalid_device_id);
             return;
         }
         
@@ -745,5 +817,13 @@ public class DeviceListActivity extends AppCompatActivity {
             result = getResources().getDimensionPixelSize(resourceId);
         }
         return result;
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (handler != null) {
+            handler.removeCallbacksAndMessages(null);
+        }
+        super.onDestroy();
     }
 }

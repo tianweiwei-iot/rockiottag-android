@@ -1,5 +1,7 @@
 package com.RockiotTag.tag.helper;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -9,7 +11,8 @@ import android.net.Uri;
 import android.os.Environment;
 import android.view.View;
 import android.widget.TextView;
-import android.widget.Toast;
+
+import androidx.core.content.ContextCompat;
 
 import com.RockiotTag.tag.R;
 import com.RockiotTag.tag.model.LocationData;
@@ -100,7 +103,7 @@ public class TrackStatisticsHelper {
             nameView.setText(deviceName);
             nameView.setTextSize(15);
             nameView.setTypeface(nameView.getTypeface(), android.graphics.Typeface.BOLD);
-            nameView.setTextColor(Color.parseColor("#2196F3"));
+            nameView.setTextColor(ContextCompat.getColor(context, R.color.brand_primary));
             nameView.setPadding(0, 0, dpToPx(context, 12), 0);
             deviceInfoRow.addView(nameView);
 
@@ -127,8 +130,9 @@ public class TrackStatisticsHelper {
             stayPoints.size() + context.getString(R.string.track_points_unit).trim(), "#666666");
         addStatisticItem(context, layout, "✅", context.getString(R.string.valid_segments_label).trim(), 
             validSegments + context.getString(R.string.valid_segments_unit).trim(), "#666666");
+        String brandColorHex = String.format("#%06X", 0xFFFFFF & ContextCompat.getColor(context, R.color.brand_primary));
         addStatisticItem(context, layout, "📏", context.getString(R.string.total_distance_label).trim(), 
-            String.format("%.2f km", totalDistanceKm), "#2196F3");
+            String.format("%.2f km", totalDistanceKm), brandColorHex);
         addStatisticItem(context, layout, "⏱️", context.getString(R.string.time_span_label).trim(),
             durationStr, "#666666");
         addStatisticItem(context, layout, "🟢", context.getString(R.string.start_time_label).trim(), 
@@ -299,23 +303,21 @@ public class TrackStatisticsHelper {
             content.append("========================================\n");
             
             // 写入文件
-            java.io.FileWriter writer = new java.io.FileWriter(txtFile);
-            writer.write(content.toString());
-            writer.flush();
-            writer.close();
+            try (java.io.FileWriter writer = new java.io.FileWriter(txtFile)) {
+                writer.write(content.toString());
+                writer.flush();
+            }
             
             // 通知媒体库扫描
             Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
             mediaScanIntent.setData(Uri.fromFile(txtFile));
             context.sendBroadcast(mediaScanIntent);
             
-            Toast.makeText(context, 
-                context.getString(R.string.export_txt_success, txtFile.getAbsolutePath()), 
-                Toast.LENGTH_LONG).show();
+            ToastHelper.showLong(context, 
+                context.getString(R.string.export_txt_success, txtFile.getAbsolutePath()));
         } catch (Exception e) {
-            Toast.makeText(context, 
-                context.getString(R.string.export_txt_failed, e.getMessage()), 
-                Toast.LENGTH_LONG).show();
+            ToastHelper.showLong(context, 
+                context.getString(R.string.export_txt_failed, e.getMessage()));
         }
     }
     
@@ -452,10 +454,10 @@ public class TrackStatisticsHelper {
             }
             
             File imageFile = new File(rockiotDir, fileName);
-            FileOutputStream fos = new FileOutputStream(imageFile);
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
-            fos.flush();
-            fos.close();
+            try (FileOutputStream fos = new FileOutputStream(imageFile)) {
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                fos.flush();
+            }
             bitmap.recycle();
             
             // 通知媒体库扫描
@@ -463,10 +465,9 @@ public class TrackStatisticsHelper {
             mediaScanIntent.setData(Uri.fromFile(imageFile));
             context.sendBroadcast(mediaScanIntent);
             
-            Toast.makeText(context, R.string.export_success, Toast.LENGTH_SHORT).show();
+            ToastHelper.show(context, R.string.export_success);
         } catch (Exception e) {
-            Toast.makeText(context, context.getString(R.string.export_failed, e.getMessage()), 
-                Toast.LENGTH_LONG).show();
+            ToastHelper.showLong(context, context.getString(R.string.export_failed, e.getMessage()));
         }
     }
 }

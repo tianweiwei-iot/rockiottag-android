@@ -417,4 +417,34 @@
     <string name="navi_nearby_suggest_walk">Только %s, рекомендуем идти пешком</string>
     <string name="navi_already_nearby">Уже рядом с устройством, навигация не нужна</string>
     <string name="navi_layer_toggle">Переключение слоёв</string>
+
+    <!-- Профиль -->
+    <string name="edit_profile">Редактировать профиль</string>
+    <string name="change_password">Изменить пароль</string>
+    <string name="bind_email">Привязать email</string>
+    <string name="nickname">Никнейм</string>
+    <string name="email">Email</string>
+    <string name="old_password">Старый пароль</string>
+    <string name="new_password">Новый пароль</string>
+    <string name="not_logged_in">Не выполнен вход</string>
+    <string name="save_failed">Не удалось сохранить</string>
+    <string name="current_avatar">Текущий аватар</string>
+    <string name="select_avatar">Выбрать аватар</string>
+    <string name="nickname_hint">Введите никнейм</string>
+    <string name="profile_saved">Профиль сохранён</string>
+    <string name="profile_nickname_empty">Никнейм не может быть пустым</string>
+    <string name="old_password_empty">Введите старый пароль</string>
+    <string name="password_changed">Пароль успешно изменён</string>
+    <string name="password_change_failed">Не удалось изменить пароль</string>
+    <string name="confirm_new_password">Подтвердите новый пароль</string>
+    <string name="input_old_password">Введите старый пароль</string>
+    <string name="email_invalid">Неверный формат email</string>
+    <string name="email_bind_failed">Не удалось привязать email</string>
+    <string name="email_hint">Введите адрес email</string>
+    <string name="email_empty">Email не может быть пустым</string>
+    <string name="email_bound">Email привязан</string>
+    <string name="confirm_password">Подтвердите пароль</string>
+    <string name="password_rule">Не менее 8 символов, с заглавными, строчными буквами и цифрами</string>
+    <string name="password_invalid">Неверный формат пароля</string>
+    <string name="password_not_match">Пароли не совпадают</string>
 </resources>

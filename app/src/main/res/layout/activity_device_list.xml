@@ -91,7 +91,7 @@
             android:layout_weight="1"
             android:text="@string/select_all"
             android:textSize="14sp"
-            android:backgroundTint="#2196F3"
+            android:backgroundTint="@color/brand_primary"
             android:layout_marginRight="8dp" />
 
         <Button

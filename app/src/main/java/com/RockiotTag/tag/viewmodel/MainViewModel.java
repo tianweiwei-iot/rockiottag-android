@@ -7,9 +7,10 @@ import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.Observer;
 
 import com.RockiotTag.tag.DatabaseHelper;
-import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.model.Resource;
 import com.RockiotTag.tag.repository.DeviceRepository;
@@ -21,6 +22,8 @@ import com.RockiotTag.tag.usecase.ReverseGeocodeUseCase;
 import com.RockiotTag.tag.usecase.SelectDeviceUseCase;
 import com.RockiotTag.tag.usecase.TriggerBuzzerUseCase;
 import com.RockiotTag.tag.usecase.SyncDevicesUseCase;
+
+import java.util.List;
 
 /**
  * MainActivity的ViewModel - 完全MVVM版本
@@ -48,7 +51,7 @@ public class MainViewModel extends AndroidViewModel {
     private final DatabaseHelper dbHelper;
     
     // LiveData for UI observation
-    private final MutableLiveData<Device> selectedDevice = new MutableLiveData<>();
+    private final MutableLiveData<TagDevice> selectedDevice = new MutableLiveData<>();
     private final MutableLiveData<String> deviceName = new MutableLiveData<>();
     private final MutableLiveData<String> batteryLevel = new MutableLiveData<>("-1");  // 初始值-1表示未知
     private final MutableLiveData<String> deviceAddress = new MutableLiveData<>("not_reported");
@@ -62,6 +65,22 @@ public class MainViewModel extends AndroidViewModel {
     // 地址请求序列号：确保只处理最新的地址请求结果
     private volatile int addressRequestSequence = 0;
     
+    // observeForever Observer 引用，onCleared 时移除防止泄漏
+    private LiveData<Resource<NewApiService.DeviceInfo>> fetchDeviceInfoLiveData;
+    private Observer<Resource<NewApiService.DeviceInfo>> fetchDeviceInfoObserver;
+    
+    private LiveData<Resource<Boolean>> triggerBuzzerLiveData;
+    private Observer<Resource<Boolean>> triggerBuzzerObserver;
+    
+    private LiveData<Resource<TagDevice>> selectDeviceLiveData;
+    private Observer<Resource<TagDevice>> selectDeviceObserver;
+    
+    private LiveData<Resource<String>> getAddressLiveData;
+    private Observer<Resource<String>> getAddressObserver;
+    
+    private LiveData<Resource<List<NewApiService.DeviceInfo>>> syncDevicesLiveData;
+    private Observer<Resource<List<NewApiService.DeviceInfo>>> syncDevicesObserver;
+    
     // Current location
     private double currentLatitude = 22.543611;
     private double currentLongitude = 113.881944;
@@ -73,7 +92,7 @@ public class MainViewModel extends AndroidViewModel {
         deviceRepository = DeviceRepository.getInstance(application);
         LocationRepository locationRepository = LocationRepository.getInstance(application);
         bleRepository = BLERepository.getInstance(application);
-        dbHelper = new DatabaseHelper(application);
+        dbHelper = DatabaseHelper.getInstance(application);
         
         // 初始化UseCases
         getDeviceInfoUseCase = new GetDeviceInfoUseCase(deviceRepository);
@@ -86,14 +105,14 @@ public class MainViewModel extends AndroidViewModel {
     /**
      * 获取选中的设备
      */
-    public LiveData<Device> getSelectedDevice() {
+    public LiveData<TagDevice> getSelectedDevice() {
         return selectedDevice;
     }
     
     /**
      * 设置选中的设备
      */
-    public void setSelectedDevice(Device device) {
+    public void setSelectedDevice(TagDevice device) {
         selectedDevice.setValue(device);
         if (device != null) {
             deviceName.setValue(device.getName());
@@ -193,8 +212,14 @@ public class MainViewModel extends AndroidViewModel {
         
         isLoading.setValue(true);
         
+        // 移除旧的 Observer
+        if (fetchDeviceInfoObserver != null && fetchDeviceInfoLiveData != null) {
+            fetchDeviceInfoLiveData.removeObserver(fetchDeviceInfoObserver);
+        }
+        
         // 执行UseCase
-        getDeviceInfoUseCase.execute(deviceNum).observeForever(resource -> {
+        fetchDeviceInfoLiveData = getDeviceInfoUseCase.execute(deviceNum);
+        fetchDeviceInfoObserver = resource -> {
             // 只处理最新请求的结果，丢弃旧请求
             if (currentSeq != fetchSequence) {
                 LogUtil.d(TAG, "Fetch request #" + currentSeq + " ignored (stale), current=#" + fetchSequence);
@@ -209,18 +234,24 @@ public class MainViewModel extends AndroidViewModel {
                 errorMessage.setValue(resource.message);
                 Log.e(TAG, "Failed to fetch device info: " + resource.message);
             }
-        });
+        };
+        fetchDeviceInfoLiveData.observeForever(fetchDeviceInfoObserver);
     }
     
     /**
      * 处理设备信息成功获取
      */
     private void handleDeviceInfoSuccess(NewApiService.DeviceInfo deviceInfo) {
+        if (deviceInfo == null) {
+            Log.e(TAG, "handleDeviceInfoSuccess: deviceInfo is null");
+            errorMessage.setValue("设备信息为空");
+            return;
+        }
         LogUtil.d(TAG, "Processing device info: " + deviceInfo.deviceNum);
         
         // 3. 关键优化：从本地数据库获取最新设备信息，比较时间戳，保留更新的那一个
         String deviceId = deviceInfo.deviceNum;
-        Device localDevice = null;
+        TagDevice localDevice = null;
         
         try {
             localDevice = deviceRepository.getDeviceById(deviceId);
@@ -233,7 +264,7 @@ public class MainViewModel extends AndroidViewModel {
             localDevice = null;
         }
         
-        Device finalDevice;
+        TagDevice finalDevice;
         long finalTimestamp;
         
         if (localDevice != null) {
@@ -245,7 +276,7 @@ public class MainViewModel extends AndroidViewModel {
                 // 服务器时间更新，使用服务器数据（位置、电量等）
                 LogUtil.d(TAG, "Server newer: " + serverTimestamp + " > " + localTimestamp);
 
-                Device updatedDevice = new Device(localDevice.getDeviceId(), localDevice.getName());
+                TagDevice updatedDevice = new TagDevice(localDevice.getDeviceId(), localDevice.getName());
                 updatedDevice.setDeviceNum(localDevice.getDeviceNum());
                 updatedDevice.setTag(localDevice.getTag());
                 updatedDevice.setMac(localDevice.getMac());
@@ -293,7 +324,7 @@ public class MainViewModel extends AndroidViewModel {
             // 本地没有该设备，直接使用服务器数据创建新设备
             LogUtil.d(TAG, "Device not found in local database, creating new device from server data");
             
-            Device newDevice = new Device(deviceInfo.deviceNum, 
+            TagDevice newDevice = new TagDevice(deviceInfo.deviceNum,
                 (deviceInfo.nickName != null && !deviceInfo.nickName.isEmpty()) ? 
                 deviceInfo.nickName : deviceInfo.deviceNum);
             newDevice.setDeviceNum(deviceInfo.deviceNum);
@@ -361,14 +392,21 @@ public class MainViewModel extends AndroidViewModel {
      * 触发蜂鸣器（使用UseCase）
      */
     public void triggerBuzzer() {
-        triggerBuzzerUseCase.execute(null).observeForever(resource -> {
+        // 移除旧的 Observer
+        if (triggerBuzzerObserver != null && triggerBuzzerLiveData != null) {
+            triggerBuzzerLiveData.removeObserver(triggerBuzzerObserver);
+        }
+        
+        triggerBuzzerLiveData = triggerBuzzerUseCase.execute(null);
+        triggerBuzzerObserver = resource -> {
             if (resource.isSuccess()) {
                 LogUtil.d(TAG, "Buzzer triggered successfully");
             } else if (resource.isError()) {
                 errorMessage.setValue(resource.message);
                 Log.e(TAG, "Buzzer failed: " + resource.message);
             }
-        });
+        };
+        triggerBuzzerLiveData.observeForever(triggerBuzzerObserver);
     }
     
     /**
@@ -382,17 +420,24 @@ public class MainViewModel extends AndroidViewModel {
         
         isLoading.setValue(true);
         
-        selectDeviceUseCase.execute(deviceId).observeForever(resource -> {
+        // 移除旧的 Observer
+        if (selectDeviceObserver != null && selectDeviceLiveData != null) {
+            selectDeviceLiveData.removeObserver(selectDeviceObserver);
+        }
+        
+        selectDeviceLiveData = selectDeviceUseCase.execute(deviceId);
+        selectDeviceObserver = resource -> {
             isLoading.setValue(false);
             
-            if (resource.isSuccess()) {
+            if (resource.isSuccess() && resource.data != null) {
                 setSelectedDevice(resource.data);
                 LogUtil.d(TAG, "Device selected: " + resource.data.getName());
             } else if (resource.isError()) {
                 errorMessage.setValue(resource.message);
                 Log.e(TAG, "Failed to select device: " + resource.message);
             }
-        });
+        };
+        selectDeviceLiveData.observeForever(selectDeviceObserver);
     }
     
     /**
@@ -420,11 +465,17 @@ public class MainViewModel extends AndroidViewModel {
         
         isLoading.setValue(true);
         
+        // 移除旧的 Observer
+        if (getAddressObserver != null && getAddressLiveData != null) {
+            getAddressLiveData.removeObserver(getAddressObserver);
+        }
+        
         ReverseGeocodeUseCase.Params params = new ReverseGeocodeUseCase.Params(
             latitude, longitude, languageCode, forceRefresh, useAMapGeocoder, mapMode
         );
         
-        reverseGeocodeUseCase.execute(params).observeForever(resource -> {
+        getAddressLiveData = reverseGeocodeUseCase.execute(params);
+        getAddressObserver = resource -> {
             // 关键修复：只处理最新请求的结果，忽略过期请求
             if (currentSequence != addressRequestSequence) {
                 LogUtil.d(TAG, "Address request #" + currentSequence + " ignored (stale), current=#" + addressRequestSequence);
@@ -444,7 +495,8 @@ public class MainViewModel extends AndroidViewModel {
                 deviceAddress.setValue(coordStr);
                 errorMessage.setValue(resource.message);
             }
-        });
+        };
+        getAddressLiveData.observeForever(getAddressObserver);
     }
     
     /**
@@ -480,7 +532,13 @@ public class MainViewModel extends AndroidViewModel {
         
         isLoading.setValue(true);
         
-        syncDevicesUseCase.execute(null).observeForever(resource -> {
+        // 移除旧的 Observer
+        if (syncDevicesObserver != null && syncDevicesLiveData != null) {
+            syncDevicesLiveData.removeObserver(syncDevicesObserver);
+        }
+        
+        syncDevicesLiveData = syncDevicesUseCase.execute(null);
+        syncDevicesObserver = resource -> {
             isLoading.setValue(false);
             
             if (resource.isSuccess()) {
@@ -489,6 +547,28 @@ public class MainViewModel extends AndroidViewModel {
                 errorMessage.setValue(resource.message);
                 Log.e(TAG, "Failed to sync devices: " + resource.message);
             }
-        });
+        };
+        syncDevicesLiveData.observeForever(syncDevicesObserver);
+    }
+    
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        // 移除所有 observeForever 注册的 Observer，防止内存泄漏
+        if (fetchDeviceInfoObserver != null && fetchDeviceInfoLiveData != null) {
+            fetchDeviceInfoLiveData.removeObserver(fetchDeviceInfoObserver);
+        }
+        if (triggerBuzzerObserver != null && triggerBuzzerLiveData != null) {
+            triggerBuzzerLiveData.removeObserver(triggerBuzzerObserver);
+        }
+        if (selectDeviceObserver != null && selectDeviceLiveData != null) {
+            selectDeviceLiveData.removeObserver(selectDeviceObserver);
+        }
+        if (getAddressObserver != null && getAddressLiveData != null) {
+            getAddressLiveData.removeObserver(getAddressObserver);
+        }
+        if (syncDevicesObserver != null && syncDevicesLiveData != null) {
+            syncDevicesLiveData.removeObserver(syncDevicesObserver);
+        }
     }
 }

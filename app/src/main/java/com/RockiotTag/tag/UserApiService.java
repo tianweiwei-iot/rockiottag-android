@@ -8,8 +8,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import java.net.HttpURLConnection;
-
 /**
  * 用户认证API服务
  * 处理用户注册、登录、个人资料管理
@@ -89,20 +87,10 @@ public class UserApiService {
             String url = ApiConfig.MY_SERVER_URL + "/user/logout";
             LogUtil.d(TAG, "Logout request: " + url);
 
-            HttpURLConnection conn = (HttpURLConnection) new java.net.URL(url).openConnection();
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + token);
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(15000);
-            conn.setDoOutput(true);
-            conn.getOutputStream().write("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            HttpHelper.HttpResponse response = HttpHelper.postWithAuth(url, "{}", token);
+            LogUtil.d(TAG, "Logout response code: " + response.statusCode);
 
-            int responseCode = conn.getResponseCode();
-            LogUtil.d(TAG, "Logout response code: " + responseCode);
-            conn.disconnect();
-
-            return responseCode >= 200 && responseCode < 300;
+            return response.statusCode >= 200 && response.statusCode < 300;
         } catch (Exception e) {
             Log.e(TAG, "Logout failed: " + e.getMessage(), e);
             return false;
@@ -119,35 +107,16 @@ public class UserApiService {
             String url = ApiConfig.MY_SERVER_URL + "/user/profile";
             LogUtil.d(TAG, "Get profile request: " + url);
 
-            HttpURLConnection conn = (HttpURLConnection) new java.net.URL(url).openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + token);
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(30000);
-
-            int responseCode = conn.getResponseCode();
+            HttpHelper.HttpResponse response = HttpHelper.getWithAuth(url, token);
+            int responseCode = response.statusCode;
             LogUtil.d(TAG, "Get profile response code: " + responseCode);
 
-            java.io.BufferedReader in = new java.io.BufferedReader(
-                new java.io.InputStreamReader(
-                    responseCode >= 200 && responseCode < 300 ?
-                    conn.getInputStream() : conn.getErrorStream()));
-            StringBuilder response = new StringBuilder();
-            String line;
-            while ((line = in.readLine()) != null) {
-                response.append(line);
-            }
-            in.close();
-            conn.disconnect();
-
-            String responseString = response.toString();
+            String responseString = response.body;
             LogUtil.d(TAG, "Get profile response: " + responseString);
 
             if (responseCode >= 200 && responseCode < 300 && responseString != null) {
                 Gson gson = new Gson();
-                JsonParser parser = new JsonParser();
-                JsonObject json = parser.parse(responseString).getAsJsonObject();
+                JsonObject json = JsonParser.parseString(responseString).getAsJsonObject();
 
                 UserProfile profile = new UserProfile();
                 if (json.has("username")) profile.username = json.get("username").getAsString();
@@ -166,10 +135,107 @@ public class UserApiService {
     }
 
     /**
+     * 用户资料更新结果（昵称与头像可分别成功）
+     */
+    public static class ProfileUpdateResult {
+        public final boolean nicknameSynced;
+        public final boolean avatarSynced;
+        public final String errorMessage;
+
+        public ProfileUpdateResult(boolean nicknameSynced, boolean avatarSynced, String errorMessage) {
+            this.nicknameSynced = nicknameSynced;
+            this.avatarSynced = avatarSynced;
+            this.errorMessage = errorMessage;
+        }
+
+        public boolean isSuccess() {
+            return nicknameSynced;
+        }
+    }
+
+    /**
+     * HTTP 2xx 视为成功（兼容 204 / 空 body）；若 body 含明确业务错误码则判失败。
+     */
+    public static boolean isOperationSuccess(NewApiService.ApiResponse response) {
+        if (response == null) {
+            return false;
+        }
+        int httpCode = response.getStatusCode();
+        if (httpCode < 200 || httpCode >= 300) {
+            return false;
+        }
+        String code = response.getCode();
+        if (code != null && !code.isEmpty() && !"0000".equals(code) && !"0".equals(code)) {
+            int status = response.getStatus();
+            if (status != 0 && status != 200) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 同步昵称与头像到服务端（优先合并请求，失败时分字段重试）
+     */
+    public ProfileUpdateResult updateProfile(String token, String nickname, Integer avatarIndex,
+                                             boolean syncNickname, boolean syncAvatar) {
+        if (syncNickname || syncAvatar) {
+            NewApiService.ApiResponse combined = putProfileFields(token,
+                    syncNickname ? nickname : null,
+                    syncAvatar ? avatarIndex : null);
+            if (isOperationSuccess(combined)) {
+                return new ProfileUpdateResult(true, true, null);
+            }
+            LogUtil.w(TAG, "PUT /user/profile failed: " + combined.getStatusCode()
+                    + " " + combined.getMessage());
+        }
+
+        boolean nicknameOk = !syncNickname;
+        boolean avatarOk = !syncAvatar;
+        String errorMessage = null;
+
+        if (syncNickname) {
+            NewApiService.ApiResponse nickResp = updateNickname(token, nickname);
+            nicknameOk = isOperationSuccess(nickResp);
+            if (!nicknameOk) {
+                errorMessage = nickResp.getMessage();
+                LogUtil.w(TAG, "Update nickname failed: " + nickResp.getStatusCode()
+                        + " " + errorMessage);
+            }
+        }
+
+        if (syncAvatar && avatarIndex != null) {
+            NewApiService.ApiResponse avatarResp = updateAvatar(token, String.valueOf(avatarIndex));
+            avatarOk = isOperationSuccess(avatarResp);
+            if (!avatarOk) {
+                LogUtil.w(TAG, "Update avatar failed: " + avatarResp.getStatusCode()
+                        + " " + avatarResp.getMessage());
+            }
+        }
+
+        return new ProfileUpdateResult(nicknameOk, avatarOk, errorMessage);
+    }
+
+    /**
      * 修改昵称
      */
     public NewApiService.ApiResponse updateNickname(String token, String nickname) {
-        return putWithToken("/user/nickname", token, "nickname", nickname);
+        NewApiService.ApiResponse response = putWithToken("/user/nickname", token, "nickname", nickname);
+        if (!isOperationSuccess(response)) {
+            LogUtil.w(TAG, "/user/nickname failed (" + response.getStatusCode()
+                    + "), trying /user/profile");
+            response = putWithToken("/user/profile", token, "nickname", nickname);
+        }
+        if (!isOperationSuccess(response)) {
+            LogUtil.w(TAG, "/user/profile nickname failed (" + response.getStatusCode()
+                    + "), trying /user/username with nickname field");
+            response = putWithToken("/user/username", token, "nickname", nickname);
+        }
+        if (!isOperationSuccess(response) && isValidUsername(nickname)) {
+            LogUtil.w(TAG, "Trying /user/username with username field");
+            response = putWithToken("/user/username", token, "username", nickname);
+        }
+        return response;
     }
 
     /**
@@ -177,6 +243,23 @@ public class UserApiService {
      */
     public NewApiService.ApiResponse updateEmail(String token, String email) {
         return putWithToken("/user/email", token, "email", email);
+    }
+
+    /**
+     * 修改头像
+     */
+    public NewApiService.ApiResponse updateAvatar(String token, String avatarIndex) {
+        NewApiService.ApiResponse response = putWithToken("/user/avatar", token, "avatar", avatarIndex);
+        if (!isOperationSuccess(response)) {
+            LogUtil.w(TAG, "/user/avatar failed (" + response.getStatusCode()
+                    + "), trying avatarIndex field");
+            response = putWithToken("/user/avatar", token, "avatarIndex", avatarIndex);
+        }
+        if (!isOperationSuccess(response)) {
+            LogUtil.w(TAG, "/user/avatar failed, trying /user/profile");
+            response = putWithToken("/user/profile", token, "avatar", avatarIndex);
+        }
+        return response;
     }
 
     /**
@@ -207,7 +290,7 @@ public class UserApiService {
             JsonObject params = new JsonObject();
             params.addProperty(key, value);
 
-            LogUtil.d(TAG, "PUT request: " + url);
+            LogUtil.d(TAG, "PUT request: " + url + " {" + key + ": ...}");
             HttpHelper.HttpResponse response = putWithAuth(url, params.toString(), token);
             return parseAuthResponse(response);
         } catch (Exception e) {
@@ -219,47 +302,37 @@ public class UserApiService {
         }
     }
 
-    private HttpHelper.HttpResponse putWithAuth(String urlString, String jsonBody, String token) {
-        HttpURLConnection conn = null;
+    private NewApiService.ApiResponse putProfileFields(String token, String nickname, Integer avatarIndex) {
         try {
-            java.net.URL url = new java.net.URL(urlString);
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("PUT");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + token);
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(30000);
-            conn.setDoOutput(true);
-
-            LogUtil.d(TAG, "PUT request body: " + jsonBody);
-
-            try (java.io.OutputStream os = conn.getOutputStream()) {
-                os.write(jsonBody.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                os.flush();
+            String url = ApiConfig.MY_SERVER_URL + "/user/profile";
+            JsonObject params = new JsonObject();
+            if (nickname != null) {
+                params.addProperty("nickname", nickname);
+            }
+            if (avatarIndex != null) {
+                params.addProperty("avatar", String.valueOf(avatarIndex));
+            }
+            if (params.size() == 0) {
+                NewApiService.ApiResponse empty = new NewApiService.ApiResponse();
+                empty.setStatusCode(400);
+                empty.setMessage("Nothing to update");
+                return empty;
             }
 
-            int responseCode = conn.getResponseCode();
-            java.io.BufferedReader in = new java.io.BufferedReader(
-                new java.io.InputStreamReader(
-                    responseCode >= 200 && responseCode < 300 ?
-                    conn.getInputStream() : conn.getErrorStream()));
-            StringBuilder response = new StringBuilder();
-            String line;
-            while ((line = in.readLine()) != null) {
-                response.append(line);
-            }
-            in.close();
-
-            String responseString = response.toString();
-            LogUtil.d(TAG, "PUT response code: " + responseCode + ", body: " + responseString);
-
-            return new HttpHelper.HttpResponse(responseCode, responseString, null);
+            LogUtil.d(TAG, "PUT profile request: " + url);
+            HttpHelper.HttpResponse response = putWithAuth(url, params.toString(), token);
+            return parseAuthResponse(response);
         } catch (Exception e) {
-            Log.e(TAG, "PUT request failed: " + e.getMessage(), e);
-            return new HttpHelper.HttpResponse(-1, null, e.getMessage());
-        } finally {
-            if (conn != null) conn.disconnect();
+            Log.e(TAG, "PUT profile failed: " + e.getMessage(), e);
+            NewApiService.ApiResponse apiResponse = new NewApiService.ApiResponse();
+            apiResponse.setStatusCode(-1);
+            apiResponse.setMessage("Network error: " + e.getMessage());
+            return apiResponse;
         }
+    }
+
+    private HttpHelper.HttpResponse putWithAuth(String urlString, String jsonBody, String token) {
+        return HttpHelper.putWithAuth(urlString, jsonBody, token);
     }
 
     private NewApiService.ApiResponse parseAuthResponse(HttpHelper.HttpResponse response) {
@@ -278,8 +351,7 @@ public class UserApiService {
         }
 
         try {
-            JsonParser parser = new JsonParser();
-            JsonObject json = parser.parse(response.body).getAsJsonObject();
+            JsonObject json = JsonParser.parseString(response.body).getAsJsonObject();
 
             if (json.has("token")) apiResponse.setToken(json.get("token").getAsString());
             if (json.has("username")) {
@@ -287,7 +359,11 @@ public class UserApiService {
                 // 复用name字段存储username
                 apiResponse.setName(username);
             }
-            if (json.has("nickname")) apiResponse.setNickName(json.get("nickname").getAsString());
+            if (json.has("nickname")) {
+                apiResponse.setNickName(json.get("nickname").getAsString());
+            } else if (json.has("nickName")) {
+                apiResponse.setNickName(json.get("nickName").getAsString());
+            }
             if (json.has("email")) {
                 // 存储email到cid字段（复用）
                 apiResponse.setCid(json.get("email").getAsString());

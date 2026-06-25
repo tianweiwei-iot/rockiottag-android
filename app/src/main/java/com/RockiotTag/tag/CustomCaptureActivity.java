@@ -1,5 +1,7 @@
 package com.RockiotTag.tag;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -11,7 +13,6 @@ import com.RockiotTag.tag.util.LogUtil;
 import android.util.Size;
 import android.view.View;
 import android.widget.ImageButton;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -159,7 +160,7 @@ public class CustomCaptureActivity extends AppCompatActivity {
                 
             } catch (ExecutionException | InterruptedException e) {
                 Log.e(TAG, "Error starting camera", e);
-                Toast.makeText(this, getString(R.string.camera_start_failed, e.getMessage()), Toast.LENGTH_SHORT).show();
+                ToastHelper.show(this, getString(R.string.camera_start_failed, e.getMessage()));
             }
         }, ContextCompat.getMainExecutor(this));
     }
@@ -218,7 +219,7 @@ public class CustomCaptureActivity extends AppCompatActivity {
             isFlashOn = !isFlashOn;
             camera.getCameraControl().enableTorch(isFlashOn);
             
-            Toast.makeText(this, isFlashOn ? R.string.flash_on : R.string.flash_off, Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, isFlashOn ? R.string.flash_on : R.string.flash_off);
             LogUtil.d(TAG, "Flash: " + (isFlashOn ? "ON" : "OFF"));
         }
     }
@@ -230,7 +231,7 @@ public class CustomCaptureActivity extends AppCompatActivity {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 startCamera();
             } else {
-                Toast.makeText(this, R.string.camera_permission_needed, Toast.LENGTH_SHORT).show();
+                ToastHelper.show(this, R.string.camera_permission_needed);
                 finish();
             }
         }

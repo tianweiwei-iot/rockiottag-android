@@ -36,7 +36,7 @@ public class TrackPlaybackHelper {
     public TrackPlaybackHelper(List<StayPoint> stayPoints, PlaybackCallback callback) {
         this.stayPoints = stayPoints;
         this.callback = callback;
-        this.playHandler = new Handler();
+        this.playHandler = new Handler(android.os.Looper.getMainLooper());
     }
     
     /**

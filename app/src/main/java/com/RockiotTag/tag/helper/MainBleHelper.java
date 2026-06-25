@@ -1,11 +1,12 @@
 package com.RockiotTag.tag.helper;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.util.Log;
 import android.view.View;
-import android.widget.Toast;
 
 import com.RockiotTag.tag.BLEManager;
-import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.R;
 import com.RockiotTag.tag.util.LogUtil;
 
@@ -31,7 +32,7 @@ public class MainBleHelper {
         BLEManager getBleManager();
         com.RockiotTag.tag.DatabaseHelper getDatabaseHelper();
         com.RockiotTag.tag.CrowdSourcingManager getCrowdSourcingManager();
-        void onUpdateMapMarker(Device device);
+        void onUpdateMapMarker(TagDevice device);
     }
 
     public MainBleHelper(AppCompatActivity activity, BleCallbacks callbacks) {
@@ -45,7 +46,7 @@ public class MainBleHelper {
     public void startSingleScanWithCheck() {
         if (callbacks.getLocationOptimizationManager() == null || !callbacks.getLocationOptimizationManager().isOptimizationEnabled()) {
             Log.w(TAG, "Cannot start scanning: LocationOptimizationManager not available");
-            Toast.makeText(activity, "蓝牙扫描不可用", Toast.LENGTH_SHORT).show();
+            ToastHelper.show(activity, "蓝牙扫描不可用");
             return;
         }
         callbacks.getLocationOptimizationManager().autoSelectFirstDevice();
@@ -59,7 +60,7 @@ public class MainBleHelper {
     public void startContinuousScanWithCheck() {
         if (callbacks.getLocationOptimizationManager() == null || !callbacks.getLocationOptimizationManager().isOptimizationEnabled()) {
             Log.w(TAG, "Cannot start scanning: LocationOptimizationManager not available");
-            Toast.makeText(activity, "蓝牙扫描不可用", Toast.LENGTH_SHORT).show();
+            ToastHelper.show(activity, "蓝牙扫描不可用");
             return;
         }
         callbacks.getLocationOptimizationManager().autoSelectFirstDevice();
@@ -103,7 +104,7 @@ public class MainBleHelper {
         if (callbacks.getBleManager().isBluetoothEnabled()) {
             callbacks.getBleManager().startScanning(new BLEManager.DeviceScanCallback() {
                 @Override
-                public void onDeviceFound(Device device) {
+                public void onDeviceFound(TagDevice device) {
                     LogUtil.d(TAG, "Found device: " + device.getName() + " - " + device.getDeviceId());
                     if (callbacks.getDatabaseHelper() != null) {
                         callbacks.getDatabaseHelper().addDevice(device);
@@ -118,11 +119,11 @@ public class MainBleHelper {
                 @Override
                 public void onScanComplete() {
                     LogUtil.d(TAG, "BLE scanning completed");
-                    Toast.makeText(activity, R.string.scan_complete, Toast.LENGTH_SHORT).show();
+                    ToastHelper.show(activity, R.string.scan_complete);
                 }
             });
         } else {
-            Toast.makeText(activity, R.string.bluetooth_not_enabled, Toast.LENGTH_SHORT).show();
+            ToastHelper.show(activity, R.string.bluetooth_not_enabled);
         }
     }
 }

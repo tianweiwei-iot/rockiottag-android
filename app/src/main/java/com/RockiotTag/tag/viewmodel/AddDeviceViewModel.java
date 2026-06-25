@@ -9,7 +9,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import com.RockiotTag.tag.ApiConfig;
-import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.DeviceApiService;
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.repository.DeviceRepository;
@@ -59,9 +59,59 @@ public class AddDeviceViewModel extends AndroidViewModel {
     public boolean isDeviceBound(String deviceNum) {
         return deviceRepository.isDeviceBound(deviceNum);
     }
-    
+
+    /**
+     * 将本地已有的设备同步到账号（设备已在本地数据库但不在 bound_devices 中）
+     */
+    public void syncDeviceToAccount(String deviceNum, String nickname, BindCallback callback) {
+        new Thread(() -> {
+            try {
+                android.content.SharedPreferences prefs = getApplication().getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE);
+                String token = prefs.getString("auth_token", null);
+
+                if (token == null || token.isEmpty()) {
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                        callback.onError("请先登录"));
+                    return;
+                }
+
+                // 获取本地设备信息
+                TagDevice localDevice = deviceRepository.getDeviceByNum(deviceNum);
+                if (localDevice == null) {
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                        callback.onError("设备不存在"));
+                    return;
+                }
+
+                String finalNickname = (nickname != null && !nickname.isEmpty()) ? nickname : localDevice.getName();
+
+                // 调用服务器绑定 API
+                DeviceApiService deviceApiService = DeviceApiService.getInstance();
+                DeviceApiService.DeviceApiResponse response = deviceApiService.bindDevice(token, deviceNum, finalNickname);
+
+                if (response.isSuccess()) {
+                    LogUtil.d(TAG, "Device synced to account successfully: " + deviceNum);
+                    // 更新本地 bound_devices
+                    updateBoundDevicesList(prefs, deviceNum, finalNickname);
+
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                        callback.onSuccess(localDevice));
+                } else {
+                    String msg = response.getMessage();
+                    Log.e(TAG, "Failed to sync device to account: " + msg);
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                        callback.onError(msg != null ? msg : "同步失败"));
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error syncing device to account: " + e.getMessage(), e);
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                    callback.onError("同步失败: " + e.getMessage()));
+            }
+        }).start();
+    }
+
     public interface BindCallback {
-        void onSuccess(Device device);
+        void onSuccess(TagDevice device);
         void onError(String error);
     }
     
@@ -75,7 +125,7 @@ public class AddDeviceViewModel extends AndroidViewModel {
         
         new Thread(() -> {
             try {
-                NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(finalDeviceNum));
+                String baseUrl = ApiConfig.getMyServerUrl(finalDeviceNum);
                 
                 if (!apiService.isAuthenticated()) {
                     NewApiService.ApiResponse loginResponse = apiService.login(
@@ -100,7 +150,7 @@ public class AddDeviceViewModel extends AndroidViewModel {
                     
                     statusMessage.postValue("正在尝试 " + entry.getValue().name + "...");
                     
-                    NewApiService.DeviceInfo info = apiService.getDeviceLatest(finalDeviceNum, customerCode);
+                    NewApiService.DeviceInfo info = apiService.getDeviceLatest(baseUrl, finalDeviceNum, customerCode);
                     if (info != null && info.deviceNum != null && !info.deviceNum.isEmpty()) {
                         deviceInfo = info;
                         foundCustomerCode = customerCode;
@@ -134,7 +184,7 @@ public class AddDeviceViewModel extends AndroidViewModel {
                     finalNickname = deviceInfo.nickName;
                 }
                 
-                Device newDevice = new Device(actualDeviceNum, finalNickname);
+                TagDevice newDevice = new TagDevice(actualDeviceNum, finalNickname);
                 newDevice.setMac(macAddress);
                 newDevice.setCustomerCode(finalCustomerCode);
                 newDevice.setTag(tag);
@@ -162,8 +212,7 @@ public class AddDeviceViewModel extends AndroidViewModel {
                 
                 if (needSyncToServer) {
                     try {
-                        NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(actualDeviceNum));
-                        NewApiService.ApiResponse updateResponse = apiService.updateDevice(actualDeviceNum, finalNickname, finalCustomerCode);
+                        NewApiService.ApiResponse updateResponse = apiService.updateDevice(ApiConfig.getMyServerUrl(actualDeviceNum), actualDeviceNum, finalNickname, finalCustomerCode);
                         if (updateResponse != null && updateResponse.isSuccess()) {
                             LogUtil.d(TAG, "Nickname synced to server successfully");
                         } else {
@@ -213,28 +262,39 @@ public class AddDeviceViewModel extends AndroidViewModel {
             // 检查用户是否已登录
             android.content.SharedPreferences prefs = getApplication().getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE);
             String token = prefs.getString("auth_token", null);
-            
+
             if (token == null || token.isEmpty()) {
                 LogUtil.d(TAG, "User not logged in, skip binding to account");
                 return;
             }
-            
+
             LogUtil.d(TAG, "User logged in, binding device to account: " + deviceNum + " with alias: " + alias);
-            
+
             // 调用后端API绑定设备到账号（传递昵称）
             DeviceApiService deviceApiService = DeviceApiService.getInstance();
             DeviceApiService.DeviceApiResponse response = deviceApiService.bindDevice(token, deviceNum, alias);
-            
+
             if (response.isSuccess()) {
                 LogUtil.d(TAG, "Device bound to account successfully: " + deviceNum);
-                
                 // 更新本地bound_devices列表
                 updateBoundDevicesList(prefs, deviceNum, alias);
             } else {
                 Log.e(TAG, "Failed to bind device to account: " + response.getMessage());
+                // 绑定失败，通知UI显示错误
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                    String msg = response.getMessage();
+                    if (msg != null && (msg.contains("already") || msg.contains("已绑定") || msg.contains("重复"))) {
+                        errorMessage.postValue("该设备已绑定，请勿重复绑定");
+                    } else {
+                        errorMessage.postValue("绑定失败: " + (msg != null ? msg : "未知错误"));
+                    }
+                });
             }
         } catch (Exception e) {
             Log.e(TAG, "Error binding device to account: " + e.getMessage(), e);
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                errorMessage.postValue("绑定失败: " + e.getMessage());
+            });
         }
     }
     

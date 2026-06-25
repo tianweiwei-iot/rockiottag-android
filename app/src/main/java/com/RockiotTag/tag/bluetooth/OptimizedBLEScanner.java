@@ -15,7 +15,7 @@ import android.util.Log;
 
 import androidx.core.app.ActivityCompat;
 
-import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ public class OptimizedBLEScanner {
     public interface ScanStateCallback {
         void onScanStarted();      // 扫描开始
         void onScanStopped();      // 扫描停止（休息中）
-        void onDeviceFound(Device device);  // 发现设备
+        void onDeviceFound(TagDevice device);  // 发现设备
     }
     
     private Context context;
@@ -66,7 +66,7 @@ public class OptimizedBLEScanner {
     // 用户回调接口（已废弃，使用ScanStateCallback代替）
     @Deprecated
     public interface ScanCallback {
-        void onDeviceFound(Device device);
+        void onDeviceFound(TagDevice device);
         void onScanComplete();
     }
     
@@ -306,7 +306,7 @@ public class OptimizedBLEScanner {
                 recentScans.put(normalizedMac, scanResult);
                 
                 // 创建设备对象并通知回调
-                Device device = new Device(normalizedMac, deviceName != null ? deviceName : "未知设备");
+                TagDevice device = new TagDevice(normalizedMac, deviceName != null ? deviceName : "未知设备");
                 device.setSignalStrength(rssi);
                 device.setLastSeen(timestamp);
                 device.setNearby(true);
@@ -332,7 +332,7 @@ public class OptimizedBLEScanner {
                 recentScans.put(normalizedMac, scanResult);
                 
                 // 创建设备对象并通知回调
-                Device device = new Device(normalizedMac, deviceName);
+                TagDevice device = new TagDevice(normalizedMac, deviceName);
                 device.setSignalStrength(rssi);
                 device.setLastSeen(timestamp);
                 device.setNearby(true);
@@ -495,10 +495,15 @@ public class OptimizedBLEScanner {
         
         // 检查权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Android 12+ 需要 BLUETOOTH_SCAN 权限
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) 
+            // Android 12+ 需要 BLUETOOTH_SCAN/CONNECT，且 BLE 扫描仍依赖位置权限
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN)
                     != PackageManager.PERMISSION_GRANTED) {
                 Log.e(TAG, "Missing BLUETOOTH_SCAN permission");
+                return false;
+            }
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED) {
+                Log.e(TAG, "Missing ACCESS_FINE_LOCATION permission (required for BLE scan on API 31+)");
                 return false;
             }
         } else {

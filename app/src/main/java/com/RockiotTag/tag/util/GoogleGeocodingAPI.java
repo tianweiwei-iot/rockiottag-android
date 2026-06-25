@@ -1,6 +1,7 @@
 package com.RockiotTag.tag.util;
 
 import android.util.Log;
+import com.RockiotTag.tag.ApiConfig;
 import com.RockiotTag.tag.util.LogUtil;
 
 import org.json.JSONArray;
@@ -21,9 +22,9 @@ public class GoogleGeocodingAPI {
     private static final String TAG = "GoogleGeocodingAPI";
     private static final String API_URL = "https://maps.googleapis.com/maps/api/geocode/json";
     
-    // Google Geocoding API Key（与地图使用相同的Key）
+    // Google Geocoding API Key（从 ApiConfig 读取，通过 BuildConfig 注入）
     // 需要在Google Cloud控制台启用"Geocoding API"
-    private static final String API_KEY = "AIzaSyDrAPLhyAuC-GsRtc5m2eVXDhxkD_AZHUU";
+    private static final String API_KEY = ApiConfig.GOOGLE_MAPS_API_KEY;
     
     /**
      * 根据坐标获取地址
@@ -33,6 +34,7 @@ public class GoogleGeocodingAPI {
      * @return 地址字符串，如果失败返回null
      */
     public static String getAddress(double latitude, double longitude, String languageCode) {
+        HttpURLConnection connection = null;
         try {
             // 构建请求URL
             String latLng = latitude + "," + longitude;
@@ -52,44 +54,44 @@ public class GoogleGeocodingAPI {
             
             // 发送HTTP请求
             URL url = new URL(urlString);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(10000);
             connection.setReadTimeout(10000);
             
             int responseCode = connection.getResponseCode();
             if (responseCode == HttpURLConnection.HTTP_OK) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
-                reader.close();
-                
-                // 解析JSON响应
-                JSONObject json = new JSONObject(response.toString());
-                String status = json.getString("status");
-                
-                if ("OK".equals(status)) {
-                    JSONArray results = json.getJSONArray("results");
-                    if (results.length() > 0) {
-                        JSONObject firstResult = results.getJSONObject(0);
-                        String formattedAddress = firstResult.getString("formatted_address");
-                        LogUtil.d(TAG, "Geocoding success: " + formattedAddress);
-                        return formattedAddress;
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
                     }
-                } else {
-                    Log.w(TAG, "Geocoding API returned status: " + status);
+                    
+                    // 解析JSON响应
+                    JSONObject json = new JSONObject(response.toString());
+                    String status = json.getString("status");
+                    
+                    if ("OK".equals(status)) {
+                        JSONArray results = json.getJSONArray("results");
+                        if (results.length() > 0) {
+                            JSONObject firstResult = results.getJSONObject(0);
+                            String formattedAddress = firstResult.getString("formatted_address");
+                            LogUtil.d(TAG, "Geocoding success: " + formattedAddress);
+                            return formattedAddress;
+                        }
+                    } else {
+                        Log.w(TAG, "Geocoding API returned status: " + status);
+                    }
                 }
             } else {
                 Log.e(TAG, "HTTP error: " + responseCode);
             }
             
-            connection.disconnect();
-            
         } catch (Exception e) {
             Log.e(TAG, "Error calling Google Geocoding API: " + e.getMessage(), e);
+        } finally {
+            if (connection != null) connection.disconnect();
         }
         
         return null;

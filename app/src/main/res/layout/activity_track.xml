@@ -2,27 +2,31 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/track_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".TrackActivity">
 
-    <!-- 地图控件（全屏作为背景） -->
-    <com.amap.api.maps.MapView
-        android:id="@+id/mapView"
+    <!-- 地图层（独立容器，bringToFront 仅在此容器内生效，不遮挡底部 Tab） -->
+    <FrameLayout
+        android:id="@+id/map_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="gone"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        app:layout_constraintBottom_toBottomOf="parent">
 
-    <fragment
-        android:id="@+id/googleMapFragment"
-        android:name="com.google.android.gms.maps.SupportMapFragment"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        <com.amap.api.maps.MapView
+            android:id="@+id/mapView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <fragment
+            android:id="@+id/googleMapFragment"
+            android:name="com.google.android.gms.maps.SupportMapFragment"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </FrameLayout>
 
     <!-- 标题栏（浮在地图上方） -->
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -34,6 +38,23 @@
         android:paddingTop="0dp"
         android:paddingBottom="4dp"
         app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:id="@+id/current_language_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="4dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:textSize="11sp"
+            android:textColor="@color/text_secondary"
+            android:background="@drawable/bg_language_indicator"
+            android:contentDescription="@string/current_language_cd"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
             android:id="@+id/title_text"
@@ -69,7 +90,7 @@
             android:text="@string/today"
             android:textSize="13sp"
             android:textColor="#FFFFFF"
-            android:backgroundTint="#2196F3"
+            android:backgroundTint="@color/brand_primary"
             android:minWidth="60dp"
             android:paddingTop="0dp"
             android:paddingBottom="4dp"
@@ -103,70 +124,39 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- 工具栏：仅保留统计和刷新（浮在地图上方） -->
+    <!-- 工具栏：统计、刷新（与首页浮动按钮同款） -->
     <LinearLayout
         android:id="@+id/toolbar_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:layout_marginEnd="8dp"
+        android:layout_marginEnd="12dp"
         android:layout_marginTop="8dp"
-        android:background="@color/surface"
-        android:elevation="3dp"
-        android:padding="3dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@id/top_bar">
 
-        <!-- 统计按钮 -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center">
+        <ImageButton
+            android:id="@+id/statistics_btn"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginBottom="8dp"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_statistics"
+            android:background="@drawable/bg_map_floating_button"
+            android:elevation="4dp"
+            android:contentDescription="@string/statistics" />
 
-            <ImageButton
-                android:id="@+id/statistics_btn"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@android:drawable/ic_menu_today"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:scaleType="centerInside"
-                android:contentDescription="@string/statistics" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/statistics"
-                android:textSize="9sp"
-                android:textColor="@color/text_secondary" />
-
-        </LinearLayout>
-
-        <!-- 刷新按钮 -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:layout_marginTop="2dp">
-
-            <ImageButton
-                android:id="@+id/refresh_btn"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@android:drawable/ic_menu_rotate"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:scaleType="centerInside"
-                android:contentDescription="@string/refresh" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/refresh"
-                android:textSize="9sp"
-                android:textColor="@color/text_secondary" />
-
-        </LinearLayout>
+        <ImageButton
+            android:id="@+id/refresh_btn"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_refresh"
+            android:background="@drawable/bg_map_floating_button"
+            android:elevation="4dp"
+            android:contentDescription="@string/refresh" />
 
     </LinearLayout>
 
@@ -218,7 +208,7 @@
                         android:layout_weight="1"
                         android:text="@string/accuracy_default_value"
                         android:textSize="10sp"
-                        android:textColor="#2196F3"
+                        android:textColor="@color/brand_primary"
                         android:textStyle="bold"
                         android:gravity="end" />
 
@@ -318,6 +308,23 @@
         </LinearLayout>
 
     </androidx.cardview.widget.CardView>
+
+    <!-- 信息栏收起后的展开标识 -->
+    <ImageButton
+        android:id="@+id/track_info_panel_indicator"
+        android:layout_width="56dp"
+        android:layout_height="32dp"
+        android:layout_marginBottom="10dp"
+        android:padding="6dp"
+        android:visibility="gone"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_track_info_expand"
+        android:background="@drawable/bg_map_floating_button"
+        android:elevation="4dp"
+        android:contentDescription="@string/track_info_panel_expand"
+        app:layout_constraintBottom_toTopOf="@id/bottom_navigation"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- 底部导航栏（浮在地图上方） -->
     <LinearLayout

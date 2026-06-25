@@ -3,7 +3,7 @@ package com.RockiotTag.tag.usecase;
 import android.util.Log;
 
 import com.RockiotTag.tag.ApiConfig;
-import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.repository.DeviceRepository;
 import com.RockiotTag.tag.util.LogUtil;
@@ -30,10 +30,9 @@ public class GetDeviceInfoUseCase extends BaseUseCase<String, NewApiService.Devi
         
         try {
             String apiUrl = ApiConfig.getMyServerUrl(deviceNum);
-            NewApiService.setApiBaseUrl(apiUrl);
             LogUtil.d(TAG, "API URL: " + apiUrl);
             
-            Device localDevice = deviceRepository.getDeviceByNum(deviceNum);
+            TagDevice localDevice = deviceRepository.getDeviceByNum(deviceNum);
             String savedCustomerCode = null;
             if (localDevice != null && localDevice.getCustomerCode() != null && !localDevice.getCustomerCode().isEmpty()) {
                 savedCustomerCode = localDevice.getCustomerCode();
@@ -44,7 +43,7 @@ public class GetDeviceInfoUseCase extends BaseUseCase<String, NewApiService.Devi
             
             if (savedCustomerCode != null) {
                 LogUtil.d(TAG, "Trying with saved customerCode: " + savedCustomerCode);
-                deviceInfo = NewApiService.getInstance().getDeviceLatest(deviceNum, savedCustomerCode);
+                deviceInfo = NewApiService.getInstance().getDeviceLatest(apiUrl, deviceNum, savedCustomerCode);
             }
             
             if (deviceInfo == null || deviceInfo.deviceNum == null || deviceInfo.deviceNum.isEmpty()) {
@@ -57,7 +56,7 @@ public class GetDeviceInfoUseCase extends BaseUseCase<String, NewApiService.Devi
                     }
                     
                     LogUtil.d(TAG, "Trying customerCode: " + customerCode);
-                    deviceInfo = NewApiService.getInstance().getDeviceLatest(deviceNum, customerCode);
+                    deviceInfo = NewApiService.getInstance().getDeviceLatest(apiUrl, deviceNum, customerCode);
                     if (deviceInfo != null && deviceInfo.deviceNum != null && !deviceInfo.deviceNum.isEmpty()) {
                         LogUtil.d(TAG, "Device found with customerCode: " + customerCode);
                         savedCustomerCode = customerCode;
@@ -80,7 +79,7 @@ public class GetDeviceInfoUseCase extends BaseUseCase<String, NewApiService.Devi
             LogUtil.d(TAG, "  - Timestamp: " + deviceInfo.timestamp);
             
             try {
-                Device existingDevice = deviceRepository.getDeviceByNum(deviceInfo.deviceNum);
+                TagDevice existingDevice = deviceRepository.getDeviceByNum(deviceInfo.deviceNum);
                 if (existingDevice != null) {
                     if (savedCustomerCode != null && !savedCustomerCode.equals(existingDevice.getCustomerCode())) {
                         existingDevice.setCustomerCode(savedCustomerCode);

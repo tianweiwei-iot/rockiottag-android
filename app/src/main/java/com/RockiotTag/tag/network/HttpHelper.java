@@ -28,6 +28,16 @@ public class HttpHelper {
     private static final String TAG = "HttpHelper";
     private static final int CONNECT_TIMEOUT = 10000;
     private static final int READ_TIMEOUT = 30000;
+
+    private static String maskApiKey(String apiKey) {
+        if (apiKey == null || apiKey.isEmpty()) {
+            return "(empty)";
+        }
+        if (apiKey.length() <= 8) {
+            return "****";
+        }
+        return apiKey.substring(0, 4) + "****" + apiKey.substring(apiKey.length() - 4);
+    }
     
     /**
      * 执行 GET 请求（使用默认 API Key）
@@ -48,7 +58,7 @@ public class HttpHelper {
         try {
             String apiKey = ApiConfig.getApiKeyForCustomer(customerCode);
             LogUtil.d(TAG, "GET request URL: " + urlString);
-            LogUtil.d(TAG, "GET request API Key: " + apiKey);
+            LogUtil.d(TAG, "GET request API Key: " + maskApiKey(apiKey));
             
             URL url = new URL(urlString);
             conn = (HttpURLConnection) url.openConnection();
@@ -114,6 +124,119 @@ public class HttpHelper {
         }
     }
     
+    /**
+     * 执行 GET 请求（使用 Bearer Token 认证）
+     *
+     * @param urlString 完整的 URL
+     * @param token     Bearer Token，为空则不添加 Authorization 头
+     * @return HttpResponse
+     */
+    public static HttpResponse getWithAuth(String urlString, String token) {
+        HttpURLConnection conn = null;
+        try {
+            LogUtil.d(TAG, "GET (auth) request URL: " + urlString);
+
+            URL url = new URL(urlString);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Content-Type", "application/json");
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
+            conn.setConnectTimeout(CONNECT_TIMEOUT);
+            conn.setReadTimeout(READ_TIMEOUT);
+
+            return executeRequest(conn);
+        } catch (Exception e) {
+            Log.e(TAG, "GET (auth) request failed: " + e.getMessage(), e);
+            return new HttpResponse(-1, null, e.getMessage());
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
+    /**
+     * 执行 POST 请求（使用 Bearer Token 认证）
+     *
+     * @param urlString 完整的 URL
+     * @param jsonBody  JSON 字符串
+     * @param token     Bearer Token，为空则不添加 Authorization 头
+     * @return HttpResponse
+     */
+    public static HttpResponse postWithAuth(String urlString, String jsonBody, String token) {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(urlString);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
+            conn.setConnectTimeout(CONNECT_TIMEOUT);
+            conn.setReadTimeout(READ_TIMEOUT);
+            conn.setDoOutput(true);
+
+            LogUtil.d(TAG, "POST (auth) request body: " + jsonBody);
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(jsonBody.getBytes(StandardCharsets.UTF_8));
+                os.flush();
+            }
+
+            return executeRequest(conn);
+        } catch (Exception e) {
+            Log.e(TAG, "POST (auth) request failed: " + e.getMessage(), e);
+            return new HttpResponse(-1, null, e.getMessage());
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
+    /**
+     * 执行 PUT 请求（使用 Bearer Token 认证）
+     *
+     * @param urlString 完整的 URL
+     * @param jsonBody  JSON 字符串
+     * @param token     Bearer Token，为空则不添加 Authorization 头
+     * @return HttpResponse
+     */
+    public static HttpResponse putWithAuth(String urlString, String jsonBody, String token) {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(urlString);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("PUT");
+            conn.setRequestProperty("Content-Type", "application/json");
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
+            conn.setConnectTimeout(CONNECT_TIMEOUT);
+            conn.setReadTimeout(READ_TIMEOUT);
+            conn.setDoOutput(true);
+
+            LogUtil.d(TAG, "PUT (auth) request body: " + jsonBody);
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(jsonBody.getBytes(StandardCharsets.UTF_8));
+                os.flush();
+            }
+
+            return executeRequest(conn);
+        } catch (Exception e) {
+            Log.e(TAG, "PUT (auth) request failed: " + e.getMessage(), e);
+            return new HttpResponse(-1, null, e.getMessage());
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
     /**
      * 执行请求并读取响应
      */

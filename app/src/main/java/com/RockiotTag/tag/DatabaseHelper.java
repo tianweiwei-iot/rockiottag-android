@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.util.LogUtil;
 
 import java.util.ArrayList;
@@ -16,6 +17,24 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String TAG = "DatabaseHelper";
     private static final String DATABASE_NAME = "rockiottag.db";
     private static final int DATABASE_VERSION = 8;
+
+    private static volatile DatabaseHelper sInstance;
+
+    /**
+     * 获取DatabaseHelper单例实例
+     * 使用applicationContext避免Activity/Service级别的Context导致内存泄漏
+     * @param context 任意Context，内部会使用ApplicationContext
+     */
+    public static synchronized DatabaseHelper getInstance(Context context) {
+        if (sInstance == null) {
+            synchronized (DatabaseHelper.class) {
+                if (sInstance == null) {
+                    sInstance = new DatabaseHelper(context.getApplicationContext());
+                }
+            }
+        }
+        return sInstance;
+    }
 
     // 设备表
     private static final String TABLE_DEVICES = "devices";
@@ -91,52 +110,59 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         LogUtil.d(TAG, "Upgrading database from version " + oldVersion + " to " + newVersion);
-        
-        if (oldVersion < 8) {
-            try {
-                LogUtil.d(TAG, "Adding battery column to devices table");
-                db.execSQL("ALTER TABLE " + TABLE_DEVICES + " ADD COLUMN " + COLUMN_BATTERY + " INTEGER DEFAULT -1");
-                LogUtil.d(TAG, "battery column added successfully");
-            } catch (Exception e) {
-                Log.e(TAG, "Error adding battery column: " + e.getMessage());
+
+        db.beginTransaction();
+        try {
+            if (oldVersion < 4) {
+                db.execSQL("DROP TABLE IF EXISTS " + TABLE_LOCATION_HISTORY);
+                db.execSQL("DROP TABLE IF EXISTS " + TABLE_DEVICES);
+                db.execSQL("DROP TABLE IF EXISTS " + TABLE_ADDRESS_CACHE);
+                onCreate(db);
             }
-        }
-        
-        if (oldVersion < 7) {
-            try {
-                LogUtil.d(TAG, "Adding customer_code column to devices table");
-                db.execSQL("ALTER TABLE " + TABLE_DEVICES + " ADD COLUMN " + COLUMN_CUSTOMER_CODE + " TEXT DEFAULT ''");
-                LogUtil.d(TAG, "customer_code column added successfully");
-            } catch (Exception e) {
-                Log.e(TAG, "Error adding customer_code column: " + e.getMessage());
+
+            if (oldVersion < 5) {
+                try {
+                    LogUtil.d(TAG, "Adding MAC address column to devices table");
+                    db.execSQL("ALTER TABLE " + TABLE_DEVICES + " ADD COLUMN " + COLUMN_DEVICE_MAC + " TEXT DEFAULT ''");
+                    LogUtil.d(TAG, "MAC address column added successfully");
+                } catch (Exception e) {
+                    Log.e(TAG, "Error adding MAC column: " + e.getMessage());
+                }
             }
-        }
-        
-        if (oldVersion < 6) {
-            try {
-                LogUtil.d(TAG, "Adding accuracy column to location_history table");
-                db.execSQL("ALTER TABLE " + TABLE_LOCATION_HISTORY + " ADD COLUMN " + COLUMN_HISTORY_ACCURACY + " REAL DEFAULT 50.0");
-                LogUtil.d(TAG, "Accuracy column added successfully");
-            } catch (Exception e) {
-                Log.e(TAG, "Error adding accuracy column: " + e.getMessage());
+
+            if (oldVersion < 6) {
+                try {
+                    LogUtil.d(TAG, "Adding accuracy column to location_history table");
+                    db.execSQL("ALTER TABLE " + TABLE_LOCATION_HISTORY + " ADD COLUMN " + COLUMN_HISTORY_ACCURACY + " REAL DEFAULT 50.0");
+                    LogUtil.d(TAG, "Accuracy column added successfully");
+                } catch (Exception e) {
+                    Log.e(TAG, "Error adding accuracy column: " + e.getMessage());
+                }
             }
-        }
-        
-        if (oldVersion < 5) {
-            try {
-                LogUtil.d(TAG, "Adding MAC address column to devices table");
-                db.execSQL("ALTER TABLE " + TABLE_DEVICES + " ADD COLUMN " + COLUMN_DEVICE_MAC + " TEXT DEFAULT ''");
-                LogUtil.d(TAG, "MAC address column added successfully");
-            } catch (Exception e) {
-                Log.e(TAG, "Error adding MAC column: " + e.getMessage());
+
+            if (oldVersion < 7) {
+                try {
+                    LogUtil.d(TAG, "Adding customer_code column to devices table");
+                    db.execSQL("ALTER TABLE " + TABLE_DEVICES + " ADD COLUMN " + COLUMN_CUSTOMER_CODE + " TEXT DEFAULT ''");
+                    LogUtil.d(TAG, "customer_code column added successfully");
+                } catch (Exception e) {
+                    Log.e(TAG, "Error adding customer_code column: " + e.getMessage());
+                }
             }
-        }
-        
-        if (oldVersion < 4) {
-            db.execSQL("DROP TABLE IF EXISTS " + TABLE_LOCATION_HISTORY);
-            db.execSQL("DROP TABLE IF EXISTS " + TABLE_DEVICES);
-            db.execSQL("DROP TABLE IF EXISTS " + TABLE_ADDRESS_CACHE);
-            onCreate(db);
+
+            if (oldVersion < 8) {
+                try {
+                    LogUtil.d(TAG, "Adding battery column to devices table");
+                    db.execSQL("ALTER TABLE " + TABLE_DEVICES + " ADD COLUMN " + COLUMN_BATTERY + " INTEGER DEFAULT -1");
+                    LogUtil.d(TAG, "battery column added successfully");
+                } catch (Exception e) {
+                    Log.e(TAG, "Error adding battery column: " + e.getMessage());
+                }
+            }
+
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
         }
     }
     
@@ -146,12 +172,12 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      */
     public void upgradeToMultiLanguageCache() {
         SQLiteDatabase db = this.getWritableDatabase();
+        db.beginTransaction();
         try {
             // 检查是否需要添加language列
-            Cursor cursor = db.rawQuery("PRAGMA table_info(" + TABLE_ADDRESS_CACHE + ")", null);
             boolean hasLanguageColumn = false;
-            
-            if (cursor != null) {
+
+            try (Cursor cursor = db.rawQuery("PRAGMA table_info(" + TABLE_ADDRESS_CACHE + ")", null)) {
                 while (cursor.moveToNext()) {
                     String columnName = cursor.getString(cursor.getColumnIndexOrThrow("name"));
                     if (columnName.equals(COLUMN_CACHE_LANGUAGE)) {
@@ -159,27 +185,30 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                         break;
                     }
                 }
-                cursor.close();
             }
-            
+
             if (!hasLanguageColumn) {
                 LogUtil.d(TAG, "Adding language column to address_cache table");
                 db.execSQL("ALTER TABLE " + TABLE_ADDRESS_CACHE + " ADD COLUMN " + COLUMN_CACHE_LANGUAGE + " TEXT DEFAULT 'zh-CN'");
-                
+
                 // 更新现有的缓存记录的cache_key，添加语言后缀
                 db.execSQL("UPDATE " + TABLE_ADDRESS_CACHE + " SET " + COLUMN_CACHE_LANGUAGE + "='zh-CN' WHERE " + COLUMN_CACHE_LANGUAGE + " IS NULL");
-                
+
                 LogUtil.d(TAG, "Database upgraded to support multi-language cache");
             } else {
                 LogUtil.d(TAG, "Database already supports multi-language cache");
             }
+
+            db.setTransactionSuccessful();
         } catch (Exception e) {
             Log.e(TAG, "Error upgrading database: " + e.getMessage(), e);
+        } finally {
+            db.endTransaction();
         }
         // 注意：SQLiteOpenHelper 内部管理连接池，不应手动关闭
     }
 
-    public void addDevice(Device device) {
+    public void addDevice(TagDevice device) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put(COLUMN_DEVICE_ID, device.getDeviceId());
@@ -240,63 +269,61 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     // 专门用于更新设备名称和标签的方法
     public boolean updateDeviceNameAndTag(String deviceId, String deviceNum, String name, String tag) {
         SQLiteDatabase db = this.getWritableDatabase();
-        
+
         try {
             // 步骤1：先查询设备是否存在
             LogUtil.d(TAG, "=== Step 1: Query device before update ===");
-            Cursor cursor = db.query(TABLE_DEVICES, 
+            try (Cursor cursor = db.query(TABLE_DEVICES,
                 new String[]{COLUMN_DEVICE_ID, COLUMN_DEVICE_NUM, COLUMN_DEVICE_NAME, COLUMN_TAG},
-                null, null, null, null, null);
-            
-            LogUtil.d(TAG, "Total devices in database: " + cursor.getCount());
-            while (cursor.moveToNext()) {
-                String id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_ID));
-                String num = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NUM));
-                String n = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NAME));
-                String t = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TAG));
-                LogUtil.d(TAG, "  Device: id=" + id + ", num=" + num + ", name=" + n + ", tag=" + t);
+                null, null, null, null, null)) {
+
+                LogUtil.d(TAG, "Total devices in database: " + cursor.getCount());
+                while (cursor.moveToNext()) {
+                    String id = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_ID));
+                    String num = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NUM));
+                    String n = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NAME));
+                    String t = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TAG));
+                    LogUtil.d(TAG, "  Device: id=" + id + ", num=" + num + ", name=" + n + ", tag=" + t);
+                }
             }
-            cursor.close();
-            
+
             // 步骤2：使用原始 SQL UPDATE
             LogUtil.d(TAG, "=== Step 2: Executing UPDATE ===");
             LogUtil.d(TAG, "Target deviceNum: " + deviceNum);
             LogUtil.d(TAG, "New name: " + name);
             LogUtil.d(TAG, "New tag: " + tag);
-            
-            String sql = "UPDATE " + TABLE_DEVICES + 
+
+            String sql = "UPDATE " + TABLE_DEVICES +
                         " SET " + COLUMN_DEVICE_NAME + "=?, " + COLUMN_TAG + "=?" +
                         " WHERE " + COLUMN_DEVICE_NUM + "=?";
-            
+
             db.execSQL(sql, new String[]{name, tag, deviceNum});
             LogUtil.d(TAG, "✅ UPDATE SQL executed successfully");
-            
+
             // 步骤3：验证更新结果
             LogUtil.d(TAG, "=== Step 3: Verify update ===");
-            cursor = db.query(TABLE_DEVICES,
+            try (Cursor cursor = db.query(TABLE_DEVICES,
                 new String[]{COLUMN_DEVICE_ID, COLUMN_DEVICE_NUM, COLUMN_DEVICE_NAME, COLUMN_TAG},
                 COLUMN_DEVICE_NUM + "=?",
                 new String[]{deviceNum},
-                null, null, null);
-            
-            if (cursor.moveToFirst()) {
-                String verifyId = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_ID));
-                String verifyNum = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NUM));
-                String verifyName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NAME));
-                String verifyTag = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TAG));
-                
-                LogUtil.d(TAG, "✅ VERIFICATION SUCCESS!");
-                LogUtil.d(TAG, "  After update: id=" + verifyId + ", num=" + verifyNum + ", name=" + verifyName + ", tag=" + verifyTag);
-                
-                boolean success = verifyName.equals(name) && verifyTag.equals(tag);
-                cursor.close();
-                return success;
-            } else {
-                Log.e(TAG, "❌ VERIFICATION FAILED: Device not found after update!");
-                cursor.close();
-                return false;
+                null, null, null)) {
+
+                if (cursor.moveToFirst()) {
+                    String verifyId = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_ID));
+                    String verifyNum = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NUM));
+                    String verifyName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NAME));
+                    String verifyTag = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TAG));
+
+                    LogUtil.d(TAG, "✅ VERIFICATION SUCCESS!");
+                    LogUtil.d(TAG, "  After update: id=" + verifyId + ", num=" + verifyNum + ", name=" + verifyName + ", tag=" + verifyTag);
+
+                    return verifyName.equals(name) && verifyTag.equals(tag);
+                } else {
+                    Log.e(TAG, "❌ VERIFICATION FAILED: Device not found after update!");
+                    return false;
+                }
             }
-            
+
         } catch (Exception e) {
             Log.e(TAG, "❌ UPDATE EXCEPTION: " + e.getMessage(), e);
 
@@ -311,130 +338,79 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public long getLatestRecordTimestamp(String deviceId) {
         SQLiteDatabase db = this.getReadableDatabase();
         long latestTimestamp = 0;
-        
-        try {
-            Cursor cursor = db.query(TABLE_LOCATION_HISTORY,
-                new String[]{"MAX(" + COLUMN_HISTORY_TIMESTAMP + ")"},
-                COLUMN_HISTORY_DEVICE_ID + "=?",
-                new String[]{deviceId},
-                null, null, null);
-            
+
+        try (Cursor cursor = db.query(TABLE_LOCATION_HISTORY,
+            new String[]{"MAX(" + COLUMN_HISTORY_TIMESTAMP + ")"},
+            COLUMN_HISTORY_DEVICE_ID + "=?",
+            new String[]{deviceId},
+            null, null, null)) {
+
             if (cursor.moveToFirst() && !cursor.isNull(0)) {
                 latestTimestamp = cursor.getLong(0);
 
             }
-            cursor.close();
         } catch (Exception e) {
 
         }
         // 注意：SQLiteOpenHelper 内部管理连接池，不应手动关闭
-        
+
         return latestTimestamp;
     }
 
-    public List<Device> getAllDevices() {
-        List<Device> deviceList = new ArrayList<>();
+    public List<TagDevice> getAllDevices() {
+        List<TagDevice> deviceList = new ArrayList<>();
         String selectQuery = "SELECT * FROM " + TABLE_DEVICES;
 
         SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery(selectQuery, null);
-
-        if (cursor.moveToFirst()) {
-            do {
-                Device device = new Device(
-                        cursor.getString(cursor.getColumnIndex(COLUMN_DEVICE_ID)),
-                        cursor.getString(cursor.getColumnIndex(COLUMN_DEVICE_NAME))
-                );
-                int deviceNumIndex = cursor.getColumnIndex(COLUMN_DEVICE_NUM);
-                if (deviceNumIndex != -1) {
-                    device.setDeviceNum(cursor.getString(deviceNumIndex));
-                }
-                int macIndex = cursor.getColumnIndex(COLUMN_DEVICE_MAC);
-                if (macIndex != -1) {
-                    String mac = cursor.getString(macIndex);
-                    device.setMac(mac);
-                    LogUtil.d(TAG, "Device loaded: id=" + device.getDeviceId() + ", num=" + device.getDeviceNum() + ", name=" + device.getName() + ", mac=" + mac);
-                }
-                int customerCodeIndex = cursor.getColumnIndex(COLUMN_CUSTOMER_CODE);
-                if (customerCodeIndex != -1) {
-                    device.setCustomerCode(cursor.getString(customerCodeIndex));
-                }
-                int tagIndex = cursor.getColumnIndex(COLUMN_TAG);
-                if (tagIndex != -1) {
-                    device.setTag(cursor.getString(tagIndex));
-                }
-                device.setLatitude(cursor.getDouble(cursor.getColumnIndex(COLUMN_LATITUDE)));
-                device.setLongitude(cursor.getDouble(cursor.getColumnIndex(COLUMN_LONGITUDE)));
-                device.setSignalStrength(cursor.getInt(cursor.getColumnIndex(COLUMN_SIGNAL_STRENGTH)));
-                device.setLastSeen(cursor.getLong(cursor.getColumnIndex(COLUMN_LAST_SEEN)));
-                int batteryIndex = cursor.getColumnIndex(COLUMN_BATTERY);
-                if (batteryIndex != -1) {
-                    device.setBattery(cursor.getInt(batteryIndex));
-                }
-                deviceList.add(device);
-            } while (cursor.moveToNext());
+        try (Cursor cursor = db.rawQuery(selectQuery, null)) {
+            if (cursor.moveToFirst()) {
+                do {
+                    TagDevice device = new TagDevice(
+                            cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_ID)),
+                            cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NAME))
+                    );
+                    int deviceNumIndex = cursor.getColumnIndex(COLUMN_DEVICE_NUM);
+                    if (deviceNumIndex != -1) {
+                        device.setDeviceNum(cursor.getString(deviceNumIndex));
+                    }
+                    int macIndex = cursor.getColumnIndex(COLUMN_DEVICE_MAC);
+                    if (macIndex != -1) {
+                        String mac = cursor.getString(macIndex);
+                        device.setMac(mac);
+                        LogUtil.d(TAG, "Device loaded: id=" + device.getDeviceId() + ", num=" + device.getDeviceNum() + ", name=" + device.getName() + ", mac=" + mac);
+                    }
+                    int customerCodeIndex = cursor.getColumnIndex(COLUMN_CUSTOMER_CODE);
+                    if (customerCodeIndex != -1) {
+                        device.setCustomerCode(cursor.getString(customerCodeIndex));
+                    }
+                    int tagIndex = cursor.getColumnIndex(COLUMN_TAG);
+                    if (tagIndex != -1) {
+                        device.setTag(cursor.getString(tagIndex));
+                    }
+                    device.setLatitude(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LATITUDE)));
+                    device.setLongitude(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LONGITUDE)));
+                    device.setSignalStrength(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_SIGNAL_STRENGTH)));
+                    device.setLastSeen(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_LAST_SEEN)));
+                    int batteryIndex = cursor.getColumnIndex(COLUMN_BATTERY);
+                    if (batteryIndex != -1) {
+                        device.setBattery(cursor.getInt(batteryIndex));
+                    }
+                    deviceList.add(device);
+                } while (cursor.moveToNext());
+            }
         }
 
-        cursor.close();
         return deviceList;
     }
 
-    public Device getDevice(String deviceId) {
+    public TagDevice getDevice(String deviceId) {
         SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.query(TABLE_DEVICES, null, COLUMN_DEVICE_ID +"=?", new String[]{deviceId}, null, null, null);
-    
-        Device device = null;
-        if (cursor.moveToFirst()) {
-            device = new Device(
-                    cursor.getString(cursor.getColumnIndex(COLUMN_DEVICE_ID)),
-                    cursor.getString(cursor.getColumnIndex(COLUMN_DEVICE_NAME))
-            );
-            int deviceNumIndex = cursor.getColumnIndex(COLUMN_DEVICE_NUM);
-            if (deviceNumIndex != -1) {
-                device.setDeviceNum(cursor.getString(deviceNumIndex));
-            }
-            int macIndex = cursor.getColumnIndex(COLUMN_DEVICE_MAC);
-            if (macIndex != -1) {
-                device.setMac(cursor.getString(macIndex));
-            }
-            int customerCodeIndex = cursor.getColumnIndex(COLUMN_CUSTOMER_CODE);
-            if (customerCodeIndex != -1) {
-                device.setCustomerCode(cursor.getString(customerCodeIndex));
-            }
-            int tagIndex = cursor.getColumnIndex(COLUMN_TAG);
-            if (tagIndex != -1) {
-                device.setTag(cursor.getString(tagIndex));
-            }
-            device.setLatitude(cursor.getDouble(cursor.getColumnIndex(COLUMN_LATITUDE)));
-            device.setLongitude(cursor.getDouble(cursor.getColumnIndex(COLUMN_LONGITUDE)));
-            device.setSignalStrength(cursor.getInt(cursor.getColumnIndex(COLUMN_SIGNAL_STRENGTH)));
-            device.setLastSeen(cursor.getLong(cursor.getColumnIndex(COLUMN_LAST_SEEN)));
-            int batteryIndex = cursor.getColumnIndex(COLUMN_BATTERY);
-            if (batteryIndex != -1) {
-                device.setBattery(cursor.getInt(batteryIndex));
-            }
-        }
-    
-        cursor.close();
-        return device;
-    }
-        
-    public Device getDeviceByDeviceNum(String deviceNum) {
-        if (deviceNum == null || deviceNum.isEmpty()) {
-            return null;
-        }
-            
-        SQLiteDatabase db = null;
-        Cursor cursor = null;
-        try {
-            db = this.getReadableDatabase();
-            cursor = db.query(TABLE_DEVICES, null, COLUMN_DEVICE_NUM +"=?", new String[]{deviceNum}, null, null, null);
-        
-            Device device = null;
-            if (cursor != null && cursor.moveToFirst()) {
-                device = new Device(
-                        cursor.getString(cursor.getColumnIndex(COLUMN_DEVICE_ID)),
-                        cursor.getString(cursor.getColumnIndex(COLUMN_DEVICE_NAME))
+        try (Cursor cursor = db.query(TABLE_DEVICES, null, COLUMN_DEVICE_ID +"=?", new String[]{deviceId}, null, null, null)) {
+            TagDevice device = null;
+            if (cursor.moveToFirst()) {
+                device = new TagDevice(
+                        cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_ID)),
+                        cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NAME))
                 );
                 int deviceNumIndex = cursor.getColumnIndex(COLUMN_DEVICE_NUM);
                 if (deviceNumIndex != -1) {
@@ -452,10 +428,53 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 if (tagIndex != -1) {
                     device.setTag(cursor.getString(tagIndex));
                 }
-                device.setLatitude(cursor.getDouble(cursor.getColumnIndex(COLUMN_LATITUDE)));
-                device.setLongitude(cursor.getDouble(cursor.getColumnIndex(COLUMN_LONGITUDE)));
-                device.setSignalStrength(cursor.getInt(cursor.getColumnIndex(COLUMN_SIGNAL_STRENGTH)));
-                device.setLastSeen(cursor.getLong(cursor.getColumnIndex(COLUMN_LAST_SEEN)));
+                device.setLatitude(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LATITUDE)));
+                device.setLongitude(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LONGITUDE)));
+                device.setSignalStrength(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_SIGNAL_STRENGTH)));
+                device.setLastSeen(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_LAST_SEEN)));
+                int batteryIndex = cursor.getColumnIndex(COLUMN_BATTERY);
+                if (batteryIndex != -1) {
+                    device.setBattery(cursor.getInt(batteryIndex));
+                }
+            }
+            return device;
+        }
+    }
+
+        
+    public TagDevice getDeviceByDeviceNum(String deviceNum) {
+        if (deviceNum == null || deviceNum.isEmpty()) {
+            return null;
+        }
+
+        SQLiteDatabase db = this.getReadableDatabase();
+        try (Cursor cursor = db.query(TABLE_DEVICES, null, COLUMN_DEVICE_NUM +"=?", new String[]{deviceNum}, null, null, null)) {
+            TagDevice device = null;
+            if (cursor.moveToFirst()) {
+                device = new TagDevice(
+                        cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_ID)),
+                        cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DEVICE_NAME))
+                );
+                int deviceNumIndex = cursor.getColumnIndex(COLUMN_DEVICE_NUM);
+                if (deviceNumIndex != -1) {
+                    device.setDeviceNum(cursor.getString(deviceNumIndex));
+                }
+                int macIndex = cursor.getColumnIndex(COLUMN_DEVICE_MAC);
+                if (macIndex != -1) {
+                    device.setMac(cursor.getString(macIndex));
+                }
+                int customerCodeIndex = cursor.getColumnIndex(COLUMN_CUSTOMER_CODE);
+                if (customerCodeIndex != -1) {
+                    device.setCustomerCode(cursor.getString(customerCodeIndex));
+                }
+                int tagIndex = cursor.getColumnIndex(COLUMN_TAG);
+                if (tagIndex != -1) {
+                    device.setTag(cursor.getString(tagIndex));
+                }
+                device.setLatitude(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LATITUDE)));
+                device.setLongitude(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_LONGITUDE)));
+                device.setSignalStrength(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_SIGNAL_STRENGTH)));
+                device.setLastSeen(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_LAST_SEEN)));
                 int batteryIndex = cursor.getColumnIndex(COLUMN_BATTERY);
                 if (batteryIndex != -1) {
                     device.setBattery(cursor.getInt(batteryIndex));
@@ -465,10 +484,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         } catch (Exception e) {
             Log.e(TAG, "Error getting device by deviceNum: " + deviceNum, e);
             return null;
-        } finally {
-            if (cursor != null && !cursor.isClosed()) {
-                cursor.close();
-            }
         }
     }
 
@@ -497,21 +512,17 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public int getDeviceCount() {
         String countQuery = "SELECT * FROM " + TABLE_DEVICES;
         SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery(countQuery, null);
-        int count = cursor.getCount();
-        cursor.close();
-        // 注意：SQLiteOpenHelper 内部管理连接池，不应手动关闭
-        return count;
+        try (Cursor cursor = db.rawQuery(countQuery, null)) {
+            return cursor.getCount();
+        }
     }
 
     // 检查设备是否已绑定
     public boolean isDeviceBound(String deviceId) {
         SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.query(TABLE_DEVICES, null, COLUMN_DEVICE_ID + "=?", new String[]{deviceId}, null, null, null);
-        boolean isBound = cursor.moveToFirst();
-        cursor.close();
-        // 注意：SQLiteOpenHelper 内部管理连接池，不应手动关闭
-        return isBound;
+        try (Cursor cursor = db.query(TABLE_DEVICES, null, COLUMN_DEVICE_ID + "=?", new String[]{deviceId}, null, null, null)) {
+            return cursor.moveToFirst();
+        }
     }
 
     // 添加位置记录
@@ -543,30 +554,28 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
         LogUtil.d("DatabaseHelper", "[DB_QUERY] Query: deviceId=" + deviceId + ", startTime=" + startTime + ", endTime=" + endTime);
 
-        Cursor cursor = db.rawQuery(selectQuery, new String[]{
+        try (Cursor cursor = db.rawQuery(selectQuery, new String[]{
             deviceId,
             String.valueOf(startTime),
             String.valueOf(endTime)
-        });
+        })) {
+            LogUtil.d("DatabaseHelper", "[DB_QUERY] Cursor count: " + cursor.getCount());
 
-        LogUtil.d("DatabaseHelper", "[DB_QUERY] Cursor count: " + cursor.getCount());
+            if (cursor.moveToFirst()) {
+                do {
+                    long id = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_HISTORY_ID));
+                    String devId = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_HISTORY_DEVICE_ID));
+                    double latitude = cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_HISTORY_LATITUDE));
+                    double longitude = cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_HISTORY_LONGITUDE));
+                    float accuracy = cursor.getFloat(cursor.getColumnIndexOrThrow(COLUMN_HISTORY_ACCURACY));
+                    long timestamp = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_HISTORY_TIMESTAMP));
 
-        if (cursor.moveToFirst()) {
-            do {
-                long id = cursor.getLong(cursor.getColumnIndex(COLUMN_HISTORY_ID));
-                String devId = cursor.getString(cursor.getColumnIndex(COLUMN_HISTORY_DEVICE_ID));
-                double latitude = cursor.getDouble(cursor.getColumnIndex(COLUMN_HISTORY_LATITUDE));
-                double longitude = cursor.getDouble(cursor.getColumnIndex(COLUMN_HISTORY_LONGITUDE));
-                float accuracy = cursor.getFloat(cursor.getColumnIndex(COLUMN_HISTORY_ACCURACY));
-                long timestamp = cursor.getLong(cursor.getColumnIndex(COLUMN_HISTORY_TIMESTAMP));
-
-                LocationRecord record = new LocationRecord(id, devId, latitude, longitude, accuracy, timestamp);
-                recordList.add(record);
-            } while (cursor.moveToNext());
+                    LocationRecord record = new LocationRecord(id, devId, latitude, longitude, accuracy, timestamp);
+                    recordList.add(record);
+                } while (cursor.moveToNext());
+            }
         }
 
-        cursor.close();
-        
         LogUtil.d("DatabaseHelper", "[DB_QUERY] Returned records: " + recordList.size());
         if (!recordList.isEmpty()) {
             LogUtil.d("DatabaseHelper", "[DB_QUERY] First record: devId=" + recordList.get(0).getDeviceId() + ", ts=" + recordList.get(0).getTimestamp());
@@ -659,32 +668,30 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getReadableDatabase();
         
         try {
-            Cursor cursor = db.query(TABLE_ADDRESS_CACHE,
+            try (Cursor cursor = db.query(TABLE_ADDRESS_CACHE,
                 new String[]{COLUMN_CACHE_ADDRESS, COLUMN_CACHE_TIMESTAMP},
                 COLUMN_CACHE_KEY + "=?",
                 new String[]{cacheKey},
-                null, null, null);
-            
-            if (cursor.moveToFirst()) {
-                String address = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CACHE_ADDRESS));
-                long cacheTimestamp = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_CACHE_TIMESTAMP));
-                
-                // 检查缓存是否过期
-                if (maxAgeMillis > 0) {
-                    long currentTime = System.currentTimeMillis();
-                    if (currentTime - cacheTimestamp > maxAgeMillis) {
-                        LogUtil.d(TAG, "Address cache expired for key: " + cacheKey);
-                        cursor.close();
-                        return null;
+                null, null, null)) {
+
+                if (cursor.moveToFirst()) {
+                    String address = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CACHE_ADDRESS));
+                    long cacheTimestamp = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_CACHE_TIMESTAMP));
+
+                    // 检查缓存是否过期
+                    if (maxAgeMillis > 0) {
+                        long currentTime = System.currentTimeMillis();
+                        if (currentTime - cacheTimestamp > maxAgeMillis) {
+                            LogUtil.d(TAG, "Address cache expired for key: " + cacheKey);
+                            return null;
+                        }
                     }
+
+                    LogUtil.d(TAG, "Address cache hit for key: " + cacheKey + ", language: " + languageCode);
+                    return address;
                 }
-                
-                LogUtil.d(TAG, "Address cache hit for key: " + cacheKey + ", language: " + languageCode);
-                cursor.close();
-                return address;
             }
-            
-            cursor.close();
+
             LogUtil.d(TAG, "Address cache miss for key: " + cacheKey + ", language: " + languageCode);
             return null;
         } catch (Exception e) {
@@ -813,7 +820,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
      * @param devices 设备列表
      * @return 保存成功的数量
      */
-    public int saveDevicesBatch(List<Device> devices) {
+    public int saveDevicesBatch(List<TagDevice> devices) {
         if (devices == null || devices.isEmpty()) {
             return 0;
         }
@@ -821,7 +828,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         final int[] successCount = {0};
         
         boolean success = executeBatchTransaction(db -> {
-            for (Device device : devices) {
+            for (TagDevice device : devices) {
                 ContentValues values = new ContentValues();
                 values.put(COLUMN_DEVICE_ID, device.getDeviceId());
                 values.put(COLUMN_DEVICE_NUM, device.getDeviceNum());

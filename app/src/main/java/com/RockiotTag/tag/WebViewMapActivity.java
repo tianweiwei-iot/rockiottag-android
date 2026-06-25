@@ -1,5 +1,7 @@
 package com.RockiotTag.tag;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -10,7 +12,6 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
@@ -57,7 +58,7 @@ public class WebViewMapActivity extends AppCompatActivity {
         }
         
         // 显示调试信息
-        Toast.makeText(this, "位置: " + currentLat + ", " + currentLng, Toast.LENGTH_LONG).show();
+        ToastHelper.showLong(this, "位置: " + currentLat + ", " + currentLng);
         
         // MVVM - 初始化 ViewModel
         viewModel = new ViewModelProvider(this).get(WebViewMapViewModel.class);
@@ -85,7 +86,7 @@ public class WebViewMapActivity extends AppCompatActivity {
         
         viewModel.getErrorMessage().observe(this, error -> {
             if (error != null && !error.isEmpty()) {
-                Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+                ToastHelper.showLong(this, error);
             }
         });
     }
@@ -121,7 +122,7 @@ public class WebViewMapActivity extends AppCompatActivity {
                 super.onPageFinished(view, url);
                 // MVVM - 通知 ViewModel 页面加载完成
                 viewModel.onPageFinished();
-                Toast.makeText(WebViewMapActivity.this, "地图加载完成", Toast.LENGTH_SHORT).show();
+                ToastHelper.show(WebViewMapActivity.this, "地图加载完成");
             }
             
             @Override
@@ -129,7 +130,7 @@ public class WebViewMapActivity extends AppCompatActivity {
                 super.onReceivedError(view, errorCode, description, failingUrl);
                 // MVVM - 通知 ViewModel 页面加载失败
                 viewModel.onPageError(description);
-                Toast.makeText(WebViewMapActivity.this, "加载失败: " + description, Toast.LENGTH_SHORT).show();
+                ToastHelper.show(WebViewMapActivity.this, "加载失败: " + description);
             }
         });
         
@@ -147,7 +148,7 @@ public class WebViewMapActivity extends AppCompatActivity {
         String regionCode = getRegionCode();
         
         // MVVM - 使用 ViewModel 加载地图页面
-        String mapUrl = "https://maps.google.com/maps?q=" + currentLat + "," + currentLng + 
+        String mapUrl = ApiConfig.GOOGLE_MAPS_BASE_URL + "/maps?q=" + currentLat + "," + currentLng + 
                         "&z=15&output=embed&hl=" + languageCode + "&region=" + regionCode;
         viewModel.loadMapPage(mapUrl);
         

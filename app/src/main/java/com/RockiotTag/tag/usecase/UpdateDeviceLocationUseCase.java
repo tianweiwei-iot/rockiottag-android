@@ -3,7 +3,7 @@ package com.RockiotTag.tag.usecase;
 import android.util.Log;
 
 import com.RockiotTag.tag.ApiConfig;
-import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.repository.DeviceRepository;
 import com.RockiotTag.tag.util.LogUtil;
@@ -36,11 +36,10 @@ public class UpdateDeviceLocationUseCase extends BaseUseCase<String, NewApiServi
         try {
             // 设置API地址
             String apiUrl = ApiConfig.getMyServerUrl(deviceNum);
-            NewApiService.setApiBaseUrl(apiUrl);
-            
+
             // 获取设备最新位置
             NewApiService.DeviceInfo deviceInfo = NewApiService.getInstance()
-                .getDeviceLatest(deviceNum);
+                .getDeviceLatest(apiUrl, deviceNum);
             
             if (deviceInfo == null) {
                 throw new RuntimeException("无法获取设备位置信息");
@@ -51,7 +50,7 @@ public class UpdateDeviceLocationUseCase extends BaseUseCase<String, NewApiServi
             
             // 更新本地数据库
             try {
-                Device existingDevice = deviceRepository.getDeviceById(deviceInfo.deviceNum);
+                TagDevice existingDevice = deviceRepository.getDeviceById(deviceInfo.deviceNum);
                 if (existingDevice != null) {
                     deviceRepository.updateLocalDeviceInfo(existingDevice.getDeviceId(), deviceInfo);
                 }

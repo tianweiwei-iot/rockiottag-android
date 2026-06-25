@@ -6,6 +6,26 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
+    <!-- 首页右上角：当前语言 -->
+    <TextView
+        android:id="@+id/current_language_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="12dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:textSize="12sp"
+        android:textColor="@color/text_secondary"
+        android:background="@drawable/bg_language_indicator"
+        android:visibility="gone"
+        android:elevation="6dp"
+        android:contentDescription="@string/current_language_cd"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
     <!-- Fragment容器（包含地图，全屏显示） -->
     <FrameLayout
         android:id="@+id/fragment_container"
@@ -46,44 +66,54 @@
 
     </FrameLayout>
 
-    <!-- 首页浮动按钮（仅在首页显示） -->
-    <ImageButton
-        android:id="@+id/refresh_btn"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:layout_marginEnd="5dp"
-        android:layout_marginBottom="18dp"
-        android:src="@drawable/ic_refresh"
-        android:background="?attr/selectableItemBackgroundBorderless"
+    <!-- 首页浮动按钮（高德风格：白底圆角 + 黑色图标，紧贴设备信息栏上方） -->
+    <LinearLayout
+        android:id="@+id/map_floating_buttons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="10dp"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/map_type_btn" />
+        app:layout_constraintBottom_toTopOf="@id/bottom_info">
 
-    <ImageButton
-        android:id="@+id/map_type_btn"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginEnd="3dp"
-        android:layout_marginBottom="-5dp"
-        android:scaleType="centerInside"
-        android:src="@drawable/ic_map_type"
-        android:background="@android:color/transparent"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/locate_btn" />
+        <ImageButton
+            android:id="@+id/refresh_btn"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginBottom="8dp"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_refresh"
+            android:background="@drawable/bg_map_floating_button"
+            android:elevation="4dp"
+            android:contentDescription="@string/refresh" />
 
-    <ImageButton
-        android:id="@+id/locate_btn"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
-        android:layout_marginEnd="0dp"
-        android:layout_marginBottom="300dp"
-        android:scaleType="centerInside"
-        android:src="@drawable/ic_locate"
-        android:background="@android:color/transparent"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        <ImageButton
+            android:id="@+id/map_type_btn"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginBottom="8dp"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_map_type"
+            android:background="@drawable/bg_map_floating_button"
+            android:elevation="4dp"
+            android:contentDescription="@string/map_type" />
+
+        <ImageButton
+            android:id="@+id/locate_btn"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_locate"
+            android:background="@drawable/bg_map_floating_button"
+            android:elevation="4dp"
+            android:contentDescription="@string/locate" />
+
+    </LinearLayout>
 
     <!-- 底部信息栏（浮在地图上方，仅在首页显示） -->
     <androidx.cardview.widget.CardView

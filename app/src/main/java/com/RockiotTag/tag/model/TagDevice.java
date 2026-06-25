@@ -3,7 +3,8 @@ package com.RockiotTag.tag.model;
 import java.io.Serializable;
 
 /**
- * 智能标签设备模型
+ * 智能标签设备模型（统一领域模型）
+ * 替代旧的 Device 类，作为全项目统一使用的设备数据模型
  */
 public class TagDevice implements Serializable {
     private String deviceId;
@@ -12,12 +13,15 @@ public class TagDevice implements Serializable {
     private String address;
     private String tag;
     private String mac; // MAC地址
+    private String customerCode; // 客户编码
     private double latitude;
     private double longitude;
     private int batteryLevel; // 电量
     private int signalStrength; // 信号强度
     private long lastSeen; // 最后可见时间
     private long updatedAt; // 数据库更新时间戳
+    private boolean isNearby; // 是否附近
+    private Long bluetoothScanTime; // 蓝牙扫描时间
 
     public TagDevice() {
     }
@@ -28,6 +32,22 @@ public class TagDevice implements Serializable {
         this.name = name;
         this.address = deviceId;
         this.tag = "";
+        this.customerCode = "";
+        this.latitude = 0;
+        this.longitude = 0;
+        this.batteryLevel = -1;
+        this.signalStrength = 0;
+        this.lastSeen = System.currentTimeMillis();
+        this.updatedAt = System.currentTimeMillis();
+    }
+
+    public TagDevice(String deviceId, String name, String address) {
+        this.deviceId = deviceId;
+        this.deviceNum = deviceId;
+        this.name = name;
+        this.address = address;
+        this.tag = "";
+        this.customerCode = "";
         this.latitude = 0;
         this.longitude = 0;
         this.batteryLevel = -1;
@@ -84,6 +104,14 @@ public class TagDevice implements Serializable {
         this.mac = mac;
     }
 
+    public String getCustomerCode() {
+        return customerCode;
+    }
+
+    public void setCustomerCode(String customerCode) {
+        this.customerCode = customerCode;
+    }
+
     public double getLatitude() {
         return latitude;
     }
@@ -106,6 +134,20 @@ public class TagDevice implements Serializable {
 
     public void setBatteryLevel(int batteryLevel) {
         this.batteryLevel = batteryLevel;
+    }
+
+    /**
+     * 兼容旧 Device 类的 getBattery() 方法
+     */
+    public int getBattery() {
+        return batteryLevel;
+    }
+
+    /**
+     * 兼容旧 Device 类的 setBattery() 方法
+     */
+    public void setBattery(int battery) {
+        this.batteryLevel = battery;
     }
 
     public int getSignalStrength() {
@@ -132,6 +174,22 @@ public class TagDevice implements Serializable {
         this.updatedAt = updatedAt;
     }
 
+    public boolean isNearby() {
+        return isNearby;
+    }
+
+    public void setNearby(boolean nearby) {
+        isNearby = nearby;
+    }
+
+    public Long getBluetoothScanTime() {
+        return bluetoothScanTime;
+    }
+
+    public void setBluetoothScanTime(Long bluetoothScanTime) {
+        this.bluetoothScanTime = bluetoothScanTime;
+    }
+
     @Override
     public String toString() {
         return "TagDevice{" +
@@ -148,9 +206,9 @@ public class TagDevice implements Serializable {
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        
+
         TagDevice that = (TagDevice) obj;
-        
+
         return Double.compare(that.latitude, latitude) == 0 &&
                Double.compare(that.longitude, longitude) == 0 &&
                batteryLevel == that.batteryLevel &&
@@ -169,7 +227,7 @@ public class TagDevice implements Serializable {
     public int hashCode() {
         int result;
         long temp;
-        
+
         result = deviceId.hashCode();
         result = 31 * result + (deviceNum != null ? deviceNum.hashCode() : 0);
         result = 31 * result + (name != null ? name.hashCode() : 0);
@@ -184,7 +242,7 @@ public class TagDevice implements Serializable {
         result = 31 * result + signalStrength;
         result = 31 * result + (int) (lastSeen ^ (lastSeen >>> 32));
         result = 31 * result + (int) (updatedAt ^ (updatedAt >>> 32));
-        
+
         return result;
     }
 }

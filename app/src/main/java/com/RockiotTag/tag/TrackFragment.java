@@ -3,6 +3,7 @@ package com.RockiotTag.tag;
 import android.os.Bundle;
 import android.util.Log;
 import com.RockiotTag.tag.util.LogUtil;
+import com.RockiotTag.tag.util.LanguageIndicatorHelper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,6 +25,12 @@ public class TrackFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         LogUtil.d(TAG, "=== TrackFragment onViewCreated ===");
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        LanguageIndicatorHelper.bind(this);
     }
 
     // 注意：不再在onResume中启动TrackActivity，由MainActivity的Tab点击直接启动

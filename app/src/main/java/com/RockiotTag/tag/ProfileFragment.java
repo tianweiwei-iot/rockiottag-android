@@ -1,5 +1,7 @@
 package com.RockiotTag.tag;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
@@ -9,11 +11,12 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.fragment.app.Fragment;
+import com.RockiotTag.tag.util.BoundDevicesHelper;
+import com.RockiotTag.tag.util.LanguageIndicatorHelper;
 import com.RockiotTag.tag.util.LogUtil;
 
 public class ProfileFragment extends Fragment {
@@ -82,6 +85,50 @@ public class ProfileFragment extends Fragment {
             }
         });
 
+        // 编辑资料
+        View editProfileItem = view.findViewById(R.id.edit_profile_item);
+        if (editProfileItem != null) {
+            editProfileItem.setOnClickListener(v -> {
+                String token = requireContext().getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+                    .getString("auth_token", null);
+                if (token == null || token.isEmpty()) {
+                    ToastHelper.show(requireContext(), R.string.please_login_first);
+                    return;
+                }
+                Intent intent = new Intent(getActivity(), EditProfileActivity.class);
+                startActivityForResult(intent, 1001);
+            });
+        }
+
+        // 修改密码
+        View changePasswordItem = view.findViewById(R.id.change_password_item);
+        if (changePasswordItem != null) {
+            changePasswordItem.setOnClickListener(v -> {
+                String token = requireContext().getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+                    .getString("auth_token", null);
+                if (token == null || token.isEmpty()) {
+                    ToastHelper.show(requireContext(), R.string.please_login_first);
+                    return;
+                }
+                startActivity(new Intent(getActivity(), ChangePasswordActivity.class));
+            });
+        }
+
+        // 绑定邮箱
+        View bindEmailItem = view.findViewById(R.id.bind_email_item);
+        if (bindEmailItem != null) {
+            bindEmailItem.setOnClickListener(v -> {
+                String token = requireContext().getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+                    .getString("auth_token", null);
+                if (token == null || token.isEmpty()) {
+                    ToastHelper.show(requireContext(), R.string.please_login_first);
+                    return;
+                }
+                Intent intent = new Intent(getActivity(), BindEmailActivity.class);
+                startActivityForResult(intent, 1002);
+            });
+        }
+
         // 版本信息
         try {
             String versionName = requireContext().getPackageManager()
@@ -107,13 +154,13 @@ public class ProfileFragment extends Fragment {
                     }
                     
                     // 2. 清空本地所有身份凭证
+                    BoundDevicesHelper.clearBoundDevicesCache(requireContext());
                     prefs.edit()
                         .remove("auth_token")
                         .remove("user_username")
                         .remove("user_email")
                         .remove("user_phone")
                         .remove("user_nickname")
-                        .remove("bound_devices")  // 清除绑定设备列表
                         .remove("selected_device_id")  // 清除选中的设备
                         .apply();
                     
@@ -127,7 +174,7 @@ public class ProfileFragment extends Fragment {
                     if (getActivity() instanceof MainActivity) {
                         ((MainActivity) getActivity()).refreshDeviceListAfterLogout();
                     }
-                    Toast.makeText(requireContext(), R.string.logout_success, Toast.LENGTH_SHORT).show();
+                    ToastHelper.show(requireContext(), R.string.logout_success);
                 })
                 .setNegativeButton(R.string.cancel, null)
                 .show();
@@ -161,6 +208,15 @@ public class ProfileFragment extends Fragment {
     public void onResume() {
         super.onResume();
         updateLoginUI();
+        LanguageIndicatorHelper.bind(this);
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @androidx.annotation.Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode == android.app.Activity.RESULT_OK) {
+            updateLoginUI();
+        }
     }
 
     private void updateLoginUI() {
@@ -179,6 +235,15 @@ public class ProfileFragment extends Fragment {
             } else {
                 userEmailText.setVisibility(View.GONE);
             }
+            // 显示头像
+            int avatarIndex = prefs.getInt("user_avatar_index", -1);
+            if (userAvatar != null) {
+                if (avatarIndex >= 0) {
+                    userAvatar.setImageResource(EditProfileActivity.getAvatarResource(avatarIndex));
+                } else {
+                    userAvatar.setImageResource(R.drawable.ic_tab_profile);
+                }
+            }
             loginButtonsArea.setVisibility(View.GONE);
             switchAccountBtn.setVisibility(View.VISIBLE);
             logoutBtn.setVisibility(View.VISIBLE);
@@ -186,6 +251,7 @@ public class ProfileFragment extends Fragment {
             // 未登录
             userNameText.setText(R.string.not_logged_in);
             userEmailText.setVisibility(View.GONE);
+            if (userAvatar != null) userAvatar.setImageResource(R.drawable.ic_tab_profile);
             loginButtonsArea.setVisibility(View.VISIBLE);
             switchAccountBtn.setVisibility(View.GONE);
             logoutBtn.setVisibility(View.GONE);
@@ -230,7 +296,7 @@ public class ProfileFragment extends Fragment {
      */
     private void clearLocalDeviceData() {
         try {
-            DatabaseHelper dbHelper = new DatabaseHelper(requireContext());
+            DatabaseHelper dbHelper = DatabaseHelper.getInstance(requireContext());
             // 清除所有设备数据
             dbHelper.deleteAllDevices();
             // 清除所有轨迹/定位记录
@@ -276,11 +342,23 @@ public class ProfileFragment extends Fragment {
         
         // 菜单项文字颜色
         updateMenuItemColors(rootView, onSurfaceColor, textSecColor, dividerColor, isDarkMode);
+
+        // 描边按钮（切换账号 / 退出登录）：手动深色模式下默认描边颜色（浅色主题的 onSurface）在深色背景上几乎不可见，需显式设置
+        int strokeWidth = (int) (getResources().getDisplayMetrics().density + 0.5f); // 1dp
+        if (switchAccountBtn != null) {
+            switchAccountBtn.setStrokeWidth(strokeWidth);
+            switchAccountBtn.setStrokeColor(android.content.res.ColorStateList.valueOf(textSecColor));
+        }
+        if (logoutBtn != null) {
+            logoutBtn.setStrokeWidth(strokeWidth);
+            logoutBtn.setStrokeColor(android.content.res.ColorStateList.valueOf(0xFFF44336));
+        }
     }
     
     private void updateMenuItemColors(View rootView, int onSurfaceColor, int textSecColor, int dividerColor, boolean isDarkMode) {
         // 遍历菜单项，更新文字和图标颜色
-        int[] menuItemIds = {R.id.language_item, R.id.map_switch_item, R.id.dark_mode_item, R.id.version_item};
+        int[] menuItemIds = {R.id.language_item, R.id.map_switch_item, R.id.dark_mode_item,
+            R.id.edit_profile_item, R.id.change_password_item, R.id.bind_email_item, R.id.version_item};
         for (int id : menuItemIds) {
             View menuItem = rootView.findViewById(id);
             if (menuItem instanceof LinearLayout) {
@@ -298,5 +376,6 @@ public class ProfileFragment extends Fragment {
                 }
             }
         }
+        LanguageIndicatorHelper.bind(this);
     }
 }

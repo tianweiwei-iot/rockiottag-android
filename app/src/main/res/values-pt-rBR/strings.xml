@@ -417,4 +417,34 @@
     <string name="navi_nearby_suggest_walk">Apenas %s, sugerimos ir a pé</string>
     <string name="navi_already_nearby">Já está próximo do dispositivo, não precisa de navegação</string>
     <string name="navi_layer_toggle">Alternar Camadas</string>
+
+    <!-- Perfil -->
+    <string name="edit_profile">Editar Perfil</string>
+    <string name="change_password">Alterar Senha</string>
+    <string name="bind_email">Vincular E-mail</string>
+    <string name="nickname">Apelido</string>
+    <string name="email">E-mail</string>
+    <string name="old_password">Senha antiga</string>
+    <string name="new_password">Nova senha</string>
+    <string name="not_logged_in">Não conectado</string>
+    <string name="save_failed">Falha ao salvar</string>
+    <string name="current_avatar">Avatar atual</string>
+    <string name="select_avatar">Selecionar avatar</string>
+    <string name="nickname_hint">Digite o apelido</string>
+    <string name="profile_saved">Perfil salvo</string>
+    <string name="profile_nickname_empty">O apelido não pode estar vazio</string>
+    <string name="old_password_empty">Digite a senha antiga</string>
+    <string name="password_changed">Senha alterada com sucesso</string>
+    <string name="password_change_failed">Falha ao alterar senha</string>
+    <string name="confirm_new_password">Confirmar nova senha</string>
+    <string name="input_old_password">Digite a senha antiga</string>
+    <string name="email_invalid">Formato de e-mail inválido</string>
+    <string name="email_bind_failed">Falha ao vincular e-mail</string>
+    <string name="email_hint">Digite o endereço de e-mail</string>
+    <string name="email_empty">O e-mail não pode estar vazio</string>
+    <string name="email_bound">E-mail vinculado</string>
+    <string name="confirm_password">Confirmar senha</string>
+    <string name="password_rule">Pelo menos 8 caracteres, com maiúsculas, minúsculas e números</string>
+    <string name="password_invalid">Formato de senha inválido</string>
+    <string name="password_not_match">As senhas não coincidem</string>
 </resources>

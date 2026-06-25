@@ -11,6 +11,7 @@
     <string name="version_format">Version: %1$s (%2$d)</string>
     <string name="cancel">Cancel</string>
     <string name="language_title">Select Language</string>
+    <string name="current_language_cd">Current language</string>
     <string name="chinese">Chinese</string>
     <string name="english">English</string>
     <string name="brazilian_portuguese">Brazilian Portuguese</string>
@@ -260,6 +261,8 @@
     <string name="google_map">Google Map</string>
     <string name="switched_to_amap">Switched to AMap</string>
     <string name="switched_to_google_map">Switched to Google Map</string>
+    <string name="map_switch_warn_google_in_china">Google Maps may not work properly in mainland China. Switch anyway?</string>
+    <string name="map_switch_warn_amap_abroad">AMap may not work properly outside China. Switch anyway?</string>
     <string name="stay_duration">Stay Duration: %s</string>
     <string name="merged_points">Merged Points: %d</string>
     <string name="stay_point">Stay Point</string>
@@ -369,6 +372,7 @@
     
     <!-- Accuracy adjustment -->
     <string name="accuracy_adjustment">Accuracy Adjustment</string>
+    <string name="track_info_panel_expand">Show track info</string>
     <string name="high_accuracy">High</string>
     <string name="low_accuracy">Low</string>
     <string name="accuracy_level_high">High</string>
@@ -467,6 +471,21 @@
     <string name="edit_profile">Edit Profile</string>
     <string name="save_success">Saved successfully</string>
     <string name="save_failed">Save failed</string>
+    <string name="app_startup_failed">App failed to start. Please reinstall or contact support.</string>
+    <string name="current_avatar">Current Avatar</string>
+    <string name="select_avatar">Select Avatar</string>
+    <string name="nickname_hint">Enter nickname</string>
+    <string name="profile_saved">Profile saved</string>
+    <string name="profile_nickname_empty">Nickname cannot be empty</string>
+    <string name="old_password_empty">Please enter old password</string>
+    <string name="password_changed">Password changed successfully</string>
+    <string name="password_change_failed">Failed to change password</string>
+    <string name="confirm_new_password">Confirm new password</string>
+    <string name="input_old_password">Enter old password</string>
+    <string name="email_invalid">Invalid email format</string>
+    <string name="email_bind_failed">Failed to bind email</string>
+    <string name="email_hint">Enter email address</string>
+    <string name="email_empty">Email cannot be empty</string>
     <string name="compass">Compass</string>
     <string name="zoom_in">Zoom In</string>
     <string name="zoom_out">Zoom Out</string>

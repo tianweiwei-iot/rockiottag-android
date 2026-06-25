@@ -1,7 +1,10 @@
 package com.RockiotTag.tag;
 
-import android.os.AsyncTask;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
+import com.RockiotTag.tag.ApiConfig;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.util.LogUtil;
 
 import com.google.gson.Gson;
@@ -16,12 +19,16 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class CrowdSourcingManager {
     private static final String TAG = "CrowdSourcingManager";
     private static String SERVER_URL = ApiConfig.MY_SERVER_URL + "/crowdsource";
-    private NewApiService apiService;
+    private final NewApiService apiService;
     private NearbyDevicesCallback callback;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     public CrowdSourcingManager() {
         apiService = NewApiService.getInstance();
@@ -31,160 +38,148 @@ public class CrowdSourcingManager {
         this.callback = callback;
     }
 
-    public void sendDeviceData(Device device) {
-        new SendDataTask().execute(device);
+    public void sendDeviceData(TagDevice device) {
+        executor.execute(() -> {
+            boolean success = doSendDeviceData(device);
+            mainHandler.post(() -> {
+                if (success) {
+                    LogUtil.d(TAG, "Device data sent successfully");
+                } else {
+                    Log.e(TAG, "Failed to send device data");
+                }
+            });
+        });
     }
 
     public void requestNearbyDevices(double latitude, double longitude, double radius) {
-        new RequestDevicesTask().execute(latitude, longitude, radius);
+        executor.execute(() -> {
+            String response = doRequestNearbyDevices(latitude, longitude, radius);
+            mainHandler.post(() -> {
+                if (response != null) {
+                    LogUtil.d(TAG, "Received nearby devices data");
+                    parseNearbyDevicesResponse(response);
+                } else {
+                    Log.e(TAG, "Failed to receive nearby devices data");
+                    if (callback != null) {
+                        callback.onNearbyDevicesReceived(null);
+                    }
+                }
+            });
+        });
     }
 
     // 使用ApiService获取设备列表
     public void getDeviceList() {
-        new GetDeviceListTask().execute();
-    }
-
-    private class SendDataTask extends AsyncTask<Device, Void, Boolean> {
-        @Override
-        protected Boolean doInBackground(Device... devices) {
-            Device device = devices[0];
-            try {
-                URL url = new URL(SERVER_URL + "/send");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setDoOutput(true);
-
-                String jsonData = "{" +
-                        "\"deviceId\":\"" + device.getDeviceId() + "\","
-                        + "\"latitude\":" + device.getLatitude() + ","
-                        + "\"longitude\":" + device.getLongitude() + ","
-                        + "\"signalStrength\":" + device.getSignalStrength() + ","
-                        + "\"timestamp\":" + System.currentTimeMillis()
-                        + "}";
-
-                OutputStream os = conn.getOutputStream();
-                os.write(jsonData.getBytes());
-                os.flush();
-                os.close();
-
-                int responseCode = conn.getResponseCode();
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                    String inputLine;
-                    StringBuilder response = new StringBuilder();
-
-                    while ((inputLine = in.readLine()) != null) {
-                        response.append(inputLine);
-                    }
-                    in.close();
-                    LogUtil.d(TAG, "Device data sent successfully: " + response.toString());
-                    return true;
-                } else {
-                    Log.e(TAG, "Failed to send device data, response code: " + responseCode);
-                    return false;
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error sending device data: " + e.getMessage());
-                return false;
-            }
-        }
-
-        @Override
-        protected void onPostExecute(Boolean success) {
-            if (success) {
-                LogUtil.d(TAG, "Device data sent successfully");
-            } else {
-                Log.e(TAG, "Failed to send device data");
-            }
-        }
-    }
-
-    private class RequestDevicesTask extends AsyncTask<Double, Void, String> {
-        @Override
-        protected String doInBackground(Double... params) {
-            double latitude = params[0];
-            double longitude = params[1];
-            double radius = params[2];
-
-            try {
-                URL url = new URL(SERVER_URL + "/nearby?lat=" + latitude + "&lng=" + longitude + "&radius=" + radius);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-
-                int responseCode = conn.getResponseCode();
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                    String inputLine;
-                    StringBuilder response = new StringBuilder();
-
-                    while ((inputLine = in.readLine()) != null) {
-                        response.append(inputLine);
-                    }
-                    in.close();
-                    LogUtil.d(TAG, "Nearby devices received: " + response.toString());
-                    return response.toString();
-                } else {
-                    Log.e(TAG, "Failed to request nearby devices, response code: " + responseCode);
-                    return null;
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error requesting nearby devices: " + e.getMessage());
-                return null;
-            }
-        }
-
-        @Override
-        protected void onPostExecute(String response) {
-            if (response != null) {
-                LogUtil.d(TAG, "Received nearby devices data");
-                // 解析响应数据并更新UI
-                parseNearbyDevicesResponse(response);
-            } else {
-                Log.e(TAG, "Failed to receive nearby devices data");
-                if (callback != null) {
-                    callback.onNearbyDevicesReceived(null);
-                }
-            }
-        }
-    }
-
-    private class GetDeviceListTask extends AsyncTask<Void, Void, List<Device>> {
-        @Override
-        protected List<Device> doInBackground(Void... voids) {
+        executor.execute(() -> {
             if (!apiService.isAuthenticated()) {
                 Log.e(TAG, "Not authenticated, cannot get device list");
-                return null;
+                mainHandler.post(() -> {
+                    if (callback != null) callback.onDeviceListReceived(null);
+                });
+                return;
             }
 
-            NewApiService.ApiResponse response = apiService.getDeviceList(1, 100);
+            NewApiService.ApiResponse response = apiService.getDeviceList(ApiConfig.getDefaultServerUrl(), 1, 100);
+            List<TagDevice> devices = null;
             if (response != null && response.isSuccess() && response.getItems() != null) {
                 try {
-                    // 解析设备列表
-                    return parseDeviceListResponse(response.getItems());
+                    devices = parseDeviceListResponse(response.getItems());
                 } catch (Exception e) {
                     Log.e(TAG, "Error parsing device list: " + e.getMessage());
-                    return null;
                 }
             } else {
                 Log.e(TAG, "Failed to get device list: " + (response != null ? response.getMessage() : "Unknown error"));
-                return null;
             }
-        }
 
-        @Override
-        protected void onPostExecute(List<Device> devices) {
-            if (devices != null) {
-                LogUtil.d(TAG, "Device list received: " + devices.size() + " devices");
-                if (callback != null) {
-                    callback.onDeviceListReceived(devices);
+            List<TagDevice> finalDevices = devices;
+            mainHandler.post(() -> {
+                if (finalDevices != null) {
+                    LogUtil.d(TAG, "Device list received: " + finalDevices.size() + " devices");
+                    if (callback != null) callback.onDeviceListReceived(finalDevices);
+                } else {
+                    Log.e(TAG, "Failed to receive device list");
+                    if (callback != null) callback.onDeviceListReceived(null);
+                }
+            });
+        });
+    }
+
+    private boolean doSendDeviceData(TagDevice device) {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(SERVER_URL + "/send");
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(30000);
+            conn.setDoOutput(true);
+
+            String jsonData = "{" +
+                    "\"deviceId\":\"" + device.getDeviceId() + "\","
+                    + "\"latitude\":" + device.getLatitude() + ","
+                    + "\"longitude\":" + device.getLongitude() + ","
+                    + "\"signalStrength\":" + device.getSignalStrength() + ","
+                    + "\"timestamp\":" + System.currentTimeMillis()
+                    + "}";
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(jsonData.getBytes());
+                os.flush();
+            }
+
+            int responseCode = conn.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                try (BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                    String inputLine;
+                    StringBuilder response = new StringBuilder();
+                    while ((inputLine = in.readLine()) != null) {
+                        response.append(inputLine);
+                    }
+                    LogUtil.d(TAG, "Device data sent successfully: " + response.toString());
+                }
+                return true;
+            } else {
+                Log.e(TAG, "Failed to send device data, response code: " + responseCode);
+                return false;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error sending device data: " + e.getMessage());
+            return false;
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+    }
+
+    private String doRequestNearbyDevices(double latitude, double longitude, double radius) {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(SERVER_URL + "/nearby?lat=" + latitude + "&lng=" + longitude + "&radius=" + radius);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(30000);
+
+            int responseCode = conn.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                try (BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                    String inputLine;
+                    StringBuilder response = new StringBuilder();
+                    while ((inputLine = in.readLine()) != null) {
+                        response.append(inputLine);
+                    }
+                    LogUtil.d(TAG, "Nearby devices received: " + response.toString());
+                    return response.toString();
                 }
             } else {
-                Log.e(TAG, "Failed to receive device list");
-                if (callback != null) {
-                    callback.onDeviceListReceived(null);
-                }
+                Log.e(TAG, "Failed to request nearby devices, response code: " + responseCode);
+                return null;
             }
+        } catch (Exception e) {
+            Log.e(TAG, "Error requesting nearby devices: " + e.getMessage());
+            return null;
+        } finally {
+            if (conn != null) conn.disconnect();
         }
     }
 
@@ -194,11 +189,11 @@ public class CrowdSourcingManager {
             JsonObject jsonObject = JsonParser.parseString(response).getAsJsonObject();
             if (jsonObject.has("devices")) {
                 JsonArray devicesArray = jsonObject.getAsJsonArray("devices");
-                List<Device> devices = new ArrayList<>();
+                List<TagDevice> devices = new ArrayList<>();
 
                 for (int i = 0; i < devicesArray.size(); i++) {
                     JsonObject deviceJson = devicesArray.get(i).getAsJsonObject();
-                    Device device = new Device(
+                    TagDevice device = new TagDevice(
                             deviceJson.get("deviceId").getAsString(),
                             deviceJson.get("name").getAsString()
                     );
@@ -222,8 +217,8 @@ public class CrowdSourcingManager {
     }
 
     // 解析设备列表响应
-    private List<Device> parseDeviceListResponse(Object items) {
-        List<Device> devices = new ArrayList<>();
+    private List<TagDevice> parseDeviceListResponse(Object items) {
+        List<TagDevice> devices = new ArrayList<>();
         // 这里需要根据实际的API响应格式进行解析
         // 假设items是一个包含设备信息的列表
         // 实际项目中需要根据API文档进行调整
@@ -232,7 +227,7 @@ public class CrowdSourcingManager {
 
     // 回调接口
     public interface NearbyDevicesCallback {
-        void onNearbyDevicesReceived(List<Device> devices);
-        void onDeviceListReceived(List<Device> devices);
+        void onNearbyDevicesReceived(List<TagDevice> devices);
+        void onDeviceListReceived(List<TagDevice> devices);
     }
 }

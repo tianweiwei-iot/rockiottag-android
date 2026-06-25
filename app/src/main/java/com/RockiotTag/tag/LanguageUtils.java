@@ -63,4 +63,52 @@ public class LanguageUtils {
                 .putBoolean("user_selected_language", true)
                 .apply();
     }
+
+    public static String getLanguageDisplayName(String languageCode) {
+        if (languageCode == null) {
+            return "";
+        }
+        switch (languageCode) {
+            case "en":
+                return "English";
+            case "pt-rBR":
+                return "Português";
+            case "ru":
+                return "Русский";
+            case "hi":
+                return "हिंदी";
+            case "tr":
+                return "Türkçe";
+            case "zh":
+            default:
+                return "中文";
+        }
+    }
+
+    public static String getLanguageFlagEmoji(String languageCode) {
+        if (languageCode == null) {
+            return "";
+        }
+        switch (languageCode) {
+            case "en":
+                return "\uD83C\uDDEC\uD83C\uDDE7";
+            case "pt-rBR":
+                return "\uD83C\uDDE7\uD83C\uDDF7";
+            case "ru":
+                return "\uD83C\uDDF7\uD83C\uDDFA";
+            case "hi":
+                return "\uD83C\uDDEE\uD83C\uDDF3";
+            case "tr":
+                return "\uD83C\uDDF9\uD83C\uDDF7";
+            case "zh":
+            default:
+                return "\uD83C\uDDE8\uD83C\uDDF3";
+        }
+    }
+
+    /** 当前语言展示标签，如 "🇨🇳 中文" */
+    public static String getCurrentLanguageLabel(Context context) {
+        String code = getSavedLanguage(context);
+        return getLanguageFlagEmoji(code) + " " + getLanguageDisplayName(code);
+    }
 }

@@ -23,7 +23,7 @@ public class DeleteDeviceUseCase extends BaseUseCase<String, Boolean> {
     
     public DeleteDeviceUseCase(DeviceRepository deviceRepository, Context context) {
         this.deviceRepository = deviceRepository;
-        this.dbHelper = new DatabaseHelper(context.getApplicationContext());
+        this.dbHelper = DatabaseHelper.getInstance(context.getApplicationContext());
     }
     
     @Override

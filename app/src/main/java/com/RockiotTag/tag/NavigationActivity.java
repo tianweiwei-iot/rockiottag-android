@@ -1,5 +1,7 @@
 package com.RockiotTag.tag;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
@@ -20,6 +22,7 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.util.Log;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.util.LogUtil;
 import android.view.View;
 import android.widget.Button;
@@ -28,7 +31,6 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -139,7 +141,7 @@ public class NavigationActivity extends AppCompatActivity
         if (deviceName == null) deviceName = "";
 
         if (destLatitude == 0 || destLongitude == 0) {
-            Toast.makeText(this, R.string.navi_no_destination, Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, R.string.navi_no_destination);
             finish();
             return;
         }
@@ -226,19 +228,21 @@ public class NavigationActivity extends AppCompatActivity
 
     private void initViews(Bundle savedInstanceState) {
         mAMapNaviView = findViewById(R.id.navi_view);
-        mAMapNaviView.onCreate(savedInstanceState);
-        mAMapNaviView.setAMapNaviViewListener(this);
-        
-        // 配置导航视图选项：禁用SDK自动绘制的路线和标记（旗帜、蓝色点、白线）
-        com.amap.api.navi.AMapNaviViewOptions options = new com.amap.api.navi.AMapNaviViewOptions();
-        options.setAutoDrawRoute(false);
-        android.graphics.Bitmap transparentBitmap = android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888);
-        transparentBitmap.setPixel(0, 0, 0);
-        options.setStartPointBitmap(transparentBitmap);
-        options.setEndPointBitmap(transparentBitmap);
-        options.setWayPointBitmap(transparentBitmap);
-        options.setCarBitmap(transparentBitmap);
-        mAMapNaviView.setViewOptions(options);
+        if (mAMapNaviView != null) {
+            mAMapNaviView.onCreate(savedInstanceState);
+            mAMapNaviView.setAMapNaviViewListener(this);
+
+            // 配置导航视图选项：禁用SDK自动绘制的路线和标记（旗帜、蓝色点、白线）
+            com.amap.api.navi.AMapNaviViewOptions options = new com.amap.api.navi.AMapNaviViewOptions();
+            options.setAutoDrawRoute(false);
+            android.graphics.Bitmap transparentBitmap = android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888);
+            transparentBitmap.setPixel(0, 0, 0);
+            options.setStartPointBitmap(transparentBitmap);
+            options.setEndPointBitmap(transparentBitmap);
+            options.setWayPointBitmap(transparentBitmap);
+            options.setCarBitmap(transparentBitmap);
+            mAMapNaviView.setViewOptions(options);
+        }
 
         btnBack = findViewById(R.id.btn_back);
         naviTitle = findViewById(R.id.navi_title);
@@ -251,61 +255,73 @@ public class NavigationActivity extends AppCompatActivity
         btnStartNavi = findViewById(R.id.btn_start_navi);
         btnLayerToggle = findViewById(R.id.btn_layer_toggle);
 
-        btnBack.setOnClickListener(v -> {
-            if (isNaviStarted) {
-                mAMapNavi.stopNavi();
-                isNaviStarted = false;
-            }
-            finish();
-        });
+        if (btnBack != null) {
+            btnBack.setOnClickListener(v -> {
+                if (isNaviStarted) {
+                    mAMapNavi.stopNavi();
+                    isNaviStarted = false;
+                }
+                finish();
+            });
+        }
 
         // 图层开关：循环切换热力圈和资产点位
-        btnLayerToggle.setOnClickListener(v -> {
-            if (!showHeatCircle && !showAssetPoints) {
-                // 都关了，全部打开
-                showHeatCircle = true;
-                showAssetPoints = true;
-            } else if (showHeatCircle && showAssetPoints) {
-                // 都开着，关掉资产点位
-                showAssetPoints = false;
-            } else if (showHeatCircle) {
-                // 只开着热力圈，全关
-                showHeatCircle = false;
-            } else {
-                // 都关了，打开热力圈
-                showHeatCircle = true;
-            }
-            updateLayerVisibility();
-            updateLayerToggleIcon();
-        });
+        if (btnLayerToggle != null) {
+            btnLayerToggle.setOnClickListener(v -> {
+                if (!showHeatCircle && !showAssetPoints) {
+                    // 都关了，全部打开
+                    showHeatCircle = true;
+                    showAssetPoints = true;
+                } else if (showHeatCircle && showAssetPoints) {
+                    // 都开着，关掉资产点位
+                    showAssetPoints = false;
+                } else if (showHeatCircle) {
+                    // 只开着热力圈，全关
+                    showHeatCircle = false;
+                } else {
+                    // 都关了，打开热力圈
+                    showHeatCircle = true;
+                }
+                updateLayerVisibility();
+                updateLayerToggleIcon();
+            });
+        }
 
-        btnDrive.setOnClickListener(v -> {
-            currentNaviMode = NAVI_MODE_DRIVE;
-            updateModeButtons();
-            calculateRoute();
-        });
+        if (btnDrive != null) {
+            btnDrive.setOnClickListener(v -> {
+                currentNaviMode = NAVI_MODE_DRIVE;
+                updateModeButtons();
+                calculateRoute();
+            });
+        }
 
-        btnWalk.setOnClickListener(v -> {
-            currentNaviMode = NAVI_MODE_WALK;
-            updateModeButtons();
-            calculateRoute();
-        });
+        if (btnWalk != null) {
+            btnWalk.setOnClickListener(v -> {
+                currentNaviMode = NAVI_MODE_WALK;
+                updateModeButtons();
+                calculateRoute();
+            });
+        }
 
-        btnRide.setOnClickListener(v -> {
-            currentNaviMode = NAVI_MODE_RIDE;
-            updateModeButtons();
-            calculateRoute();
-        });
+        if (btnRide != null) {
+            btnRide.setOnClickListener(v -> {
+                currentNaviMode = NAVI_MODE_RIDE;
+                updateModeButtons();
+                calculateRoute();
+            });
+        }
 
-        btnStartNavi.setOnClickListener(v -> {
-            if (isRouteCalculated && mAMapNavi != null) {
-                mAMapNavi.startNavi(NaviType.GPS);
-                isNaviStarted = true;
-                naviModeBar.setVisibility(View.GONE);
-                btnStartNavi.setVisibility(View.GONE);
-                naviTitle.setText(R.string.navi_navigating);
-            }
-        });
+        if (btnStartNavi != null) {
+            btnStartNavi.setOnClickListener(v -> {
+                if (isRouteCalculated && mAMapNavi != null) {
+                    mAMapNavi.startNavi(NaviType.GPS);
+                    isNaviStarted = true;
+                    naviModeBar.setVisibility(View.GONE);
+                    btnStartNavi.setVisibility(View.GONE);
+                    naviTitle.setText(R.string.navi_navigating);
+                }
+            });
+        }
 
         updateModeButtons();
     }
@@ -336,7 +352,7 @@ public class NavigationActivity extends AppCompatActivity
             LogUtil.d(TAG, "AMapNavi instance created, waiting for init callback...");
         } catch (AMapException e) {
             Log.e(TAG, "AMapNavi init failed: " + e.getErrorMessage(), e);
-            Toast.makeText(this, "导航初始化失败", Toast.LENGTH_LONG).show();
+            ToastHelper.showLong(this, "导航初始化失败");
             finish();
         }
     }
@@ -345,7 +361,7 @@ public class NavigationActivity extends AppCompatActivity
         if (mAMapNavi == null) return;
 
         if (!hasStartLocation) {
-            Toast.makeText(this, "无法获取您的位置，请确保GPS已开启", Toast.LENGTH_LONG).show();
+            ToastHelper.showLong(this, "无法获取您的位置，请确保GPS已开启");
             return;
         }
 
@@ -401,7 +417,7 @@ public class NavigationActivity extends AppCompatActivity
             Log.e(TAG, "Route calculation method returned false for mode=" + currentNaviMode);
             progressBar.setVisibility(View.GONE);
             naviTitle.setText(R.string.navi_route_failed);
-            Toast.makeText(this, R.string.navi_route_failed, Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, R.string.navi_route_failed);
         }
     }
 
@@ -411,7 +427,7 @@ public class NavigationActivity extends AppCompatActivity
      */
     private void smartSelectNaviMode() {
         if (!hasStartLocation) {
-            Toast.makeText(this, "无法获取您的位置，无法规划路线", Toast.LENGTH_LONG).show();
+            ToastHelper.showLong(this, "无法获取您的位置，无法规划路线");
             return;
         }
 
@@ -468,7 +484,7 @@ public class NavigationActivity extends AppCompatActivity
 
         if (isTooClose) {
             naviTitle.setText(R.string.navi_already_nearby);
-            Toast.makeText(this, R.string.navi_already_nearby, Toast.LENGTH_LONG).show();
+            ToastHelper.showLong(this, R.string.navi_already_nearby);
             btnStartNavi.setEnabled(false);
             btnStartNavi.setAlpha(0.5f);
         } else {
@@ -642,7 +658,7 @@ public class NavigationActivity extends AppCompatActivity
     public void onInitNaviFailure() {
         Log.e(TAG, "Navigation init failure");
         progressBar.setVisibility(View.GONE);
-        Toast.makeText(this, R.string.navi_init_failed, Toast.LENGTH_SHORT).show();
+        ToastHelper.show(this, R.string.navi_init_failed);
     }
 
     @Override
@@ -672,7 +688,7 @@ public class NavigationActivity extends AppCompatActivity
 
     @Override
     public void onArriveDestination() {
-        Toast.makeText(this, R.string.navi_arrived, Toast.LENGTH_LONG).show();
+        ToastHelper.showLong(this, R.string.navi_arrived);
         isNaviStarted = false;
     }
 
@@ -683,7 +699,7 @@ public class NavigationActivity extends AppCompatActivity
         progressBar.setVisibility(View.GONE);
         naviTitle.setText(R.string.navi_route_failed);
         String errorMsg = getRouteErrorMsg(i);
-        Toast.makeText(this, getString(R.string.navi_route_failed) + ": " + errorMsg, Toast.LENGTH_SHORT).show();
+        ToastHelper.show(this, getString(R.string.navi_route_failed) + ": " + errorMsg);
     }
 
     private String getRouteErrorMsg(int code) {
@@ -698,12 +714,12 @@ public class NavigationActivity extends AppCompatActivity
 
     @Override
     public void onReCalculateRouteForYaw() {
-        Toast.makeText(this, R.string.navi_reroute_yaw, Toast.LENGTH_SHORT).show();
+        ToastHelper.show(this, R.string.navi_reroute_yaw);
     }
 
     @Override
     public void onReCalculateRouteForTrafficJam() {
-        Toast.makeText(this, R.string.navi_reroute_jam, Toast.LENGTH_SHORT).show();
+        ToastHelper.show(this, R.string.navi_reroute_jam);
     }
 
     @Override
@@ -808,7 +824,7 @@ public class NavigationActivity extends AppCompatActivity
         isRouteCalculated = false;
         progressBar.setVisibility(View.GONE);
         naviTitle.setText(R.string.navi_route_failed);
-        Toast.makeText(this, getString(R.string.navi_route_failed) + " (" + code + ")", Toast.LENGTH_SHORT).show();
+        ToastHelper.show(this, getString(R.string.navi_route_failed) + " (" + code + ")");
     }
 
     @Override
@@ -1278,10 +1294,10 @@ public class NavigationActivity extends AppCompatActivity
     private void addNearbyAssetPoints(com.amap.api.maps.AMap aMap,
                                        com.amap.api.maps.model.LatLng destCenter) {
         try {
-            DatabaseHelper dbHelper = new DatabaseHelper(this);
-            List<Device> allDevices = dbHelper.getAllDevices();
+            DatabaseHelper dbHelper = DatabaseHelper.getInstance(this);
+            List<TagDevice> allDevices = dbHelper.getAllDevices();
 
-            for (Device device : allDevices) {
+            for (TagDevice device : allDevices) {
                 // 跳过当前导航目标设备
                 if (device.getDeviceId() != null && device.getDeviceId().equals(deviceId)) {
                     continue;
@@ -1323,7 +1339,7 @@ public class NavigationActivity extends AppCompatActivity
     /**
      * 生成周边资产点位图标（灰色小圆点 + 设备名首字）
      */
-    private com.amap.api.maps.model.BitmapDescriptor getAssetPointBitmap(Device device) {
+    private com.amap.api.maps.model.BitmapDescriptor getAssetPointBitmap(TagDevice device) {
         int size = 48;
         Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);

@@ -1,5 +1,7 @@
 package com.RockiotTag.tag;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.Manifest;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -18,7 +20,6 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -40,12 +41,31 @@ import com.RockiotTag.tag.viewmodel.MainViewModel;
 import com.RockiotTag.tag.viewmodel.BleViewModel;
 import com.RockiotTag.tag.viewmodel.MapViewModel;
 import com.RockiotTag.tag.model.DeviceTag;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.helper.MainDialogHelper;
 import com.RockiotTag.tag.helper.MainThemeHelper;
 import com.RockiotTag.tag.helper.MainBleHelper;
 import com.RockiotTag.tag.helper.MainAuthHelper;
+import com.RockiotTag.tag.helper.MainTabHelper;
+import com.RockiotTag.tag.helper.MainDeviceRefreshHelper;
+import com.RockiotTag.tag.helper.MainDeviceDisplayHelper;
+import com.RockiotTag.tag.helper.MainMapHelper;
+import com.RockiotTag.tag.helper.MainLocationHelper;
+import com.RockiotTag.tag.helper.MainMapInitHelper;
+import com.RockiotTag.tag.helper.MainMapSwitchHelper;
+import com.RockiotTag.tag.helper.MainDeviceSelectionHelper;
+import com.RockiotTag.tag.helper.MainPermissionHelper;
+import com.RockiotTag.tag.helper.MainGeocodingHelper;
+import com.RockiotTag.tag.helper.MainCrowdSourceMapHelper;
+import com.RockiotTag.tag.helper.MainSelectDeviceHelper;
+import com.RockiotTag.tag.helper.MainViewModelObserverHelper;
+import com.RockiotTag.tag.helper.MainHelperInitializer;
 import com.RockiotTag.tag.integration.LocationOptimizationManager;
+import com.RockiotTag.tag.util.BoundDevicesHelper;
+import com.RockiotTag.tag.util.LanguageIndicatorHelper;
 import com.RockiotTag.tag.util.LogUtil;
+import com.RockiotTag.tag.map.IMapAdapter;
+import com.RockiotTag.tag.map.MapAdapterFactory;
 import com.amap.api.maps.AMap;
 import com.amap.api.maps.MapView;
 import com.amap.api.maps.model.LatLng;
@@ -65,12 +85,15 @@ public class MainActivity extends AppCompatActivity {
     public static int pendingTabSwitch = -1;
 
     private MapView mapView;
+    /** 仅在使用高德地图时为 true，用于隔离 MapView 生命周期 */
+    private boolean amapLifecycleStarted = false;
     private AMap aMap;
     private MapManager mapManager;
+    private IMapAdapter mapAdapter;
     private SupportMapFragment googleMapFragment;
     
     // 使用专用的地图服务类（完全隔离）
-    private com.RockiotTag.tag.map.amap.AMapLocationService amapLocationService;
+    private com.RockiotTag.tag.location.SystemLocationService systemLocationService;
     private com.RockiotTag.tag.map.amap.AMapGeocoder amapGeocoder;
     private com.RockiotTag.tag.map.google.GoogleLocationService googleLocationService;
     private com.RockiotTag.tag.map.google.GoogleGeocoderService googleGeocoderService;
@@ -93,6 +116,15 @@ public class MainActivity extends AppCompatActivity {
     private MainThemeHelper themeHelper;
     private MainBleHelper bleHelper;
     private MainAuthHelper authHelper;
+    private MainTabHelper tabHelper;
+    private MainDeviceRefreshHelper deviceRefreshHelper;
+    private MainDeviceDisplayHelper deviceDisplayHelper;
+    private MainMapHelper mapHelper;
+    private MainLocationHelper locationHelper;
+    private MainMapInitHelper mapInitHelper;
+    private MainDeviceSelectionHelper deviceSelectionHelper;
+    private MainCrowdSourceMapHelper crowdSourceMapHelper;
+    private MainSelectDeviceHelper selectDeviceHelper;
 
     private ImageButton locateBtn;
     private ImageButton mapTypeBtn;
@@ -112,10 +144,8 @@ public class MainActivity extends AppCompatActivity {
     private ImageView tabHomeIcon, tabListIcon, tabTrackIcon, tabProfileIcon;
     private TextView tabHomeText, tabListText, tabTrackText, tabProfileText;
     private int currentTab = 0; // 当前选中的Tab索引
-    private long lastTabClickTime = 0; // 上次点击Tab的时间，用于防止快速重复点击
-    private static final long TAB_CLICK_INTERVAL = 500; // Tab点击间隔（毫秒）
 
-    // Fragment
+    // Fragment（由 MainTabHelper 创建并持有）
     private HomeFragment homeFragment;
     private DeviceListFragment deviceListFragment;
     private TrackFragment trackFragment;
@@ -123,21 +153,24 @@ public class MainActivity extends AppCompatActivity {
 
     // 蓝牙增强扫描强度：0=关闭，1=低（单次），2=高（持续循环）
     private int scanIntensityLevel = 0;
+    private boolean locationServicesStarted = false;
+    private final Runnable pendingLocationBleInitRunnable = this::doInitLocationAndBleIfPermitted;
 
     private double currentLatitude = 22.543611;
     private double currentLongitude = 113.881944;
     private String currentDeviceName = "tag";
-    private Marker currentLocationMarker;
-    private Marker deviceLocationMarker;
-    private com.google.android.gms.maps.model.Marker googleDeviceLocationMarker; // Google地图设备标记
+    private Object currentLocationMarker;
+    private Object deviceLocationMarker;
     private long lastUserInteractionTime = 0;
     private static final long AUTO_RETURN_DELAY = 10000; // 10秒延迟
     private boolean isFirstLocation = true; // 标记是否是第一次定位
     private boolean isUserLocated = false; // 标记用户是否手动点击了定位按钮
     private boolean pendingDeviceSelection = false; // 标记是否刚切换了设备，需要等待服务器数据后移动相机
-    private Device selectedDevice = null; // 当前选中的设备
+    private TagDevice selectedDevice = null; // 当前选中的设备
     private com.RockiotTag.tag.util.SafeHandler trackRefreshHandler;
     private Runnable trackRefreshRunnable;
+    private final Handler mainUiHandler = new Handler(android.os.Looper.getMainLooper());
+    private Runnable pendingScanIndicatorHideRunnable;
     private double lastRecordedLatitude = 0;
     private double lastRecordedLongitude = 0;
     private long lastRecordedTimestamp = 0;
@@ -151,9 +184,7 @@ public class MainActivity extends AppCompatActivity {
     // 地址缓存相关
     private double lastAddressLatitude = 0;
     private double lastAddressLongitude = 0;
-    private static final float ADDRESS_UPDATE_THRESHOLD = 200; // 地址更新阈值（米）
     private long lastAddressUpdateTime = 0; // 上次地址更新时间
-    private static final long ADDRESS_UPDATE_INTERVAL = 60 * 1000; // 地址更新间隔（60秒）
     
     /**
      * 获取标签图标（已迁移到 DeviceTag 枚举）
@@ -173,50 +204,7 @@ public class MainActivity extends AppCompatActivity {
      * 设置状态栏样式
      */
     private void setupStatusBar() {
-        try {
-            android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-            boolean isDarkMode = prefs.getBoolean("dark_mode", false);
-
-            LogUtil.d(TAG, "setupStatusBar called, isDarkMode: " + isDarkMode);
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                android.view.Window window = getWindow();
-                if (window == null) {
-                    Log.e(TAG, "Window is null!");
-                    return;
-                }
-
-                // 使用 WindowInsetsControllerCompat 兼容库来设置状态栏
-                androidx.core.view.WindowInsetsControllerCompat controller =
-                    androidx.core.view.ViewCompat.getWindowInsetsController(window.getDecorView());
-
-                if (controller != null) {
-                    if (isDarkMode) {
-                        // 夜间模式：黑色背景
-                        window.setStatusBarColor(android.graphics.Color.parseColor("#000000"));
-                        // 设置浅色图标（白色）
-                        controller.setAppearanceLightStatusBars(false);
-                        LogUtil.d(TAG, "Night mode: black background with white icons");
-                    } else {
-                        // 日间模式：白色背景
-                        window.setStatusBarColor(android.graphics.Color.parseColor("#FFFFFF"));
-                        // 设置深色图标（黑色）
-                        controller.setAppearanceLightStatusBars(true);
-                        LogUtil.d(TAG, "Day mode: white background with dark icons");
-                    }
-                } else {
-                    Log.w(TAG, "WindowInsetsControllerCompat is null, using fallback method");
-                    // Fallback: 直接设置颜色
-                    if (isDarkMode) {
-                        window.setStatusBarColor(android.graphics.Color.parseColor("#000000"));
-                    } else {
-                        window.setStatusBarColor(android.graphics.Color.parseColor("#FFFFFF"));
-                    }
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error setting up status bar: " + e.getMessage());
-        }
+        com.RockiotTag.tag.util.StatusBarHelper.setupStatusBar(this);
     }
     
     private void cleanOldTrackData(boolean forceClean) {
@@ -243,10 +231,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         
-        // 设置全局异常处理器，防止崩溃
-        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
-        });
-        
         try {
             // 恢复用户的语言偏好，如果没有设置过则使用系统语言
             android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
@@ -269,6 +253,10 @@ public class MainActivity extends AppCompatActivity {
             // 深色模式通过手动设置颜色实现（在setContentView之后调用applyDarkMode）
             
             super.onCreate(savedInstanceState);
+
+            if (savedInstanceState != null) {
+                currentTab = savedInstanceState.getInt("current_tab", currentTab);
+            }
             
             LogUtil.d(TAG, "=== STEP 1: super.onCreate DONE ===");
 
@@ -284,13 +272,17 @@ public class MainActivity extends AppCompatActivity {
             // 设置状态栏样式（必须在setContentView之后）
             setupStatusBar();
 
-            // 初始化高德地图隐私合规设置
-            try {
-                com.amap.api.maps.MapsInitializer.updatePrivacyShow(this, true, true);
-                com.amap.api.maps.MapsInitializer.updatePrivacyAgree(this, true);
-                com.amap.api.location.AMapLocationClient.updatePrivacyShow(this, true, true);
-                com.amap.api.location.AMapLocationClient.updatePrivacyAgree(this, true);
-            } catch (Exception e) {
+            // 高德隐私合规：仅在使用高德地图时初始化
+            String mapProvider = com.RockiotTag.tag.map.MapAdapterFactory.getSavedProvider(this);
+            if (com.RockiotTag.tag.map.MapLayerController.isAmapProvider(mapProvider)) {
+                try {
+                    com.amap.api.maps.MapsInitializer.updatePrivacyShow(this, true, true);
+                    com.amap.api.maps.MapsInitializer.updatePrivacyAgree(this, true);
+                    com.amap.api.location.AMapLocationClient.updatePrivacyShow(this, true, true);
+                    com.amap.api.location.AMapLocationClient.updatePrivacyAgree(this, true);
+                } catch (Exception e) {
+                    // ignore
+                }
             }
             mapView = findViewById(R.id.mapView);
             LogUtil.d(TAG, "=== STEP 3: mapView findViewById ===");
@@ -298,10 +290,39 @@ public class MainActivity extends AppCompatActivity {
                 Log.e(TAG, "!!! mapView is NULL !!!");
                 throw new RuntimeException("mapView is null - check layout");
             }
-            mapView.onCreate(savedInstanceState);
-            LogUtil.d(TAG, "=== STEP 4: mapView.onCreate DONE ===");
+            googleMapFragment = (SupportMapFragment) getSupportFragmentManager()
+                    .findFragmentById(R.id.google_map_fragment);
+            com.RockiotTag.tag.map.MapLayerController.applyLayers(mapProvider, mapView, googleMapFragment);
+
+            amapLifecycleStarted = com.RockiotTag.tag.map.MapLayerController.isAmapProvider(mapProvider);
+            boolean mapProviderJustChanged = prefs.getBoolean("map_provider_just_changed", false);
+            boolean languageJustChanged = prefs.getBoolean("language_just_changed", false);
+            if (mapProviderJustChanged) {
+                prefs.edit().putBoolean("map_provider_just_changed", false).apply();
+            }
+            if (languageJustChanged) {
+                prefs.edit().putBoolean("language_just_changed", false).apply();
+            }
+            if (amapLifecycleStarted) {
+                try {
+                    if (mapProviderJustChanged || languageJustChanged) {
+                        mapView.onCreate(null);
+                        LogUtil.d(TAG, "=== STEP 4: mapView.onCreate(null) after config change ===");
+                    } else {
+                        mapView.onCreate(savedInstanceState);
+                        LogUtil.d(TAG, "=== STEP 4: mapView.onCreate DONE ===");
+                    }
+                } catch (Throwable mapInitError) {
+                    Log.e(TAG, "MapView onCreate failed, falling back to Google Maps", mapInitError);
+                    amapLifecycleStarted = false;
+                    mapProvider = com.RockiotTag.tag.map.MapAdapterFactory.PROVIDER_GOOGLE;
+                    prefs.edit().putString("map_provider", mapProvider).apply();
+                    com.RockiotTag.tag.map.MapLayerController.applyLayers(mapProvider, mapView, googleMapFragment);
+                }
+            } else {
+                LogUtil.d(TAG, "=== STEP 4: Google map mode, skip MapView lifecycle ===");
+            }
             // 地图内边距通过 aMap.setPadding() 设置，避免 mapView.setPadding() 裁剪地图显示区域
-            googleMapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.google_map_fragment);
 
             batteryLevelText = findViewById(R.id.battery_level);
             deviceAddressText = findViewById(R.id.device_address);
@@ -329,10 +350,18 @@ public class MainActivity extends AppCompatActivity {
             tabTrackText = findViewById(R.id.tab_track_text);
             tabProfileText = findViewById(R.id.tab_profile_text);
 
-            initBottomNavigation();
-            LogUtil.d(TAG, "=== STEP 5: initBottomNavigation DONE ===");
-            initFragments();
-            LogUtil.d(TAG, "=== STEP 6: initFragments DONE ===");
+            initTabHelper();
+            LogUtil.d(TAG, "=== STEP 5-6: initTabHelper DONE ===");
+
+            if (prefs.getBoolean("show_language_changed_toast", false)) {
+                prefs.edit().putBoolean("show_language_changed_toast", false).apply();
+                ToastHelper.show(this, R.string.language_changed);
+            }
+            int pendingMapToast = prefs.getInt("pending_map_switch_toast", 0);
+            if (pendingMapToast != 0) {
+                prefs.edit().remove("pending_map_switch_toast").apply();
+                ToastHelper.show(this, pendingMapToast);
+            }
 
             // 设备信息栏始终保留，未登录或无设备时显示"--"
             showBottomInfo();
@@ -370,7 +399,7 @@ public class MainActivity extends AppCompatActivity {
                         animatable.start();
                     }
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 Log.e(TAG, "Failed to initialize LocationOptimizationManager", e);
                 locationOptimizationManager = null;
             }
@@ -395,6 +424,9 @@ public class MainActivity extends AppCompatActivity {
                     LogUtil.d(TAG, "⚡ Bluetooth scan callback - updating timestamp immediately");
                     runOnUiThread(() -> {
                         try {
+                            if (isFinishing() || isDestroyed()) {
+                                return;
+                            }
                             String deviceMac = location.getDeviceId();
                             LogUtil.d(TAG, "Bluetooth scan for MAC: " + deviceMac);
                             
@@ -493,16 +525,21 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onScanSuccess() {
                         runOnUiThread(() -> {
-                            // 扫描成功：显示OK图标1秒后隐藏
+                            if (isFinishing() || isDestroyed()) {
+                                return;
+                            }
                             if (scanningIndicator != null) {
                                 scanningIndicator.setImageResource(android.R.drawable.ic_menu_save);
                                 scanningIndicator.setVisibility(View.VISIBLE);
-                                // 1秒后隐藏
-                                new Handler().postDelayed(() -> {
-                                    if (scanningIndicator != null) {
+                                if (pendingScanIndicatorHideRunnable != null) {
+                                    mainUiHandler.removeCallbacks(pendingScanIndicatorHideRunnable);
+                                }
+                                pendingScanIndicatorHideRunnable = () -> {
+                                    if (!isFinishing() && !isDestroyed() && scanningIndicator != null) {
                                         scanningIndicator.setVisibility(View.GONE);
                                     }
-                                }, 1000);
+                                };
+                                mainUiHandler.postDelayed(pendingScanIndicatorHideRunnable, 1000);
                             }
                         });
                     }
@@ -512,16 +549,14 @@ public class MainActivity extends AppCompatActivity {
             
             // 升级数据库以支持多语言地址缓存
             databaseHelper.upgradeToMultiLanguageCache();
-            
-            
+
+            initMapHelper();
+            initLocationHelper();
+            initDeviceSelectionHelper();
+            initMapInitHelper();
             initMap();
-            
-            
-            initLocation();
-            
-            
-            initBLE();
-            
+
+            // 定位 / BLE 在权限就绪后初始化（见 initLocationAndBleIfPermitted）
             
             // 启动定位优化（新增）
             if (locationOptimizationManager != null && locationOptimizationManager.isOptimizationEnabled()) {
@@ -536,7 +571,7 @@ public class MainActivity extends AppCompatActivity {
                     // 如果有自动选中的设备，立即更新UI
                     String autoSelectedMac = locationOptimizationManager.getCurrentSelectedDeviceId();
                     if (autoSelectedMac != null && !autoSelectedMac.isEmpty()) {
-                        Device firstDevice = databaseHelper.getDevice(autoSelectedMac);
+                        TagDevice firstDevice = databaseHelper.getDevice(autoSelectedMac);
                         if (firstDevice != null) {
                             LogUtil.d(TAG, "Auto-selected first device on startup: " + firstDevice.getName());
                             selectDevice(firstDevice);
@@ -552,7 +587,7 @@ public class MainActivity extends AppCompatActivity {
                 LogUtil.d(TAG, "Bluetooth scanning is OFF by default, use scan toggle button to start");
             } else {
                 Log.e(TAG, "Location optimization manager is NULL or disabled!");
-                Toast.makeText(this, "❌ 蓝牙扫描未启动", Toast.LENGTH_LONG).show();
+                ToastHelper.showLong(this, "❌ 蓝牙扫描未启动");
             }
             
             
@@ -581,21 +616,13 @@ public class MainActivity extends AppCompatActivity {
             mapTypeBtn.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    if (mapManager.isAmap()) {
+                    if (mapAdapter != null) {
                         if (isSatelliteMap) {
-                            mapManager.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NORMAL);
-                            Toast.makeText(MainActivity.this, R.string.normal_map, Toast.LENGTH_SHORT).show();
+                            mapAdapter.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NORMAL);
+                            ToastHelper.show(MainActivity.this, R.string.normal_map);
                         } else {
-                            mapManager.setMapType(com.amap.api.maps.AMap.MAP_TYPE_SATELLITE);
-                            Toast.makeText(MainActivity.this, R.string.satellite_map, Toast.LENGTH_SHORT).show();
-                        }
-                    } else {
-                        if (isSatelliteMap) {
-                            mapManager.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NORMAL);
-                            Toast.makeText(MainActivity.this, R.string.normal_map, Toast.LENGTH_SHORT).show();
-                        } else {
-                            mapManager.setMapType(com.amap.api.maps.AMap.MAP_TYPE_SATELLITE);
-                            Toast.makeText(MainActivity.this, R.string.satellite_map, Toast.LENGTH_SHORT).show();
+                            mapAdapter.setMapType(com.amap.api.maps.AMap.MAP_TYPE_SATELLITE);
+                            ToastHelper.show(MainActivity.this, R.string.satellite_map);
                         }
                     }
                     isSatelliteMap = !isSatelliteMap;
@@ -628,12 +655,12 @@ public class MainActivity extends AppCompatActivity {
             
             LogUtil.d(TAG, "========== MainActivity.onCreate COMPLETE ==========");
             
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Log.e(TAG, "!!! FATAL ERROR IN onCreate !!!", e);
             Log.e(TAG, "Error type: " + e.getClass().getName());
             Log.e(TAG, "Error message: " + e.getMessage());
-            e.printStackTrace();
-            throw e; // 重新抛出异常
+            ToastHelper.showLong(this, R.string.app_startup_failed);
+            throw new RuntimeException("MainActivity startup failed", e);
         }
 
     }
@@ -643,11 +670,11 @@ public class MainActivity extends AppCompatActivity {
      */
     private void startNavigation() {
         if (selectedDevice == null) {
-            Toast.makeText(this, R.string.please_select_device, Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, R.string.please_select_device);
             return;
         }
         if (selectedDevice.getLatitude() == 0 || selectedDevice.getLongitude() == 0) {
-            Toast.makeText(this, R.string.navi_no_destination, Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, R.string.navi_no_destination);
             return;
         }
         Intent intent = new Intent(MainActivity.this, NavigationActivity.class);
@@ -658,9 +685,8 @@ public class MainActivity extends AppCompatActivity {
         // 传递手机当前位置作为导航起点
         intent.putExtra("start_latitude", currentLatitude);
         intent.putExtra("start_longitude", currentLongitude);
-        // 高德定位SDK返回的坐标已经是GCJ-02，不需要再次转换
-        // Google定位SDK返回的坐标是WGS-84，需要转换
-        boolean isStartGcj02 = (amapLocationService != null);
+        // 系统 GPS 为 WGS-84；NavigationActivity 会在需要时自行转换
+        boolean isStartGcj02 = false;
         intent.putExtra("start_is_gcj02", isStartGcj02);
         LogUtil.d(TAG, "Starting navigation: phone=(" + currentLatitude + "," + currentLongitude 
                 + ", isGcj02=" + isStartGcj02 + "), device=(" + selectedDevice.getLatitude() + "," + selectedDevice.getLongitude() + ")");
@@ -691,36 +717,7 @@ public class MainActivity extends AppCompatActivity {
      * 自动定位到设备位置（地图加载完成后调用）
      */
     private void autoLocateToDevice() {
-        
-        if (selectedDevice != null && selectedDevice.getLatitude() != 0 && selectedDevice.getLongitude() != 0) {
-            // 有选中设备，优先移动到设备位置
-            if (mapManager != null && mapManager.isGoogleMap()) {
-                if (mapManager.getGoogleMap() != null) {
-                    com.google.android.gms.maps.model.LatLng latLng = 
-                        new com.google.android.gms.maps.model.LatLng(selectedDevice.getLatitude(), selectedDevice.getLongitude());
-                    mapManager.getGoogleMap().animateCamera(
-                        com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(latLng, 17));
-                }
-            } else {
-                mapManager.moveCamera(selectedDevice.getLatitude(), selectedDevice.getLongitude(), 17);
-            }
-        } else if (currentLatitude != 0 && currentLongitude != 0) {
-            // 没有选中设备或设备无位置，移动到当前位置
-            if (mapManager != null && mapManager.isGoogleMap()) {
-                if (mapManager.getGoogleMap() != null) {
-                    com.google.android.gms.maps.model.LatLng latLng = 
-                        new com.google.android.gms.maps.model.LatLng(currentLatitude, currentLongitude);
-                    mapManager.getGoogleMap().animateCamera(
-                        com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(latLng, 17));
-                    LogUtil.d(TAG, "Auto-locate (Google Map): moved to current location");
-                }
-            } else {
-                mapManager.moveCamera(currentLatitude, currentLongitude, 17);
-                LogUtil.d(TAG, "Auto-locate (AMap): moved to current location");
-            }
-        } else {
-            LogUtil.d(TAG, "Auto-locate: no valid position available");
-        }
+        if (mapHelper != null) mapHelper.autoLocateToDevice();
     }
     
     /**
@@ -729,411 +726,90 @@ public class MainActivity extends AppCompatActivity {
      * @param setUserLocated 是否设置用户已定位标志（true=用户手动点击，false=自动调用）
      */
     private void locateToDevicePosition(boolean setUserLocated) {
-        LogUtil.d(TAG, "=== locateToDevicePosition called, setUserLocated=" + setUserLocated + " ===");
-        LogUtil.d(TAG, "selectedDevice=" + (selectedDevice != null ? selectedDevice.getName() : "null"));
-        LogUtil.d(TAG, "aMap=" + (aMap != null ? "valid" : "null"));
-        LogUtil.d(TAG, "mapManager=" + (mapManager != null ? "valid" : "null"));
-        
-        // 关键修复：检查地图是否就绪（高德或谷歌地图）
-        boolean isMapReady = false;
-        if (mapManager != null) {
-            if (mapManager.isGoogleMap()) {
-                isMapReady = mapManager.getGoogleMap() != null;
-                LogUtil.d(TAG, "Google Map ready: " + isMapReady);
-            } else {
-                isMapReady = aMap != null;
-                LogUtil.d(TAG, "AMap ready: " + isMapReady);
-            }
-        }
-        
-        if (!isMapReady) {
-            Log.w(TAG, "Map is not ready, cannot move camera. Waiting for map initialization...");
-            // 延迟100ms后重试
-            new Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    LogUtil.d(TAG, "Retrying locateToDevicePosition after delay");
-                    locateToDevicePosition(setUserLocated);
-                }
-            }, 100);
-            return;
-        }
-        
-        // 根据参数决定是否设置用户手动定位标志
-        if (setUserLocated) {
-            isUserLocated = true;
-            LogUtil.d(TAG, "User manually located - auto camera moves disabled");
-        } else {
-            LogUtil.d(TAG, "Auto locate - will allow subsequent auto camera moves");
-        }
-        
-        if (selectedDevice != null && selectedDevice.getLatitude() != 0 && selectedDevice.getLongitude() != 0) {
-            LogUtil.d(TAG, "Device has location: " + selectedDevice.getName() + " at " + selectedDevice.getLatitude() + ", " + selectedDevice.getLongitude());
-            
-            // 1. 首先更新设备标记（高德地图）
-            if (aMap != null) {
-                LatLng deviceLatLng = CoordinateUtils.wgs84ToGcj02(selectedDevice.getLatitude(), selectedDevice.getLongitude());
-                LogUtil.d(TAG, "Converted coordinates: WGS84(" + selectedDevice.getLatitude() + ", " + selectedDevice.getLongitude() + ") -> GCJ02(" + deviceLatLng.latitude + ", " + deviceLatLng.longitude + ")");
-                
-                // 移除旧标记
-                if (deviceLocationMarker != null) {
-                    deviceLocationMarker.remove();
-                    deviceLocationMarker = null;
-                }
-                
-                // 添加新标记
-                MarkerOptions markerOptions = new MarkerOptions()
-                        .position(deviceLatLng)
-                        .title(selectedDevice.getName())
-                        .snippet(getString(R.string.device_location))
-                        .icon(com.RockiotTag.tag.util.MapMarkerHelper.createCustomMarkerWithR());
-                deviceLocationMarker = aMap.addMarker(markerOptions);
-                LogUtil.d(TAG, "Device marker updated on AMap");
-            }
-            
-            // 2. 更新设备标记（Google地图）
-            if (mapManager != null && mapManager.isGoogleMap() && mapManager.getGoogleMap() != null) {
-                if (googleDeviceLocationMarker != null) {
-                    googleDeviceLocationMarker.remove();
-                    googleDeviceLocationMarker = null;
-                }
-                com.google.android.gms.maps.model.MarkerOptions markerOptions = 
-                    new com.google.android.gms.maps.model.MarkerOptions()
-                        .position(new com.google.android.gms.maps.model.LatLng(selectedDevice.getLatitude(), selectedDevice.getLongitude()))
-                        .title(selectedDevice.getName())
-                        .snippet(getString(R.string.device_location));
-                googleDeviceLocationMarker = mapManager.getGoogleMap().addMarker(markerOptions);
-                LogUtil.d(TAG, "Device marker updated on Google Map");
-            }
-            
-            // 3. 移动地图相机到设备位置（关键：高德和谷歌地图都移动）
-            moveCameraToDevicePosition(selectedDevice.getLatitude(), selectedDevice.getLongitude());
-            
-            // 关键修复：更新MapViewModel，防止后续refreshMapWithCurrentDevice移回旧设备
-            com.RockiotTag.tag.model.TagDevice tagDevice = new com.RockiotTag.tag.model.TagDevice(
-                selectedDevice.getDeviceId(), selectedDevice.getName()
-            );
-            tagDevice.setMac(selectedDevice.getMac());
-            tagDevice.setLatitude(selectedDevice.getLatitude());
-            tagDevice.setLongitude(selectedDevice.getLongitude());
-            mapViewModel.updateDeviceLocation(tagDevice);
-            LogUtil.d(TAG, "MapViewModel updated with new device location: " + selectedDevice.getName());
-            
-            // 4. 更新底部位置信息 - 先显示经纬度坐标，再进行逆地理编码
-            showBottomInfo();
-            showCoordinatesAndGeocode(selectedDevice.getLatitude(), selectedDevice.getLongitude(), true);
-            LogUtil.d(TAG, "Showing coordinates first: " + selectedDevice.getLatitude() + ", " + selectedDevice.getLongitude());
-            
-            // 5. 更新时间信息 - 使用 TimeFormatter 智能格式化
-            if (selectedDevice.getLastSeen() > 0) {
-                updateTimeText.setText(getString(R.string.last_update_with_time, 
-                    com.RockiotTag.tag.util.TimeFormatter.formatSmartTime(MainActivity.this, selectedDevice.getLastSeen())));
-            } else {
-                updateTimeText.setText(getString(R.string.last_update_not_reported));
-            }
-            
-            // 6. 更新电池信息 - 只在从服务器获取数据时更新，蓝牙扫描时不更新
-            // batteryLevelText.setText(getString(R.string.battery_level_unknown));
-            
-            // 注意：不显示Toast提示，实现无感切换
-            LogUtil.d(TAG, "=== locateToDevicePosition completed ===");
-            
-        } else if (currentLatitude != 0 && currentLongitude != 0) {
-            // 如果没有选中设备，移动到当前位置
-            if (mapManager != null && mapManager.isGoogleMap()) {
-                if (mapManager.getGoogleMap() != null) {
-                    com.google.android.gms.maps.model.LatLng latLng = 
-                        new com.google.android.gms.maps.model.LatLng(currentLatitude, currentLongitude);
-                    mapManager.getGoogleMap().animateCamera(
-                        com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(latLng, 17));
-                }
-            } else if (aMap != null) {
-                mapManager.moveCamera(currentLatitude, currentLongitude, 17);
-            }
-            // 注意：不显示Toast提示，实现无感切换
-            LogUtil.d(TAG, "Moved to current location (no device or device has no position)");
-        } else {
-            Toast.makeText(this, R.string.device_position_unknown, Toast.LENGTH_SHORT).show();
-            LogUtil.d(TAG, "Cannot locate: no valid position available");
-        }
+        if (mapHelper != null) mapHelper.locateToDevicePosition(setUserLocated);
     }
 
     /**
-     * MVVM 核心修复：根据当前选中的设备刷新地图标记和地址
-     */
-    /**
      * 刷新当前设备的地图显示
-     * @param forceRefreshAddress 是否强制刷新地址（忽略缓存）
      */
     private void refreshMapWithCurrentDevice(boolean forceRefreshAddress) {
-        LogUtil.d(TAG, "=== refreshMapWithCurrentDevice START ===");
-        
-        // 优先从 MapViewModel 获取数据，如果没有则从 MainViewModel 获取
-        com.RockiotTag.tag.model.TagDevice tagDevice = mapViewModel.getDeviceLocation().getValue();
-        Device device = viewModel.getSelectedDevice().getValue();
-        
-        LogUtil.d(TAG, "refreshMapWithCurrentDevice called: tagDevice=" + (tagDevice != null ? tagDevice.getName() : "null") + 
-              ", device=" + (device != null ? device.getName() : "null"));
-        
-        if (tagDevice == null && device != null && device.getLatitude() != 0 && device.getLongitude() != 0) {
-            LogUtil.d(TAG, "Creating new TagDevice from Device: lat=" + device.getLatitude() + ", lng=" + device.getLongitude());
-            tagDevice = new com.RockiotTag.tag.model.TagDevice(
-                device.getDeviceId(), device.getName()
-            );
-            tagDevice.setMac(device.getMac());
-            tagDevice.setLatitude(device.getLatitude());
-            tagDevice.setLongitude(device.getLongitude());
-            mapViewModel.updateDeviceLocation(tagDevice);
-            LogUtil.d(TAG, "MapViewModel updated with new device location");
-        }
-        
-        LogUtil.d(TAG, "After check: tagDevice=" + (tagDevice != null ? tagDevice.getName() + " at " + tagDevice.getLatitude() + "," + tagDevice.getLongitude() : "null") + 
-              ", aMap=" + (aMap != null ? "valid" : "null") + 
-              ", mapManager=" + (mapManager != null ? "valid" : "null") +
-              ", isGoogleMap=" + (mapManager != null ? mapManager.isGoogleMap() : "N/A"));
-        
-        // 修复：Google地图模式下也需要刷新地图显示
-        // 原条件只检查 aMap != null，导致Google地图模式下不执行刷新逻辑
-        if (tagDevice != null) {
-            LogUtil.d(TAG, "Refreshing map with device: " + tagDevice.getName() + " at " + tagDevice.getLatitude() + ", " + tagDevice.getLongitude() + ", forceRefresh=" + forceRefreshAddress);
-            
-            // 1. 渲染 Marker（updateDeviceMarkerOnMap内部会判断地图模式）
-            updateDeviceMarkerOnMap(tagDevice);
-            
-            // 2. 先显示经纬度坐标，再进行逆地理编码
-            showCoordinatesAndGeocode(tagDevice.getLatitude(), tagDevice.getLongitude(), forceRefreshAddress);
-            
-            // 3. 移动相机
-            if (!isUserLocated) {
-                moveCameraToDevicePosition(tagDevice.getLatitude(), tagDevice.getLongitude());
-            } else {
-                LogUtil.d(TAG, "User manually located, skipping camera move in refreshMapWithCurrentDevice");
-            }
-        } else {
-            Log.w(TAG, "Cannot refresh map: tagDevice is null");
-            if (device != null) {
-                Log.w(TAG, "Device coordinates: lat=" + device.getLatitude() + ", lng=" + device.getLongitude());
-            }
-        }
-        
-        LogUtil.d(TAG, "=== refreshMapWithCurrentDevice END ===");
+        if (mapHelper != null) mapHelper.refreshMapWithCurrentDevice(forceRefreshAddress);
     }
 
     private void initMap() {
-        LogUtil.d(TAG, "Initializing map...");
-        
-        mapManager = new MapManager(this, mapView, googleMapFragment);
-        mapManager.setCallback(new MapManager.MapCallback() {
-            @Override
-            public void onMapReady() {
-                LogUtil.d(TAG, "Map is ready");
-                // 重新获取 aMap 实例，确保非空
-                if (mapManager.isAmap()) {
-                    aMap = mapManager.getAmap();
-                }
-                // MVVM 修复：地图就绪后，检查是否有待显示的设备位置
-                refreshMapWithCurrentDevice(false);
-            }
-            
-            @Override
-            public void onMapClick(double latitude, double longitude) {
-                LogUtil.d(TAG, "Map clicked: " + latitude + ", " + longitude);
-            }
-        });
-        
-        // 先尝试恢复选中的设备，以便在地图初始化时设置目标位置
-        restoreSelectedDeviceForMapInit();
-        
-        LogUtil.d(TAG, "Initializing AMap...");
-        mapManager.initAmap();
-        LogUtil.d(TAG, "Initializing Google Map...");
-        mapManager.initGoogleMap();
-        
-        if (mapManager.isAmap()) {
-            aMap = mapManager.getAmap();
-            if (aMap != null) {
-                // 地图全屏显示，不设置padding（让地图瓦片不移动）
-                // logo下移到导航栏上方
-                int logoMargin = (int) (56 * getResources().getDisplayMetrics().density);
-                aMap.getUiSettings().setLogoBottomMargin(logoMargin);
-                // 禁用SDK缩放按钮，使用自定义缩放按钮
-                aMap.getUiSettings().setZoomControlsEnabled(false);
-                // 禁用SDK指南针，使用自定义指南针
-                aMap.getUiSettings().setCompassEnabled(false);
-                aMap.getUiSettings().setMyLocationButtonEnabled(true);
-                aMap.setMyLocationEnabled(false);
-                aMap.getUiSettings().setScaleControlsEnabled(true);
-                aMap.moveCamera(com.amap.api.maps.CameraUpdateFactory.zoomTo(17));
-                
-                aMap.setOnMapTouchListener(new com.amap.api.maps.AMap.OnMapTouchListener() {
-                    @Override
-                    public void onTouch(android.view.MotionEvent motionEvent) {
-                        lastUserInteractionTime = System.currentTimeMillis();
-                        LogUtil.d(TAG, "User touched map at: " + lastUserInteractionTime);
-                    }
-                });
-                
-                aMap.setOnCameraChangeListener(new com.amap.api.maps.AMap.OnCameraChangeListener() {
-                    @Override
-                    public void onCameraChange(com.amap.api.maps.model.CameraPosition cameraPosition) {
-                        lastUserInteractionTime = System.currentTimeMillis();
-                        // 更新自定义指南针旋转角度（反向旋转）
-                        updateCustomCompassRotation(cameraPosition.bearing);
-                    }
-
-                    @Override
-                    public void onCameraChangeFinish(com.amap.api.maps.model.CameraPosition cameraPosition) {
-                        lastUserInteractionTime = System.currentTimeMillis();
-                        LogUtil.d(TAG, "Camera change finished at: " + lastUserInteractionTime);
-                        // 更新自定义指南针旋转角度
-                        updateCustomCompassRotation(cameraPosition.bearing);
-                    }
-                });
-                
-                LogUtil.d(TAG, "Map initialized successfully");
-                
-                // 初始化后立即应用深色地图样式（如果启用了深色模式）
-                try {
-                    boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
-                    if (isDarkMode && aMap != null) {
-                        aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NIGHT);
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Failed to apply dark map style on init: " + e.getMessage());
-                }
-                
-                // MVVM 修复：地图初始化完成后，立即尝试刷新设备位置
-                refreshMapWithCurrentDevice(false);
-            } else {
-                Log.e(TAG, "Failed to get AMap instance");
-            }
-        }
-        
-        // 延迟切换地图，确保Fragment视图已创建
-        LogUtil.d(TAG, "Scheduling map switch...");
-        new Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                LogUtil.d(TAG, "Executing delayed map switch, isAmap: " + mapManager.isAmap());
-                if (mapManager.isAmap()) {
-                    mapManager.switchToAmap();
-                } else {
-                    mapManager.switchToGoogleMap();
-                }
-                        
-                // 地图加载成功后，延迟执行一次“回到当前位置”
-                new Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        LogUtil.d(TAG, "Auto-locating to device position after map load");
-                        autoLocateToDevice();
-                    }
-                }, 500); // 等待500ms确保地图完全加载
-            }
-        }, 300);
+        if (mapInitHelper != null) mapInitHelper.initMap();
     }
 
     private void initLocation() {
-        try {
-            // 根据当前选择的地图类型初始化对应的定位服务
-            if (mapManager != null && mapManager.isGoogleMap()) {
-                // 使用谷歌定位服务
-                LogUtil.d(TAG, "=== Initializing Google Location Service ===");
-                googleLocationService = new com.RockiotTag.tag.map.google.GoogleLocationService(getApplicationContext());
-                googleLocationService.setLocationCallback(new com.RockiotTag.tag.map.google.GoogleLocationService.ServiceCallback() {
-                    @Override
-                    public void onLocationSuccess(double latitude, double longitude, float accuracy) {
-                        currentLatitude = latitude;
-                        currentLongitude = longitude;
-                        LogUtil.d(TAG, "Google location success: lat=" + latitude + ", lng=" + longitude);
-                        
-                        // MVVM - 更新 ViewModel 中的当前位置
-                        viewModel.setCurrentLocation(latitude, longitude);
-                        
-                        updateCurrentLocationOnMap();
-                    }
-                    
-                    @Override
-                    public void onLocationFailed(String error) {
-                        Log.e(TAG, "Google location failed: " + error);
-                        setDefaultLocation();
-                    }
-                });
-                googleLocationService.startLocation();
-            } else {
-                // 使用高德定位服务
-                LogUtil.d(TAG, "=== Initializing AMap Location Service ===");
-                amapLocationService = new com.RockiotTag.tag.map.amap.AMapLocationService(getApplicationContext());
-                amapLocationService.setLocationCallback(new com.RockiotTag.tag.map.amap.AMapLocationService.LocationCallback() {
-                    @Override
-                    public void onLocationSuccess(double latitude, double longitude, float accuracy, String address) {
-                        currentLatitude = latitude;
-                        currentLongitude = longitude;
-                        LogUtil.d(TAG, "AMap location success: lat=" + latitude + ", lng=" + longitude);
-                        
-                        // MVVM - 更新 ViewModel 中的当前位置
-                        viewModel.setCurrentLocation(latitude, longitude);
-                        
-                        updateCurrentLocationOnMap();
-                    }
-                    
-                    @Override
-                    public void onLocationFailed(int errorCode, String errorInfo) {
-                        Log.e(TAG, "AMap location failed: code=" + errorCode + ", info=" + errorInfo);
-                        setDefaultLocation();
-                    }
-                });
-                amapLocationService.startLocation();
-            }
-            
-        } catch (SecurityException e) {
-            Log.e(TAG, "❌ SecurityException: Missing location permissions", e);
-            Toast.makeText(this, R.string.missing_location_permission, Toast.LENGTH_LONG).show();
-            setDefaultLocation();
-        } catch (Exception e) {
-            Log.e(TAG, "❌ Error initializing location: " + e.getClass().getName() + " - " + e.getMessage(), e);
-            Toast.makeText(this, getString(R.string.location_service_init_failed, e.getMessage()), Toast.LENGTH_LONG).show();
-            setDefaultLocation();
-        }
+        if (locationHelper != null) locationHelper.initLocation();
     }
 
     private void setDefaultLocation() {
-        // 默认位置：广东省深圳市新安街道高新奇科技园二期
-        currentLatitude = 22.543611;
-        currentLongitude = 113.881944;
-        LogUtil.d(TAG, "Set default location: " + currentLatitude + ", " + currentLongitude);
-        // 关键修复：定位失败时不再自动移动地图，避免覆盖设备位置
-        // 只更新currentLatitude和currentLongitude，但不移动地图
-        // 如果用户点击定位按钮，会使用这个默认位置
-        LogUtil.d(TAG, "Location failed - keeping current map position, default location stored for manual locate");
+        if (locationHelper != null) locationHelper.setDefaultLocation();
     }
 
     private void initBLE() {
-        bleManager = new BLEManager(this);
+        if (bleManager == null) {
+            bleManager = new BLEManager(this);
+        }
+    }
+
+    /** 权限就绪后初始化定位与 BLE（延迟到下一帧，避免与权限弹窗/onResume 生命周期冲突） */
+    private void initLocationAndBleIfPermitted() {
+        if (!MainPermissionHelper.hasAllPermissions(this)) {
+            LogUtil.d(TAG, "Runtime permissions not ready, skip location/BLE init");
+            return;
+        }
+        if (locationServicesStarted) {
+            LogUtil.d(TAG, "Location/BLE already initialized, skip");
+            return;
+        }
+        mainUiHandler.removeCallbacks(pendingLocationBleInitRunnable);
+        mainUiHandler.postDelayed(pendingLocationBleInitRunnable, 500);
+    }
+
+    private void doInitLocationAndBleIfPermitted() {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        if (!MainPermissionHelper.hasAllPermissions(this)) {
+            return;
+        }
+        if (locationServicesStarted) {
+            return;
+        }
+        try {
+            initLocation();
+            initBLE();
+            locationServicesStarted = true;
+            LogUtil.d(TAG, "Location/BLE initialized after permissions granted");
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to initialize location/BLE after permission grant", t);
+        }
     }
 
     private void initCrowdSourcing() {
         crowdSourcingManager = new CrowdSourcingManager();
         crowdSourcingManager.setCallback(new CrowdSourcingManager.NearbyDevicesCallback() {
             @Override
-            public void onNearbyDevicesReceived(List<Device> devices) {
+            public void onNearbyDevicesReceived(List<TagDevice> devices) {
                 if (devices != null && !devices.isEmpty()) {
                     LogUtil.d(TAG, "Received " + devices.size() + " nearby devices");
                     // 更新地图上的附近设备标记
-                    for (Device device : devices) {
-                        updateMapMarker(device);
+                    for (TagDevice device : devices) {
+                        if (crowdSourceMapHelper != null) crowdSourceMapHelper.updateMapMarker(device);
                     }
                 }
             }
 
             @Override
-            public void onDeviceListReceived(List<Device> devices) {
+            public void onDeviceListReceived(List<TagDevice> devices) {
                 if (devices != null && !devices.isEmpty()) {
                     LogUtil.d(TAG, "Received " + devices.size() + " devices from API");
                     // 处理从API获取的设备列表
-                    for (Device device : devices) {
+                    for (TagDevice device : devices) {
                         databaseHelper.addDevice(device);
-                        updateMapMarker(device);
+                        if (crowdSourceMapHelper != null) crowdSourceMapHelper.updateMapMarker(device);
                     }
                 }
             }
@@ -1141,7 +817,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initDatabase() {
-        databaseHelper = new DatabaseHelper(this);
+        databaseHelper = DatabaseHelper.getInstance(this);
     }
 
     private void initApiService() {
@@ -1156,176 +832,222 @@ public class MainActivity extends AppCompatActivity {
      * 将业务逻辑委托给专门的 Helper 类，减少 Activity 代码量
      */
     private void initHelpers() {
-        // 初始化对话框 Helper
-        dialogHelper = new MainDialogHelper(this, new MainDialogHelper.DialogCallbacks() {
-            @Override
-            public MapManager getMapManager() { return mapManager; }
-            @Override
-            public DatabaseHelper getDatabaseHelper() { return databaseHelper; }
-            @Override
-            public void onLanguageChanged(String languageCode) {
-                if (languageCode != null) {
-                    changeLanguage(languageCode);
-                }
-            }
-            @Override
-            public LocationOptimizationManager getLocationOptimizationManager() { return locationOptimizationManager; }
-            @Override
-            public View getScanningIndicator() { return scanningIndicator; }
-            @Override
-            public int getScanIntensityLevel() { return scanIntensityLevel; }
-            @Override
-            public void onScanIntensitySelected(int level) {
-                scanIntensityLevel = level;
-                switch (level) {
-                    case 1:
-                        if (bleHelper != null) bleHelper.startSingleScanWithCheck();
-                        break;
-                    case 2:
-                        if (bleHelper != null) bleHelper.startContinuousScanWithCheck();
-                        break;
-                }
-            }
-            @Override
-            public void onLoginSuccess(String token, String username, String nickname, String email) {
-                if (authHelper != null) authHelper.fetchBoundDevicesAfterLogin(token);
-            }
-            @Override
-            public void refreshProfileFragment() {
-                if (profileFragment != null) {
-                    profileFragment.onResume();
-                }
-            }
-            @Override
-            public void requestPermissions(String[] permissions, int requestCode) {
-                ActivityCompat.requestPermissions(MainActivity.this, permissions, requestCode);
-            }
-            @Override
-            public String getVersionName() {
-                try {
-                    return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-                } catch (Exception e) {
-                    return "unknown";
-                }
-            }
-            @Override
-            public int getVersionCode() {
-                try {
-                    return getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
-                } catch (Exception e) {
-                    return 0;
-                }
-            }
-        });
+        MainHelperInitializer.initCoreHelpers(createHelperHost());
+    }
 
-        // 初始化主题 Helper
-        themeHelper = new MainThemeHelper(this, new MainThemeHelper.ThemeCallbacks() {
-            @Override
-            public View getBottomNavigation() { return bottomNavigation; }
-            @Override
-            public View getBottomInfo() { return bottomInfo; }
-            @Override
-            public TextView getBatteryLevelText() { return batteryLevelText; }
-            @Override
-            public TextView getDeviceAddressText() { return deviceAddressText; }
-            @Override
-            public TextView getUpdateTimeText() { return updateTimeText; }
-            @Override
-            public int getCurrentTab() { return currentTab; }
-            @Override
-            public MapManager getMapManager() { return mapManager; }
-            @Override
-            public AMap getAMap() { return aMap; }
-            @Override
-            public void notifyFragmentsThemeChanged(boolean isDarkMode) {
+    private void initMapHelper() {
+        MainHelperInitializer.initMapHelper(createHelperHost());
+    }
+
+    private void initLocationHelper() {
+        MainHelperInitializer.initLocationHelper(createHelperHost());
+    }
+
+    private void initMapInitHelper() {
+        MainHelperInitializer.initMapInitHelper(createHelperHost());
+    }
+
+    private void initDeviceSelectionHelper() {
+        MainHelperInitializer.initDeviceSelectionHelper(createHelperHost());
+    }
+
+    private MainHelperInitializer.Host createHelperHost() {
+        return new MainHelperInitializer.Host() {
+            @Override public AppCompatActivity getActivity() { return MainActivity.this; }
+            @Override public AMap getAMap() { return aMap; }
+            @Override public void setAMap(AMap map) { aMap = map; }
+            @Override public MapView getMapView() { return mapView; }
+            @Override public SupportMapFragment getGoogleMapFragment() { return googleMapFragment; }
+            @Override public MapManager getMapManager() { return mapManager; }
+            @Override public void setMapManager(MapManager manager) { mapManager = manager; }
+            @Override public IMapAdapter getMapAdapter() { return mapAdapter; }
+            @Override public void setMapAdapter(IMapAdapter adapter) { mapAdapter = adapter; }
+            @Override public MainViewModel getViewModel() { return viewModel; }
+            @Override public MapViewModel getMapViewModel() { return mapViewModel; }
+            @Override public DatabaseHelper getDatabaseHelper() { return databaseHelper; }
+            @Override public NewApiService getApiService() { return apiService; }
+            @Override public UnboundDeviceManager getUnboundDeviceManager() { return unboundDeviceManager; }
+            @Override public LocationOptimizationManager getLocationOptimizationManager() {
+                return locationOptimizationManager;
+            }
+            @Override public BLEManager getBleManager() { return bleManager; }
+            @Override public CrowdSourcingManager getCrowdSourcingManager() { return crowdSourcingManager; }
+            @Override public MainCrowdSourceMapHelper getCrowdSourceMapHelper() { return crowdSourceMapHelper; }
+            @Override public void setCrowdSourceMapHelper(MainCrowdSourceMapHelper helper) {
+                crowdSourceMapHelper = helper;
+            }
+            @Override public MainDialogHelper getDialogHelper() { return dialogHelper; }
+            @Override public void setDialogHelper(MainDialogHelper helper) { dialogHelper = helper; }
+            @Override public MainThemeHelper getThemeHelper() { return themeHelper; }
+            @Override public void setThemeHelper(MainThemeHelper helper) { themeHelper = helper; }
+            @Override public MainBleHelper getBleHelper() { return bleHelper; }
+            @Override public void setBleHelper(MainBleHelper helper) { bleHelper = helper; }
+            @Override public MainAuthHelper getAuthHelper() { return authHelper; }
+            @Override public void setAuthHelper(MainAuthHelper helper) { authHelper = helper; }
+            @Override public MainMapHelper getMapHelper() { return mapHelper; }
+            @Override public void setMapHelper(MainMapHelper helper) { mapHelper = helper; }
+            @Override public MainLocationHelper getLocationHelper() { return locationHelper; }
+            @Override public void setLocationHelper(MainLocationHelper helper) { locationHelper = helper; }
+            @Override public MainMapInitHelper getMapInitHelper() { return mapInitHelper; }
+            @Override public void setMapInitHelper(MainMapInitHelper helper) { mapInitHelper = helper; }
+            @Override public MainDeviceSelectionHelper getDeviceSelectionHelper() { return deviceSelectionHelper; }
+            @Override public void setDeviceSelectionHelper(MainDeviceSelectionHelper helper) {
+                deviceSelectionHelper = helper;
+            }
+            @Override public MainDeviceDisplayHelper getDeviceDisplayHelper() { return deviceDisplayHelper; }
+            @Override public void setDeviceDisplayHelper(MainDeviceDisplayHelper helper) {
+                deviceDisplayHelper = helper;
+            }
+            @Override public MainDeviceRefreshHelper getDeviceRefreshHelper() { return deviceRefreshHelper; }
+            @Override public void setDeviceRefreshHelper(MainDeviceRefreshHelper helper) {
+                deviceRefreshHelper = helper;
+            }
+            @Override public MainSelectDeviceHelper getSelectDeviceHelper() { return selectDeviceHelper; }
+            @Override public void setSelectDeviceHelper(MainSelectDeviceHelper helper) {
+                selectDeviceHelper = helper;
+            }
+            @Override public double getCurrentLatitude() { return currentLatitude; }
+            @Override public void setCurrentLatitude(double lat) { currentLatitude = lat; }
+            @Override public double getCurrentLongitude() { return currentLongitude; }
+            @Override public void setCurrentLongitude(double lng) { currentLongitude = lng; }
+            @Override public Object getCurrentLocationMarker() { return currentLocationMarker; }
+            @Override public void setCurrentLocationMarker(Object marker) { currentLocationMarker = marker; }
+            @Override public Object getDeviceLocationMarker() { return deviceLocationMarker; }
+            @Override public void setDeviceLocationMarker(Object marker) { deviceLocationMarker = marker; }
+            @Override public boolean isFirstLocation() { return isFirstLocation; }
+            @Override public void setFirstLocation(boolean first) { isFirstLocation = first; }
+            @Override public boolean isUserLocated() { return isUserLocated; }
+            @Override public void setUserLocated(boolean located) { isUserLocated = located; }
+            @Override public boolean isPendingDeviceSelection() { return pendingDeviceSelection; }
+            @Override public void setPendingDeviceSelection(boolean pending) { pendingDeviceSelection = pending; }
+            @Override public long getLastUserInteractionTime() { return lastUserInteractionTime; }
+            @Override public void setLastUserInteractionTime(long time) { lastUserInteractionTime = time; }
+            @Override public TagDevice getSelectedDevice() { return selectedDevice; }
+            @Override public void setSelectedDevice(TagDevice device) { selectedDevice = device; }
+            @Override public double getLastRecordedLatitude() { return lastRecordedLatitude; }
+            @Override public void setLastRecordedLatitude(double v) { lastRecordedLatitude = v; }
+            @Override public double getLastRecordedLongitude() { return lastRecordedLongitude; }
+            @Override public void setLastRecordedLongitude(double v) { lastRecordedLongitude = v; }
+            @Override public long getLastRecordedTimestamp() { return lastRecordedTimestamp; }
+            @Override public void setLastRecordedTimestamp(long v) { lastRecordedTimestamp = v; }
+            @Override public double getLastAddressLatitude() { return lastAddressLatitude; }
+            @Override public void setLastAddressLatitude(double v) { lastAddressLatitude = v; }
+            @Override public double getLastAddressLongitude() { return lastAddressLongitude; }
+            @Override public void setLastAddressLongitude(double v) { lastAddressLongitude = v; }
+            @Override public long getLastAddressUpdateTime() { return lastAddressUpdateTime; }
+            @Override public void setLastAddressUpdateTime(long v) { lastAddressUpdateTime = v; }
+            @Override public int getDeviceRefreshSequence() { return deviceRefreshSequence; }
+            @Override public int incrementDeviceRefreshSequence() { return ++deviceRefreshSequence; }
+            @Override public boolean isRefreshInProgress() { return isRefreshInProgress; }
+            @Override public void setRefreshInProgress(boolean inProgress) { isRefreshInProgress = inProgress; }
+            @Override public com.RockiotTag.tag.map.google.GoogleLocationService getGoogleLocationService() {
+                return googleLocationService;
+            }
+            @Override public void setGoogleLocationService(
+                    com.RockiotTag.tag.map.google.GoogleLocationService service) {
+                googleLocationService = service;
+            }
+            @Override public com.RockiotTag.tag.location.SystemLocationService getSystemLocationService() {
+                return systemLocationService;
+            }
+            @Override public void setSystemLocationService(
+                    com.RockiotTag.tag.location.SystemLocationService service) {
+                systemLocationService = service;
+            }
+            @Override public View getScanningIndicator() { return scanningIndicator; }
+            @Override public View getBottomNavigation() { return bottomNavigation; }
+            @Override public View getBottomInfo() { return bottomInfo; }
+            @Override public TextView getBatteryLevelText() { return batteryLevelText; }
+            @Override public TextView getDeviceAddressText() { return deviceAddressText; }
+            @Override public TextView getUpdateTimeText() { return updateTimeText; }
+            @Override public ImageButton getRefreshBtn() { return refreshBtn; }
+            @Override public int getCurrentTab() { return currentTab; }
+            @Override public int getScanIntensityLevel() { return scanIntensityLevel; }
+            @Override public void setScanIntensityLevel(int level) { scanIntensityLevel = level; }
+            @Override public DeviceListFragment getDeviceListFragment() { return deviceListFragment; }
+            @Override public ProfileFragment getProfileFragment() { return profileFragment; }
+            @Override public com.RockiotTag.tag.util.SafeHandler getTrackRefreshHandler() {
+                return trackRefreshHandler;
+            }
+            @Override public void setTrackRefreshHandler(com.RockiotTag.tag.util.SafeHandler handler) {
+                trackRefreshHandler = handler;
+            }
+            @Override public Runnable getTrackRefreshRunnable() { return trackRefreshRunnable; }
+            @Override public void setTrackRefreshRunnable(Runnable runnable) { trackRefreshRunnable = runnable; }
+            @Override public void changeLanguage(String languageCode) {
+                MainActivity.this.changeLanguage(languageCode);
+            }
+            @Override public void onMapProviderChanged(String newMapProvider, int toastMessageResId) {
+                MainActivity.this.onMapProviderChanged(newMapProvider, toastMessageResId);
+            }
+            @Override public void showBottomInfo() { MainActivity.this.showBottomInfo(); }
+            @Override public void selectDevice(TagDevice device) { MainActivity.this.selectDevice(device); }
+            @Override public void updateDeviceNameWithTag(String name, String tag) {
+                MainActivity.this.updateDeviceNameWithTag(name, tag);
+            }
+            @Override public void showCoordinatesAndGeocode(double latitude, double longitude, boolean forceRefresh) {
+                MainActivity.this.showCoordinatesAndGeocode(latitude, longitude, forceRefresh);
+            }
+            @Override public void moveCameraToDevicePosition(double latitude, double longitude) {
+                MainActivity.this.moveCameraToDevicePosition(latitude, longitude);
+            }
+            @Override public void resetAddressCache() { MainActivity.this.resetAddressCache(); }
+            @Override public void updateDeviceUIDefault() { MainActivity.this.updateDeviceUIDefault(); }
+            @Override public void refreshMapWithCurrentDevice(boolean force) {
+                MainActivity.this.refreshMapWithCurrentDevice(force);
+            }
+            @Override public void updateCustomCompassRotation(float bearing) {
+                MainActivity.this.updateCustomCompassRotation(bearing);
+            }
+            @Override public void autoLocateToDevice() { MainActivity.this.autoLocateToDevice(); }
+            @Override public void locateToDevicePosition(boolean setUserLocated) {
+                MainActivity.this.locateToDevicePosition(setUserLocated);
+            }
+            @Override public void performDeviceRefresh(boolean showToast) {
+                MainActivity.this.performDeviceRefresh(showToast);
+            }
+            @Override public void updateCurrentLocationOnMap() { MainActivity.this.updateCurrentLocationOnMap(); }
+            @Override public void notifyFragmentsThemeChanged(boolean isDarkMode) {
                 if (deviceListFragment != null) deviceListFragment.applyTheme(isDarkMode);
                 if (profileFragment != null) profileFragment.applyTheme(isDarkMode);
             }
-        });
-
-        // 初始化 BLE Helper
-        bleHelper = new MainBleHelper(this, new MainBleHelper.BleCallbacks() {
-            @Override
-            public LocationOptimizationManager getLocationOptimizationManager() { return locationOptimizationManager; }
-            @Override
-            public View getScanningIndicator() { return scanningIndicator; }
-            @Override
-            public BLEManager getBleManager() { return bleManager; }
-            @Override
-            public DatabaseHelper getDatabaseHelper() { return databaseHelper; }
-            @Override
-            public CrowdSourcingManager getCrowdSourcingManager() { return crowdSourcingManager; }
-            @Override
-            public void onUpdateMapMarker(Device device) {
-                MainActivity.this.updateMapMarker(device);
+            @Override public void requestPermissions(String[] permissions, int requestCode) {
+                ActivityCompat.requestPermissions(MainActivity.this, permissions, requestCode);
             }
-        });
-
-        // 初始化认证 Helper
-        authHelper = new MainAuthHelper(this, new MainAuthHelper.AuthCallbacks() {
-            @Override
-            public DatabaseHelper getDatabaseHelper() { return databaseHelper; }
-            @Override
-            public MainViewModel getViewModel() { return viewModel; }
-            @Override
-            public MapViewModel getMapViewModel() { return mapViewModel; }
-            @Override
-            public Device getSelectedDevice() { return selectedDevice; }
-            @Override
-            public void setSelectedDevice(Device device) { selectedDevice = device; }
-            @Override
-            public void refreshDeviceListFragment() {
-                if (deviceListFragment != null) {
-                    deviceListFragment.onResume();
-                }
+            @Override public void refreshProfileFragment() {
+                if (profileFragment != null) profileFragment.onResume();
             }
-            @Override
-            public void refreshProfileFragment() {
-                if (profileFragment != null) {
-                    profileFragment.onResume();
-                }
+            @Override public void refreshDeviceListFragment() {
+                if (deviceListFragment != null) deviceListFragment.onResume();
             }
-            @Override
-            public void clearMapMarkers() {
+            @Override public void clearMapMarkers() {
                 if (deviceLocationMarker != null) {
-                    deviceLocationMarker.remove();
+                    if (mapAdapter != null) mapAdapter.removeObject(deviceLocationMarker);
                     deviceLocationMarker = null;
                 }
-                if (googleDeviceLocationMarker != null) {
-                    googleDeviceLocationMarker.remove();
-                    googleDeviceLocationMarker = null;
-                }
             }
-            @Override
-            public void resetDeviceUIToDefault() {
+            @Override public void resetDeviceUIToDefault() {
                 updateDeviceNameWithTag(getString(R.string.no_device_selected), null);
                 showBottomInfo();
                 batteryLevelText.setText(getString(R.string.battery_level_empty));
                 deviceAddressText.setText(getString(R.string.position_empty));
                 updateTimeText.setText(getString(R.string.last_update_empty));
             }
-            @Override
-            public void selectFirstDeviceAndRefresh() {
-                // 自动选中第一个绑定设备并刷新首页
+            @Override public void selectFirstDeviceAndRefresh() {
                 if (databaseHelper != null) {
-                    // 获取绑定设备列表
                     android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
                     String boundDevicesJson = prefs.getString("bound_devices", null);
-                    
                     if (boundDevicesJson != null && !boundDevicesJson.isEmpty()) {
                         try {
                             com.google.gson.Gson gson = new com.google.gson.Gson();
-                            com.google.gson.reflect.TypeToken<java.util.List<DeviceApiService.BoundDevice>> tokenType = 
+                            com.google.gson.reflect.TypeToken<java.util.List<DeviceApiService.BoundDevice>> tokenType =
                                 new com.google.gson.reflect.TypeToken<java.util.List<DeviceApiService.BoundDevice>>() {};
-                            java.util.List<DeviceApiService.BoundDevice> boundDevices = gson.fromJson(boundDevicesJson, tokenType.getType());
-                            
+                            java.util.List<DeviceApiService.BoundDevice> boundDevices =
+                                gson.fromJson(boundDevicesJson, tokenType.getType());
                             if (boundDevices != null && !boundDevices.isEmpty()) {
-                                // 获取第一个绑定设备的 deviceNum
                                 String firstDeviceNum = boundDevices.get(0).getDeviceNum();
                                 LogUtil.d(TAG, "First bound device deviceNum: " + firstDeviceNum);
-                                
-                                // 从数据库中查找对应的设备
-                                Device firstDevice = databaseHelper.getDeviceByDeviceNum(firstDeviceNum);
+                                TagDevice firstDevice = databaseHelper.getDeviceByDeviceNum(firstDeviceNum);
                                 if (firstDevice != null) {
                                     LogUtil.d(TAG, "Auto-selecting first bound device: " + firstDevice.getName());
                                     selectDevice(firstDevice);
@@ -1341,14 +1063,47 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
             }
-            @Override
-            public void invalidateRefreshRequests() {
-                // 递增序列号，使正在进行的刷新请求失效
+            @Override public void invalidateRefreshRequests() {
                 deviceRefreshSequence++;
                 isRefreshInProgress = false;
                 LogUtil.d(TAG, "Invalidated all refresh requests, new seq: " + deviceRefreshSequence);
             }
-        });
+            @Override public void onScanIntensitySelected(int level) {
+                scanIntensityLevel = level;
+                switch (level) {
+                    case 1:
+                        if (bleHelper != null) bleHelper.startSingleScanWithCheck();
+                        break;
+                    case 2:
+                        if (bleHelper != null) bleHelper.startContinuousScanWithCheck();
+                        break;
+                }
+            }
+            @Override public void onLoginSuccess(String token, String username, String nickname, String email) {
+                if (authHelper != null) authHelper.fetchBoundDevicesAfterLogin(token);
+            }
+            @Override public void onUpdateMapMarker(TagDevice device) {
+                if (crowdSourceMapHelper != null) crowdSourceMapHelper.updateMapMarker(device);
+            }
+            @Override public String getVersionName() {
+                try {
+                    return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+                } catch (Exception e) {
+                    return "unknown";
+                }
+            }
+            @Override public int getVersionCode() {
+                try {
+                    return getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+                } catch (Exception e) {
+                    return 0;
+                }
+            }
+            @Override public String getString(int resId) { return MainActivity.this.getString(resId); }
+            @Override public String getString(int resId, Object... args) {
+                return MainActivity.this.getString(resId, args);
+            }
+        };
     }
 
     private void openDeviceList() {
@@ -1373,425 +1128,86 @@ public class MainActivity extends AppCompatActivity {
         dialogHelper.showMapSwitchOptions();
     }
 
-    public void selectDevice(Device device) {
-        LogUtil.d(TAG, "=== Selecting device ===");
-        LogUtil.d(TAG, "  Device Name: " + device.getName());
-        LogUtil.d(TAG, "  Device Num (16-digit): " + device.getDeviceNum());
-        LogUtil.d(TAG, "  Device MAC: " + (device.getMac() != null ? device.getMac() : "NULL/EMPTY"));
-        LogUtil.d(TAG, "  Device ID (from DB): " + device.getDeviceId());
-        LogUtil.d(TAG, "  Device Timestamp: " + device.getLastSeen() + " (" + 
-            new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
-                .format(new java.util.Date(device.getLastSeen())) + ")");
-        
-        // 递增序列号，使旧设备的刷新请求失效
-        int newSeq = ++deviceRefreshSequence;
-        LogUtil.d(TAG, "  Device refresh sequence: " + newSeq);
-        
-        // 【关键】设置当前选中的设备MAC地址，用于蓝牙扫描匹配
-        // currentSelectedDeviceId 存储的是MAC地址（如 D4:DE:42:0F:57:7A）
-        // 不是16位设备号（如 1756726632035006）
-        if (locationOptimizationManager != null) {
-            String macAddress = device.getMac();
-            if (macAddress != null && !macAddress.isEmpty()) {
-                locationOptimizationManager.setCurrentSelectedDeviceId(macAddress);
-                LogUtil.d(TAG, "Set selected device MAC for bluetooth matching: " + macAddress);
-            } else {
-                Log.w(TAG, "Device MAC is null/empty, cannot set for bluetooth filtering: " + device.getName());
-            }
-        }
-        
-        // 关键修复：切换设备时，先清除 MapViewModel 中的旧位置数据
-        mapViewModel.clearDeviceLocation();
-        resetAddressCache();
-        viewModel.invalidateAddressRequests();
-        LogUtil.d(TAG, "Cleared old device location from MapViewModel");
-        
-        // MVVM - 通过 ViewModel 选择设备（使用UseCase）
-        viewModel.selectDevice(device.getDeviceId());
-        selectedDevice = device; // 保持兼容性
-        
-        // 标记刚切换了设备，等待服务器数据返回后移动相机
-        pendingDeviceSelection = true;
-        
-        // 选择设备时重置手动定位标志，允许地图跟随设备
-        isUserLocated = false;
-        LogUtil.d(TAG, "Reset isUserLocated flag for new device selection");
-        
-        // 重置谷歌地图用户交互状态，允许新设备首次显示时移动相机
-        if (mapManager != null && mapManager.isGoogleMap()) {
-            mapManager.resetUserInteractionState();
-            LogUtil.d(TAG, "Reset Google Map user interaction state for new device");
-        }
-        
-        updateDeviceNameWithTag(device.getName(), device.getTag());
-        showBottomInfo();
-
-        // 【关键修复】切换设备时，如果新设备没有有效经纬度，显示"等待服务器数据..."
-        // 因为 fetchDeviceInfo 会从服务器获取最新数据，地址和时间会在服务器返回后更新
-        if (device.getLatitude() == 0 || device.getLongitude() == 0) {
-            LogUtil.d(TAG, "Device has no valid coordinates, showing loading state");
-            batteryLevelText.setText(getString(R.string.battery_level_empty));
-            deviceAddressText.setText(getString(R.string.position_getting_address));
-            updateTimeText.setText(getString(R.string.last_update_empty));
-        } else {
-            // 设备有本地坐标，先显示经纬度，然后逆地理编码
-            LogUtil.d(TAG, "Device has local coordinates: " + device.getLatitude() + ", " + device.getLongitude());
-            showCoordinatesAndGeocode(device.getLatitude(), device.getLongitude(), true);
-        }
-
-        // 选择设备时，立即更新地图标记并移动到设备位置（如果本地有坐标）
-        if (device.getLatitude() != 0 && device.getLongitude() != 0) {
-            LogUtil.d(TAG, "Device has local location: lat=" + device.getLatitude() + ", lng=" + device.getLongitude());
-                    
-            // 关键修复：切换设备后自动调用"定位到当前位置"功能（不设置isUserLocated标志）
-            locateToDevicePosition(false);
-        } else {
-            LogUtil.d(TAG, "Device has no local location, will wait for server data");
-            // 即使没有本地坐标，也要刷新地图显示（会显示"位置未上报"等状态）
-            refreshMapWithCurrentDevice(false);
-        }
-        
-        android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-        android.content.SharedPreferences.Editor editor = prefs.edit();
-        editor.putString("selected_device_id", device.getDeviceId());
-        editor.apply();
-        
-        String deviceNumToFetch = device.getDeviceNum() != null ? device.getDeviceNum() : device.getDeviceId();
-        
-        // MVVM - 使用 ViewModel 获取设备信息（这会在服务器返回后触发观察者更新UI和移动相机）
-        LogUtil.d(TAG, "Fetching device info from server: " + deviceNumToFetch);
-        viewModel.fetchDeviceInfo(deviceNumToFetch);
-        
-        // 切换设备后自动刷新，获取供应商最新数据（不显示Toast，因为selectDevice是内部调用）
-        performDeviceRefresh(false);
+    public void selectDevice(TagDevice device) {
+        if (selectDeviceHelper != null) selectDeviceHelper.selectDevice(device);
     }
     
 
     /**
      * 在地图上更新设备标记（供 MapViewModel 观察者调用）
      */
-    private void updateDeviceMarkerOnMap(com.RockiotTag.tag.model.TagDevice device) {
-        if (device == null || mapManager == null) return;
-
-        if (mapManager.isGoogleMap() && mapManager.getGoogleMap() != null) {
-            if (googleDeviceLocationMarker != null) {
-                googleDeviceLocationMarker.remove();
-            }
-            com.google.android.gms.maps.model.MarkerOptions markerOptions =
-                new com.google.android.gms.maps.model.MarkerOptions()
-                    .position(new com.google.android.gms.maps.model.LatLng(device.getLatitude(), device.getLongitude()))
-                    .title(device.getName())
-                    .snippet(getString(R.string.device_location));
-            googleDeviceLocationMarker = mapManager.getGoogleMap().addMarker(markerOptions);
-            LogUtil.d(TAG, "Device marker updated on Google Map via MapViewModel");
-            return;
-        }
-
-        if (aMap == null) return;
-
-        // 坐标转换：WGS84 -> GCJ02
-        LatLng deviceLatLng = CoordinateUtils.wgs84ToGcj02(device.getLatitude(), device.getLongitude());
-        
-        // 移除旧标记
-        if (deviceLocationMarker != null) {
-            deviceLocationMarker.remove();
-        }
-
-        // 添加新标记
-        MarkerOptions markerOptions = new MarkerOptions()
-                .position(deviceLatLng)
-                .title(device.getName())
-                .snippet(getString(R.string.device_location))
-                .icon(com.RockiotTag.tag.util.MapMarkerHelper.createCustomMarkerWithR());
-        deviceLocationMarker = aMap.addMarker(markerOptions);
-        
-        LogUtil.d(TAG, "Device marker updated on AMap via MapViewModel");
+    private void updateDeviceMarkerOnMap(TagDevice device) {
+        if (mapHelper != null) mapHelper.updateDeviceMarkerOnMap(device);
     }
 
     /**
-     * 更新设备UI（统一方法 - 委托给updateDeviceUIWithLatest）
+     * 更新设备UI（统一方法 - 委托给 MainDeviceDisplayHelper）
      */
     private void updateDeviceUI(NewApiService.DeviceInfo deviceInfo) {
-        updateDeviceUIWithLatest(deviceInfo, true);
-    }
-    
-    /**
-     * 更新地图标记（提取为独立方法）
-     */
-    private void updateMapMarker(NewApiService.DeviceInfo deviceInfo) {
-        if (mapManager == null) return;
-        
-        if (mapManager.isGoogleMap()) {
-            // Google地图使用WGS84坐标
-            if (googleDeviceLocationMarker != null) {
-                googleDeviceLocationMarker.remove();
-            }
-            if (mapManager.getGoogleMap() != null) {
-                com.google.android.gms.maps.model.MarkerOptions markerOptions = 
-                    new com.google.android.gms.maps.model.MarkerOptions()
-                        .position(new com.google.android.gms.maps.model.LatLng(deviceInfo.latitude, deviceInfo.longitude))
-                        .title(selectedDevice != null ? selectedDevice.getName() : getString(R.string.device))
-                        .snippet(getString(R.string.device_location));
-                googleDeviceLocationMarker = mapManager.getGoogleMap().addMarker(markerOptions);
-            }
-        } else {
-            // 高德地图使用GCJ02坐标
-            LatLng deviceLatLng = CoordinateUtils.wgs84ToGcj02(deviceInfo.latitude, deviceInfo.longitude);
-            if (deviceLocationMarker != null) {
-                deviceLocationMarker.remove();
-            }
-            if (aMap != null) {
-                MarkerOptions markerOptions = new MarkerOptions()
-                        .position(deviceLatLng)
-                        .title(selectedDevice != null ? selectedDevice.getName() : getString(R.string.device))
-                        .snippet(getString(R.string.device_location))
-                        .icon(com.RockiotTag.tag.util.MapMarkerHelper.createCustomMarkerWithR());
-                deviceLocationMarker = aMap.addMarker(markerOptions);
-            }
-        }
+        if (deviceDisplayHelper != null) deviceDisplayHelper.updateDeviceUI(deviceInfo);
     }
 
     /**
      * 更新设备UI（统一方法）
-     * @param deviceInfo 设备信息
-     * @param moveCamera 是否移动地图相机到设备位置
      */
     private void updateDeviceUIWithLatest(NewApiService.DeviceInfo deviceInfo, boolean moveCamera) {
-        LogUtil.d(TAG, "Updating device UI: " + deviceInfo.deviceNum + ", moveCamera=" + moveCamera);
-        
-        showBottomInfo();
-
-        // 1. 更新设备名称 - 保留本地昵称，不使用服务器昵称覆盖
-        // 因为本地昵称可能是用户刚修改但尚未同步到服务器的
-        if (selectedDevice != null && selectedDevice.getName() != null) {
-            updateDeviceNameWithTag(selectedDevice.getName(), selectedDevice.getTag());
-        }
-        
-        // 2. 电池电量由 LiveData 观察者统一更新，此处不直接设置
-        // com.RockiotTag.tag.util.DeviceInfoUpdater.updateBatteryLevel(batteryLevelText, deviceInfo.battery, this);
-        
-        // 3. 处理位置信息
-        if (deviceInfo.latitude != 0 && deviceInfo.longitude != 0) {
-            // 验证坐标有效性
-            if (deviceInfo.latitude < -90 || deviceInfo.latitude > 90 || 
-                deviceInfo.longitude < -180 || deviceInfo.longitude > 180) {
-                Log.w(TAG, "Invalid coordinates: lat=" + deviceInfo.latitude + ", lng=" + deviceInfo.longitude);
-                deviceAddressText.setText(getString(R.string.position_not_reported));
-                return;
-            }
-            
-            // 更新地图标记（使用统一方法）
-            updateMapMarker(deviceInfo);
-            
-            // 移动相机 - 切换/登录后自动移动到设备位置
-            if (moveCamera) {
-                moveCameraToDevicePosition(deviceInfo.latitude, deviceInfo.longitude);
-            }
-            
-            // 关键修复：同时更新 MapViewModel，确保数据一致性
-            com.RockiotTag.tag.model.TagDevice tagDevice = new com.RockiotTag.tag.model.TagDevice(
-                selectedDevice != null ? selectedDevice.getDeviceId() : deviceInfo.deviceNum,
-                selectedDevice != null ? selectedDevice.getName() : deviceInfo.deviceNum
-            );
-            // 注意：deviceInfo中可能没有MAC地址，如果selectedDevice存在则使用其MAC
-            if (selectedDevice != null) {
-                tagDevice.setMac(selectedDevice.getMac());
-            }
-            tagDevice.setLatitude(deviceInfo.latitude);
-            tagDevice.setLongitude(deviceInfo.longitude);
-            mapViewModel.updateDeviceLocation(tagDevice);
-            LogUtil.d(TAG, "MapViewModel updated with server data: lat=" + deviceInfo.latitude + ", lng=" + deviceInfo.longitude);
-            
-            // 关键修复：在更新本地数据之前，先保存原始坐标用于地址校验
-            // 避免服务器返回的旧坐标（如公司地址）覆盖正确地址
-            double localLatBeforeUpdate = 0;
-            double localLngBeforeUpdate = 0;
-            if (selectedDevice != null && selectedDevice.getLatitude() != 0 && selectedDevice.getLongitude() != 0) {
-                localLatBeforeUpdate = selectedDevice.getLatitude();
-                localLngBeforeUpdate = selectedDevice.getLongitude();
-            }
-            
-            // 更新本地设备数据
-            if (selectedDevice != null) {
-                selectedDevice.setLatitude(deviceInfo.latitude);
-                selectedDevice.setLongitude(deviceInfo.longitude);
-                // 【关键修复】不要在这里更新时间戳，让 ViewModel 统一处理时间戳决策
-                // 避免服务器的旧时间戳覆盖蓝牙扫描的最新时间
-                // if (deviceInfo.timestamp > 0) {
-                //     selectedDevice.setLastSeen(deviceInfo.timestamp);
-                // }
-                databaseHelper.addDevice(selectedDevice);
-                LogUtil.d(TAG, "Updated device location in DB (timestamp NOT updated here, handled by ViewModel)");
-            }
-            
-            // 4. 获取地址
-            // 【优化】先检查是否需要更新地址，避免频繁显示"正在获取地址..."
-            double addressLat = deviceInfo.latitude;
-            double addressLng = deviceInfo.longitude;
-            
-            LogUtil.d(TAG, "Address coordinate check - localLatBeforeUpdate: " + localLatBeforeUpdate + ", serverLat: " + deviceInfo.latitude);
-            
-            if (localLatBeforeUpdate != 0 && localLngBeforeUpdate != 0) {
-                // 检查服务器坐标是否与更新前的本地坐标差异过大
-                double distance = CoordinateUtils.calculateDistanceMeters(
-                    localLatBeforeUpdate, localLngBeforeUpdate,
-                    deviceInfo.latitude, deviceInfo.longitude
-                );
-                
-                LogUtil.d(TAG, "Coordinate distance: " + distance + "m");
-                
-                // 关键修复：如果坐标差异超过1000公里，说明本地坐标可能是旧数据（如深圳默认坐标）
-                // 应该使用服务器返回的最新坐标
-                if (distance > 1000000) { // 1000公里
-                    LogUtil.d(TAG, "Local coordinates differ by " + (distance/1000) + "km from server - likely stale data, using server coordinates");
-                    // 使用服务器坐标（addressLat/AddressLng已经是服务器坐标）
-                } else if (distance > 100) {
-                    // 坐标差异适中（100米-1000公里），本地坐标可能更准确，使用本地坐标
-                    LogUtil.d(TAG, "Server coordinates differ by " + distance + "m from local, using local coordinates for address");
-                    addressLat = localLatBeforeUpdate;
-                    addressLng = localLngBeforeUpdate;
-                } else {
-                    LogUtil.d(TAG, "Server coordinates match local (diff=" + distance + "m), using server coordinates");
-                }
-            } else {
-                // 关键修复：第一次加载时，检查服务器坐标是否合理
-                // 如果服务器返回的坐标是深圳默认坐标（22.543611, 113.881944），但地图显示在国外
-                // 则不使用该坐标进行地理编码
-                double serverLat = deviceInfo.latitude;
-                double serverLng = deviceInfo.longitude;
-                
-                // 检测是否为深圳默认坐标（容差0.01度，约1公里）
-                boolean isShenzhenDefault = Math.abs(serverLat - 22.543611) < 0.01 && Math.abs(serverLng - 113.881944) < 0.01;
-                
-                if (isShenzhenDefault) {
-                    Log.w(TAG, "Server returned default Shenzhen coordinates - skipping address geocoding");
-                    // 不查询地址，显示坐标
-                    deviceAddressText.setText(String.format("%.6f, %.6f", serverLat, serverLng));
-                    return;
-                }
-                
-                LogUtil.d(TAG, "No local coordinates before update, using server coordinates");
-            }
-            
-            // 【优化】检查距离阈值和时间间隔，决定是否需要重新获取地址
-            long currentTime = System.currentTimeMillis();
-            long timeSinceLastUpdate = currentTime - lastAddressUpdateTime;
-            
-            if (lastAddressLatitude != 0 && lastAddressLongitude != 0) {
-                double distanceToLastAddress = CoordinateUtils.calculateDistanceMeters(
-                    lastAddressLatitude, lastAddressLongitude,
-                    addressLat, addressLng
-                );
-                
-                // 检查是否满足更新条件：距离超过200米 或 时间超过60秒
-                boolean needUpdateByDistance = distanceToLastAddress >= ADDRESS_UPDATE_THRESHOLD;
-                boolean needUpdateByTime = timeSinceLastUpdate >= ADDRESS_UPDATE_INTERVAL;
-                
-                if (!needUpdateByDistance && !needUpdateByTime) {
-                    // 不满足任何更新条件，保持当前地址不变，但仍显示坐标
-                    LogUtil.d(TAG, String.format("Skip address update: distance=%.1fm (<%dm), time=%ds (<%ds)",
-                        distanceToLastAddress, (int)ADDRESS_UPDATE_THRESHOLD,
-                        timeSinceLastUpdate/1000, ADDRESS_UPDATE_INTERVAL/1000));
-                    if (deviceAddressText != null) {
-                        deviceAddressText.setText(getString(R.string.position_with_coordinates, addressLat, addressLng));
-                    }
-                } else {
-                    // 满足更新条件
-                    if (needUpdateByDistance) {
-                        LogUtil.d(TAG, String.format("Address update triggered by distance: %.1fm >= %dm",
-                            distanceToLastAddress, (int)ADDRESS_UPDATE_THRESHOLD));
-                    } else {
-                        LogUtil.d(TAG, String.format("Address update triggered by time: %ds >= %ds",
-                            timeSinceLastUpdate/1000, ADDRESS_UPDATE_INTERVAL/1000));
-                    }
-                    
-                    // 先显示坐标，逆地理编码完成后自动更新为具体地址
-                    lastAddressLatitude = addressLat;
-                    lastAddressLongitude = addressLng;
-                    lastAddressUpdateTime = currentTime;
-                    showCoordinatesAndGeocode(addressLat, addressLng, true);
-                }
-            } else {
-                // 第一次获取地址：先显示坐标，再异步逆地理编码
-                LogUtil.d(TAG, "First time fetching address");
-                lastAddressLatitude = addressLat;
-                lastAddressLongitude = addressLng;
-                lastAddressUpdateTime = currentTime;
-                showCoordinatesAndGeocode(addressLat, addressLng, true);
-            }
-        } else {
-            deviceAddressText.setText(getString(R.string.position_not_reported));
-        }
-        
-        // 5. 更新时间信息 - 使用 DeviceInfoUpdater
-        if (deviceInfo.timestamp > 0) {
-            com.RockiotTag.tag.util.DeviceInfoUpdater.updateTime(updateTimeText, deviceInfo.timestamp, this);
-        } else if (deviceInfo.updatedAt != null && !deviceInfo.updatedAt.isEmpty()) {
-            updateTimeText.setText(getString(R.string.last_update_with_time, deviceInfo.updatedAt));
-        } else {
-            updateTimeText.setText(getString(R.string.last_update_not_reported));
+        if (deviceDisplayHelper != null) {
+            deviceDisplayHelper.updateDeviceUIWithLatest(deviceInfo, moveCamera);
         }
     }
-    
+
     /**
      * 更新设备UI（不移动相机，用于后台刷新）
      */
     private void updateDeviceUIWithoutCameraMove(NewApiService.DeviceInfo deviceInfo) {
-        updateDeviceUIWithLatest(deviceInfo, false);
-    }
-    
-    /**
-     * 更新设备UI为默认值 - 使用 DeviceInfoUpdater
-     */
-    private void updateDeviceUIDefault() {
-        com.RockiotTag.tag.util.DeviceInfoUpdater.resetToDefault(batteryLevelText, deviceAddressText, updateTimeText, this);
+        if (deviceDisplayHelper != null) {
+            deviceDisplayHelper.updateDeviceUIWithoutCameraMove(deviceInfo);
+        }
     }
 
     /**
-     * 切换设备时重置地址缓存，避免新设备误用旧设备的地址更新阈值
+     * 更新设备UI为默认值
+     */
+    private void updateDeviceUIDefault() {
+        if (deviceDisplayHelper != null) deviceDisplayHelper.updateDeviceUIDefault();
+    }
+
+    /**
+     * 切换设备时重置地址缓存
      */
     private void resetAddressCache() {
-        lastAddressLatitude = 0;
-        lastAddressLongitude = 0;
-        lastAddressUpdateTime = 0;
+        if (deviceDisplayHelper != null) deviceDisplayHelper.resetAddressCache();
     }
 
     /**
      * 立即显示经纬度坐标，并异步启动逆地理编码
+     * 如果坐标未变化且已有地址，不覆盖已有地址
      */
     private void showCoordinatesAndGeocode(double latitude, double longitude, boolean forceRefresh) {
         if (latitude == 0 || longitude == 0) {
             return;
         }
-        if (deviceAddressText != null) {
-            deviceAddressText.setText(getString(R.string.position_with_coordinates, latitude, longitude));
+        // 坐标未变化且非强制刷新时，不覆盖已有地址
+        boolean coordsChanged = Math.abs(latitude - lastAddressLatitude) > 0.000001
+                             || Math.abs(longitude - lastAddressLongitude) > 0.000001;
+        if (forceRefresh || coordsChanged) {
+            if (deviceAddressText != null) {
+                deviceAddressText.setText(getString(R.string.position_with_coordinates, latitude, longitude));
+            }
         }
         getAddressFromLocation(latitude, longitude, forceRefresh);
     }
 
     /**
      * 移动地图相机到设备位置（高德/谷歌均支持，尊重 isUserLocated 标志）
+     * 默认不强制移动：若用户已手动定位，将跳过移动。
      */
     private void moveCameraToDevicePosition(double latitude, double longitude) {
-        if (latitude == 0 || longitude == 0 || mapManager == null || isUserLocated) {
-            return;
-        }
+        if (mapHelper != null) mapHelper.moveCameraToDevicePosition(latitude, longitude);
+    }
 
-        if (mapManager.isGoogleMap()) {
-            if (mapManager.getGoogleMap() != null) {
-                com.google.android.gms.maps.model.LatLng latLng =
-                    new com.google.android.gms.maps.model.LatLng(latitude, longitude);
-                mapManager.getGoogleMap().animateCamera(
-                    com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(latLng, 17));
-                LogUtil.d(TAG, "Camera moved to device position (Google Map)");
-            }
-        } else if (aMap != null) {
-            LatLng deviceLatLng = CoordinateUtils.wgs84ToGcj02(latitude, longitude);
-            aMap.animateCamera(com.amap.api.maps.CameraUpdateFactory.newLatLngZoom(deviceLatLng, 17));
-            LogUtil.d(TAG, "Camera moved to device position (AMap)");
-        } else {
-            mapManager.moveCamera(latitude, longitude, 17);
-        }
+    private void moveCameraToDevicePosition(double latitude, double longitude, boolean force) {
+        if (mapHelper != null) mapHelper.moveCameraToDevicePosition(latitude, longitude, force);
     }
 
     /**
@@ -1801,25 +1217,8 @@ public class MainActivity extends AppCompatActivity {
      * @param forceRefresh 是否强制刷新（忽略缓存）
      */
     private void getAddressFromLocation(double latitude, double longitude, boolean forceRefresh) {
-        LogUtil.d(TAG, "Getting address from location: lat=" + latitude + ", lng=" + longitude + ", forceRefresh=" + forceRefresh);
-        
-        // 判断是否使用高德地理编码
-        boolean isGoogleMap = mapManager != null && mapManager.isGoogleMap();
-        boolean useAMapGeocoder = !isGoogleMap; // 高德地图模式使用高德地理编码
-        String mapMode = isGoogleMap ? "google" : "amap"; // 地图模式标识
-        
-        LogUtil.d(TAG, "Map mode: " + mapMode + ", useAMapGeocoder=" + useAMapGeocoder);
-        
-        // MVVM - 使用 ViewModel 的 UseCase 进行逆地理编码
-        String languageCode = getGeocodingLanguageCode();
-        
-        // 关键修复：确保Google地图模式下强制刷新，避免使用高德地图的缓存
-        if (isGoogleMap && !forceRefresh) {
-            LogUtil.d(TAG, "Google Map mode detected, forcing refresh to avoid AMap cache pollution");
-            forceRefresh = true;
-        }
-        
-        viewModel.getAddress(latitude, longitude, languageCode, forceRefresh, useAMapGeocoder, mapMode);
+        MainGeocodingHelper.getAddressFromLocation(
+                viewModel, mapAdapter, latitude, longitude, forceRefresh, getGeocodingLanguageCode());
     }
 
     public void showLanguageOptions() {
@@ -1831,20 +1230,84 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void changeLanguage(String languageCode) {
+        String current = LanguageUtils.getSavedLanguage(this);
+        if (languageCode != null && languageCode.equals(current)) {
+            return;
+        }
+
         LanguageUtils.saveLanguage(this, languageCode);
-        
+        prepareForActivityRecreate();
+
+        getSharedPreferences("app_settings", MODE_PRIVATE)
+                .edit()
+                .putInt("restore_tab_after_config_change", currentTab)
+                .putBoolean("show_language_changed_toast", true)
+                .putBoolean("language_just_changed", true)
+                .apply();
+
+        recreate();
+    }
+
+    /** recreate 前统一释放地图/定位/延迟任务，避免切换语言或地图后旧回调闪退 */
+    private void prepareForActivityRecreate() {
+        if (mapInitHelper != null) {
+            mapInitHelper.cancelPendingTasks();
+        }
+        if (mapHelper != null) {
+            mapHelper.cancelPendingTasks();
+        }
+        if (pendingScanIndicatorHideRunnable != null) {
+            mainUiHandler.removeCallbacks(pendingScanIndicatorHideRunnable);
+            pendingScanIndicatorHideRunnable = null;
+        }
+        com.RockiotTag.tag.map.MapLayerController.cancelPendingRetries();
+        releaseLocationServices();
+        stopTrackRefresh();
+        deviceRefreshSequence++;
+        isRefreshInProgress = false;
+        if (locationOptimizationManager != null) {
+            locationOptimizationManager.prepareForActivityRecreate();
+        }
+        if (mapManager != null) {
+            mapManager.releasePendingCallbacks();
+        }
+    }
+
+    private void onMapProviderChanged(String newMapProvider, int toastMessageResId) {
         android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-        android.content.SharedPreferences.Editor editor = prefs.edit();
-        editor.putString("language", languageCode);
-        editor.apply();
+        String currentProvider = mapAdapter != null
+                ? mapAdapter.getProvider()
+                : prefs.getString("map_provider", "amap");
+        if (newMapProvider.equals(currentProvider)) {
+            return;
+        }
 
-        applyLanguage(languageCode);
+        if (databaseHelper != null) {
+            databaseHelper.cleanMapModeAddressCache(newMapProvider);
+        }
 
-        Toast.makeText(this, R.string.language_changed, Toast.LENGTH_SHORT).show();
-        
-        Intent intent = getIntent();
-        finish();
-        startActivity(intent);
+        prepareForActivityRecreate();
+
+        prefs.edit()
+                .putString("map_provider", newMapProvider)
+                .putBoolean("map_provider_just_changed", true)
+                .putInt("pending_map_switch_toast", toastMessageResId)
+                .putInt("restore_tab_after_config_change", currentTab)
+                .apply();
+
+        recreate();
+    }
+
+    private void releaseLocationServices() {
+        if (systemLocationService != null) {
+            systemLocationService.onDestroy();
+            systemLocationService = null;
+        }
+        if (googleLocationService != null) {
+            googleLocationService.onDestroy();
+            googleLocationService = null;
+        }
+        locationServicesStarted = false;
     }
 
     private void applyLanguage(String languageCode) {
@@ -1896,200 +1359,98 @@ public class MainActivity extends AppCompatActivity {
     private void triggerBuzzer() {
         // MVVM - 使用 ViewModel 的 UseCase 触发蜂鸣器
         viewModel.triggerBuzzer();
-        Toast.makeText(this, R.string.trigger_buzzer, Toast.LENGTH_SHORT).show();
+        ToastHelper.show(this, R.string.trigger_buzzer);
     }
 
     /**
-     * 初始化底部导航栏
+     * 初始化底部导航 Helper（Fragment 创建与 Tab 切换）
      */
-    private void initBottomNavigation() {
-        View.OnClickListener tabClickListener = new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // 防止快速重复点击
-                long now = System.currentTimeMillis();
-                if (now - lastTabClickTime < TAB_CLICK_INTERVAL) {
-                    return;
-                }
-                lastTabClickTime = now;
-
-                int tabIndex;
-                if (v.getId() == R.id.tab_home) tabIndex = 0;
-                else if (v.getId() == R.id.tab_list) tabIndex = 1;
-                else if (v.getId() == R.id.tab_track) tabIndex = 2;
-                else if (v.getId() == R.id.tab_profile) tabIndex = 3;
-                else return;
-
-                // 禁止重复点击同一Tab
-                if (tabIndex == currentTab) return;
-
-                // 轨迹Tab：直接启动TrackActivity，避免Fragment onResume循环启动
-                if (tabIndex == 2) {
-                    if (selectedDevice == null) {
-                        Toast.makeText(MainActivity.this, R.string.please_select_device, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    updateTabSelection(2);
-                    currentTab = 2;
-                    updateHomeUIVisibility(false);
-                    Intent intent = new Intent(MainActivity.this, TrackActivity.class);
-                    startActivity(intent);
-                    return;
-                }
-
-                switchToTab(tabIndex);
-            }
-        };
-
-        tabHome.setOnClickListener(tabClickListener);
-        tabList.setOnClickListener(tabClickListener);
-        tabTrack.setOnClickListener(tabClickListener);
-        tabProfile.setOnClickListener(tabClickListener);
-
-        // 默认选中首页
-        updateTabSelection(0);
+    private void initTabHelper() {
+        tabHelper = new MainTabHelper(
+                new MainTabHelper.Host() {
+                    @Override
+                    public AppCompatActivity getActivity() { return MainActivity.this; }
+                    @Override
+                    public TagDevice getSelectedDevice() { return selectedDevice; }
+                    @Override
+                    public int getCurrentTab() { return currentTab; }
+                    @Override
+                    public void setCurrentTab(int tab) { currentTab = tab; }
+                    @Override
+                    public View getRefreshBtn() { return refreshBtn; }
+                    @Override
+                    public View getMapTypeBtn() { return mapTypeBtn; }
+                    @Override
+                    public View getLocateBtn() { return locateBtn; }
+                    @Override
+                    public View getCustomCompass() { return customCompass; }
+                    @Override
+                    public View getBottomInfo() { return bottomInfo; }
+                    @Override
+                    public void onHomeFragmentVisibleInternal() { updateHomeUIVisibility(true); }
+                },
+                tabHome, tabList, tabTrack, tabProfile,
+                tabHomeIcon, tabListIcon, tabTrackIcon, tabProfileIcon,
+                tabHomeText, tabListText, tabTrackText, tabProfileText
+        );
+        tabHelper.initBottomNavigation();
+        tabHelper.initFragments();
+        tabHelper.restoreTabIfNeeded();
+        tabHelper.syncTabToCurrentState();
+        homeFragment = tabHelper.getHomeFragment();
+        deviceListFragment = tabHelper.getDeviceListFragment();
+        trackFragment = tabHelper.getTrackFragment();
+        profileFragment = tabHelper.getProfileFragment();
     }
 
-    /**
-     * 初始化Fragment
-     */
-    private void initFragments() {
-        LogUtil.d(TAG, "=== initFragments START ===");
-
-        homeFragment = new HomeFragment();
-        deviceListFragment = new DeviceListFragment();
-        trackFragment = new TrackFragment();
-        profileFragment = new ProfileFragment();
-
-        FragmentManager fm = getSupportFragmentManager();
-        FragmentTransaction ft = fm.beginTransaction();
-        ft.add(R.id.fragment_container, homeFragment, "home");
-        ft.add(R.id.fragment_container, deviceListFragment, "list");
-        ft.add(R.id.fragment_container, trackFragment, "track");
-        ft.add(R.id.fragment_container, profileFragment, "profile");
-        ft.hide(deviceListFragment);
-        ft.hide(trackFragment);
-        ft.hide(profileFragment);
-        ft.commitNowAllowingStateLoss();
-        
-        currentTab = 0;
-        updateTabSelection(0);
-        updateHomeUIVisibility(true);
-        LogUtil.d(TAG, "=== initFragments END ===");
-    }
-
-    /**
-     * 切换Tab
-     * @param tabIndex 0=首页, 1=列表, 2=轨迹, 3=我的
-     */
     public void switchToTab(int tabIndex) {
-        if (tabIndex == currentTab) return;
-
-        FragmentManager fm = getSupportFragmentManager();
-        FragmentTransaction ft = fm.beginTransaction();
-
-        // 隐藏所有Fragment
-        ft.hide(homeFragment);
-        ft.hide(deviceListFragment);
-        ft.hide(trackFragment);
-        ft.hide(profileFragment);
-
-        // 显示目标Fragment
-        switch (tabIndex) {
-            case 0: ft.show(homeFragment); break;
-            case 1: ft.show(deviceListFragment); break;
-            case 2: ft.show(trackFragment); break;
-            case 3: ft.show(profileFragment); break;
+        if (tabHelper != null) {
+            tabHelper.switchToTab(tabIndex);
         }
-        ft.commitNowAllowingStateLoss();
-
-        currentTab = tabIndex;
-        updateTabSelection(tabIndex);
-        updateHomeUIVisibility(tabIndex == 0);
     }
 
-    /**
-     * 更新Tab选中状态
-     */
     private void updateTabSelection(int tabIndex) {
-        tabHome.setSelected(tabIndex == 0);
-        tabList.setSelected(tabIndex == 1);
-        tabTrack.setSelected(tabIndex == 2);
-        tabProfile.setSelected(tabIndex == 3);
-
-        // 更新图标和文字颜色（深色模式下未选中颜色不同）
-        int selectedColor = getResources().getColor(R.color.purple_500, null);
-        boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
-        int unselectedColor = isDarkMode ? 
-            getResources().getColor(R.color.dark_text_secondary, null) : 
-            getResources().getColor(R.color.text_secondary, null);
-
-        tabHomeIcon.setColorFilter(tabIndex == 0 ? selectedColor : unselectedColor);
-        tabListIcon.setColorFilter(tabIndex == 1 ? selectedColor : unselectedColor);
-        tabTrackIcon.setColorFilter(tabIndex == 2 ? selectedColor : unselectedColor);
-        tabProfileIcon.setColorFilter(tabIndex == 3 ? selectedColor : unselectedColor);
-        
-        tabHomeText.setTextColor(tabIndex == 0 ? selectedColor : unselectedColor);
-        tabListText.setTextColor(tabIndex == 1 ? selectedColor : unselectedColor);
-        tabTrackText.setTextColor(tabIndex == 2 ? selectedColor : unselectedColor);
-        tabProfileText.setTextColor(tabIndex == 3 ? selectedColor : unselectedColor);
+        if (tabHelper != null) {
+            tabHelper.updateTabSelection(tabIndex);
+        }
     }
 
-    /**
-     * 控制首页UI元素的可见性（浮动按钮、底部信息卡片、自定义指南针）
-     */
     private void updateHomeUIVisibility(boolean visible) {
-        int visibility = visible ? View.VISIBLE : View.GONE;
-        if (refreshBtn != null) refreshBtn.setVisibility(visibility);
-        if (mapTypeBtn != null) mapTypeBtn.setVisibility(visibility);
-        if (locateBtn != null) locateBtn.setVisibility(visibility);
-        if (customCompass != null) customCompass.setVisibility(visibility);  // 自定义指南针
-        // bottomInfo 始终在首页显示（由 showBottomInfo 控制）
-        if (visible) {
-            showBottomInfo();
-        } else if (bottomInfo != null) {
-            bottomInfo.setVisibility(View.GONE);
+        if (tabHelper != null) {
+            tabHelper.updateHomeUIVisibility(visible);
         }
     }
-    
-    /**
-     * 显示设备信息栏（仅在首页Tab时显示）
-     */
+
     private void showBottomInfo() {
-        if (bottomInfo != null && currentTab == 0) {
-            bottomInfo.setVisibility(View.VISIBLE);
+        if (tabHelper != null) {
+            tabHelper.showBottomInfo();
         }
     }
 
-    /**
-     * 更新自定义指南针旋转角度
-     * @param bearing 地图旋转角度（度）
-     */
     private void updateCustomCompassRotation(float bearing) {
-        if (customCompass != null) {
-            // 指南针需要反向旋转，以保持指向北方
-            customCompass.setRotation(-bearing);
+        if (tabHelper != null) {
+            tabHelper.updateCustomCompassRotation(bearing);
         }
     }
 
-    /**
-     * 首页Fragment可见时回调
-     */
     public void onHomeFragmentVisible() {
-        updateHomeUIVisibility(true);
+        if (tabHelper != null) {
+            tabHelper.onHomeFragmentVisible();
+        }
     }
 
-    /**
-     * 判断当前Tab是否是首页
-     */
     public boolean isCurrentTabHome() {
-        return currentTab == 0;
+        return tabHelper != null && tabHelper.isCurrentTabHome();
+    }
+
+    public int getCurrentTabIndex() {
+        return currentTab;
     }
 
     /**
      * 获取当前选中的设备（供Fragment调用）
      */
-    public Device getSelectedDevice() {
+    public TagDevice getSelectedDevice() {
         return selectedDevice;
     }
 
@@ -2097,6 +1458,10 @@ public class MainActivity extends AppCompatActivity {
      * 打开添加设备页面（供Fragment调用）
      */
     public void openAddDevice() {
+        if (!BoundDevicesHelper.isLoggedIn(this)) {
+            ToastHelper.show(this, R.string.please_login_first);
+            return;
+        }
         Intent intent = new Intent(this, AddDeviceActivity.class);
         startActivity(intent);
     }
@@ -2120,6 +1485,34 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         updateDeviceNameWithTag(nickname, tag);
+    }
+
+    /**
+     * 设备在列表中解绑后，同步清除或切换首页当前选中设备。
+     */
+    public void onDeviceUnbound(String deviceId) {
+        if (deviceId == null || deviceId.isEmpty()) {
+            return;
+        }
+        android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
+        String selectedId = prefs.getString("selected_device_id", "");
+        boolean wasSelected = deviceId.equals(selectedId)
+                || (selectedDevice != null && deviceId.equals(selectedDevice.getDeviceId()));
+        if (!wasSelected) {
+            return;
+        }
+
+        prefs.edit().remove("selected_device_id").apply();
+        selectedDevice = null;
+        clearDeviceInfo();
+
+        if (databaseHelper != null) {
+            java.util.List<TagDevice> remaining =
+                    BoundDevicesHelper.loadDisplayedDevices(this, databaseHelper);
+            if (!remaining.isEmpty()) {
+                selectDevice(remaining.get(0));
+            }
+        }
     }
 
     /**
@@ -2153,7 +1546,7 @@ public class MainActivity extends AppCompatActivity {
             getResources().getColor(R.color.text_secondary, null);
 
         // 选中/未选中Tab颜色
-        int selectedColor = getResources().getColor(R.color.purple_500, null);
+        int selectedColor = getResources().getColor(R.color.brand_primary, null);
         int unselectedColor = isDarkMode ?
             getResources().getColor(R.color.dark_text_secondary, null) :
             getResources().getColor(R.color.text_secondary, null);
@@ -2185,76 +1578,31 @@ public class MainActivity extends AppCompatActivity {
         if (updateTimeText != null) updateTimeText.setTextColor(onSurfaceColor);
 
         // 更新状态栏
-        if (isDarkMode) {
-            getWindow().setStatusBarColor(getResources().getColor(R.color.dark_surface, null));
-            androidx.core.view.WindowInsetsControllerCompat controller =
-                androidx.core.view.ViewCompat.getWindowInsetsController(getWindow().getDecorView());
-            if (controller != null) {
-                controller.setAppearanceLightStatusBars(false); // 白色图标
-            }
-        } else {
-            getWindow().setStatusBarColor(getResources().getColor(R.color.top_bar_background, null));
-            androidx.core.view.WindowInsetsControllerCompat controller =
-                androidx.core.view.ViewCompat.getWindowInsetsController(getWindow().getDecorView());
-            if (controller != null) {
-                controller.setAppearanceLightStatusBars(true); // 黑色图标
-            }
-        }
+        com.RockiotTag.tag.util.StatusBarHelper.setupStatusBar(this, isDarkMode);
 
-        // 深色模式：设置地图样式（添加完善的异常处理）
+        // 深色模式：通过适配器设置地图样式
         try {
-            if (mapManager != null && mapManager.isAmap()) {
-                if (aMap != null) {
-                    if (isDarkMode) {
-                        // 使用导航地图样式（深色风格，蓝黑配色）
-                        aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NIGHT);
-                    } else {
-                        aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NORMAL);
-                    }
-                }
-            } else if (mapManager != null && mapManager.getGoogleMap() != null) {
-                com.google.android.gms.maps.GoogleMap gMap = mapManager.getGoogleMap();
-                if (isDarkMode) {
-                    try {
-                        gMap.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style_night));
-                    } catch (Exception e) {
-                        Log.e(TAG, "Failed to apply dark map style: " + e.getMessage());
-                    }
-                } else {
-                    gMap.setMapStyle(null);
-                }
+            if (mapAdapter != null) {
+                mapAdapter.setDarkMapStyle(isDarkMode);
             }
         } catch (Exception e) {
             Log.e(TAG, "Error applying dark map style: " + e.getMessage());
         }
 
         // 通知Fragment更新
-        if (deviceListFragment != null) deviceListFragment.applyTheme(isDarkMode);
-        if (profileFragment != null) profileFragment.applyTheme(isDarkMode);
+        if (tabHelper != null) {
+            tabHelper.notifyFragmentsThemeChanged(isDarkMode);
+        }
+
+        com.RockiotTag.tag.util.MapFloatingButtonHelper.applyMainScreenButtons(this, isDarkMode);
     }
 
     /**
      * 更新导航栏Tab文字和图标颜色
      */
     private void updateTabColors(int selectedColor, int unselectedColor) {
-        // 更新当前选中的Tab
-        int[][] tabPairs = {
-            {R.id.tab_home_icon, R.id.tab_home_text},
-            {R.id.tab_list_icon, R.id.tab_list_text},
-            {R.id.tab_track_icon, R.id.tab_track_text},
-            {R.id.tab_profile_icon, R.id.tab_profile_text}
-        };
-
-        for (int i = 0; i < tabPairs.length; i++) {
-            ImageView icon = findViewById(tabPairs[i][0]);
-            TextView text = findViewById(tabPairs[i][1]);
-            boolean isSelected = (i == currentTab);
-            int color = isSelected ? selectedColor : unselectedColor;
-            if (icon != null) icon.setColorFilter(color);
-            if (text != null) {
-                text.setTextColor(color);
-                text.setSelected(isSelected);
-            }
+        if (tabHelper != null) {
+            tabHelper.updateTabColors(selectedColor, unselectedColor);
         }
     }
 
@@ -2284,7 +1632,7 @@ public class MainActivity extends AppCompatActivity {
      * 同步绑定设备到本地数据库
      * @param boundDevices 从服务器获取的绑定设备列表
      */
-    private void syncBoundDevicesToLocalDatabase(List<DeviceApiService.BoundDevice> boundDevices) {
+    public void syncBoundDevicesToLocalDatabase(List<DeviceApiService.BoundDevice> boundDevices) {
         authHelper.syncBoundDevicesToLocalDatabase(boundDevices);
     }
 
@@ -2297,228 +1645,38 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startRefreshAnimation() {
-        android.view.animation.Animation rotateAnimation = android.view.animation.AnimationUtils.loadAnimation(this, R.anim.rotate_refresh);
-        refreshBtn.startAnimation(rotateAnimation);
+        if (deviceRefreshHelper != null) deviceRefreshHelper.startRefreshAnimation();
     }
 
     private void stopRefreshAnimation() {
-        refreshBtn.clearAnimation();
+        if (deviceRefreshHelper != null) deviceRefreshHelper.stopRefreshAnimation();
     }
 
-    /**
-     * 执行设备刷新操作（从供应商API获取最新数据）
-     * @param showToast 是否显示"请选择设备"等提示（手动点击时true，自动刷新时false）
-     */
     private void performDeviceRefresh(boolean showToast) {
-        LogUtil.d(TAG, "========== performDeviceRefresh (showToast=" + showToast + ") ==========");
-        Device currentSelectedDevice = viewModel.getSelectedDevice().getValue();
-        if (currentSelectedDevice == null) {
-            if (showToast) {
-                Toast.makeText(MainActivity.this, R.string.please_select_device, Toast.LENGTH_SHORT).show();
-            }
-            return;
-        }
-        
-        // 防止重复刷新
-        if (isRefreshInProgress) {
-            LogUtil.d(TAG, "Refresh already in progress, skipping");
-            return;
-        }
-        isRefreshInProgress = true;
-        startRefreshAnimation();
-        
-        final String deviceNum = currentSelectedDevice.getDeviceNum() != null ? 
-            currentSelectedDevice.getDeviceNum() : currentSelectedDevice.getDeviceId();
-        final long currentTimestamp = currentSelectedDevice.getLastSeen();
-        final String savedCustomerCode = currentSelectedDevice.getCustomerCode();
-        
-        // 递增序列号，使旧请求的结果失效
-        final int currentSeq = ++deviceRefreshSequence;
-        LogUtil.d(TAG, "Refreshing device: " + deviceNum + ", seq: " + currentSeq 
-            + ", current timestamp: " + currentTimestamp
-            + ", savedCustomerCode: " + savedCustomerCode);
-        
-        // 异步调用API获取最新设备信息
-        new Thread(() -> {
-            try {
-                String apiUrl = ApiConfig.getMyServerUrl(deviceNum);
-                NewApiService.setApiBaseUrl(apiUrl);
-                
-                // 使用与GetDeviceInfoUseCase相同的策略：先尝试保存的customerCode，再遍历所有
-                NewApiService.DeviceInfo latestInfo = null;
-                String matchedCustomerCode = null;
-                
-                // 1. 优先使用设备保存的customerCode
-                if (savedCustomerCode != null && !savedCustomerCode.isEmpty()) {
-                    LogUtil.d(TAG, "Trying with saved customerCode: " + savedCustomerCode);
-                    latestInfo = NewApiService.getInstance().getDeviceLatest(deviceNum, savedCustomerCode);
-                    if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
-                        matchedCustomerCode = savedCustomerCode;
-                        LogUtil.d(TAG, "Success with saved customerCode: " + savedCustomerCode);
-                    } else {
-                        LogUtil.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
-                        latestInfo = null;
-                    }
-                }
-                
-                // 2. 如果保存的customerCode失败，遍历所有customerCode
-                if (latestInfo == null) {
-                    java.util.Map<String, ApiConfig.CustomerConfig> configs = ApiConfig.getAllCustomerConfigs();
-                    for (java.util.Map.Entry<String, ApiConfig.CustomerConfig> entry : configs.entrySet()) {
-                        // 检查序列号，如果已有新请求则提前退出
-                        if (currentSeq != deviceRefreshSequence) {
-                            break;
-                        }
-                        String customerCode = entry.getKey();
-                        if (customerCode.equals(savedCustomerCode)) {
-                            continue; // 已经尝试过
-                        }
-                        
-                        LogUtil.d(TAG, "Trying customerCode: " + customerCode);
-                        latestInfo = NewApiService.getInstance().getDeviceLatest(deviceNum, customerCode);
-                        if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
-                            matchedCustomerCode = customerCode;
-                            LogUtil.d(TAG, "Success with customerCode: " + customerCode);
-                            break;
-                        }
-                        latestInfo = null;
-                    }
-                }
-                
-                // 检查序列号，如果已有新请求则丢弃本结果（但仍需停止动画）
-                if (currentSeq != deviceRefreshSequence) {
-                    LogUtil.d(TAG, "Refresh seq #" + currentSeq + " ignored (stale), current=#" + deviceRefreshSequence);
-                    // 不需要停止动画，因为新的刷新请求会接管动画
-                    isRefreshInProgress = false;
-                    return;
-                }
-                
-                if (latestInfo == null) {
-                    Log.w(TAG, "API returned null for device: " + deviceNum + " with all customer codes");
-                    runOnUiThread(() -> {
-                        stopRefreshAnimation();
-                        isRefreshInProgress = false;
-                        if (showToast) {
-                            Toast.makeText(MainActivity.this, R.string.refresh_failed, Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                    return;
-                }
-                
-                // 保存匹配的customerCode到设备
-                if (matchedCustomerCode != null && selectedDevice != null) {
-                    if (!matchedCustomerCode.equals(selectedDevice.getCustomerCode())) {
-                        selectedDevice.setCustomerCode(matchedCustomerCode);
-                        databaseHelper.addDevice(selectedDevice);
-                        LogUtil.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
-                    }
-                }
-                
-                // 创建final副本供lambda使用
-                final NewApiService.DeviceInfo finalLatestInfo = latestInfo;
-                final String finalMatchedCustomerCode = matchedCustomerCode;
-                final boolean finalShowToast = showToast;
-                long serverTimestamp = latestInfo.timestamp;
-                LogUtil.d(TAG, "Server timestamp: " + serverTimestamp + ", current timestamp: " + currentTimestamp);
-                
-                runOnUiThread(() -> {
-                    stopRefreshAnimation();
-                    isRefreshInProgress = false;
-
-                    if (serverTimestamp > currentTimestamp) {
-                        // 服务器时间更新，同步本地数据；UI 由 LiveData 观察者统一更新
-                        LogUtil.d(TAG, "Server data is newer, syncing device data");
-
-                        if (selectedDevice != null) {
-                            selectedDevice.setLatitude(finalLatestInfo.latitude);
-                            selectedDevice.setLongitude(finalLatestInfo.longitude);
-                            selectedDevice.setLastSeen(serverTimestamp);
-                            selectedDevice.setBattery(finalLatestInfo.battery);
-                            if (finalMatchedCustomerCode != null) {
-                                selectedDevice.setCustomerCode(finalMatchedCustomerCode);
-                            }
-                            databaseHelper.addDevice(selectedDevice);
-                        }
-
-                        viewModel.setSelectedDevice(selectedDevice);
-                        if (finalLatestInfo.battery > 0) {
-                            viewModel.updateBatteryLevel(String.valueOf(finalLatestInfo.battery));
-                        }
-                        viewModel.updateUpdateTime(String.valueOf(serverTimestamp));
-
-                        if (finalShowToast) {
-                            Toast.makeText(MainActivity.this, R.string.refresh_success, Toast.LENGTH_SHORT).show();
-                        }
-                    } else {
-                        // 当前数据更新或相同，提示数据已是最新
-                        LogUtil.d(TAG, "Current data is newer or equal, keeping current display");
-                        if (finalShowToast) {
-                            Toast.makeText(MainActivity.this, R.string.data_already_latest, Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                });
-            } catch (Exception e) {
-                Log.e(TAG, "Refresh API call failed: " + e.getMessage(), e);
-                runOnUiThread(() -> {
-                    stopRefreshAnimation();
-                    isRefreshInProgress = false;
-                    if (showToast) {
-                        Toast.makeText(MainActivity.this, R.string.refresh_failed, Toast.LENGTH_SHORT).show();
-                    }
-                });
-            }
-        }).start();
+        if (deviceRefreshHelper != null) deviceRefreshHelper.performDeviceRefresh(showToast);
     }
 
-    /**
-     * 刷新设备位置（优化版 - 使用ViewModel）
-     */
     private void refreshDeviceLocation() {
-        if (selectedDevice == null) {
-            stopRefreshAnimation();
-            Toast.makeText(this, R.string.please_select_device, Toast.LENGTH_SHORT).show();
-            return;
-        }
-            
-        final String deviceNum = selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId();
-            
-        // MVVM - 使用 ViewModel 获取设备信息
-        viewModel.fetchDeviceInfo(deviceNum);
+        if (deviceRefreshHelper != null) deviceRefreshHelper.refreshDeviceLocation();
     }
 
     private void checkPermissions() {
-        String[] permissions = {
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION,
-                Manifest.permission.BLUETOOTH_SCAN,
-                Manifest.permission.BLUETOOTH_CONNECT
-        };
-
-        List<String> permissionsToRequest = new ArrayList<>();
-        for (String permission : permissions) {
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(permission);
+        MainPermissionHelper.checkPermissions(new MainPermissionHelper.Host() {
+            @Override
+            public AppCompatActivity getActivity() { return MainActivity.this; }
+            @Override
+            public void showPermissionRationale(String[] permissions) {
+                MainActivity.this.showPermissionRationale(permissions);
             }
-        }
-
-        if (!permissionsToRequest.isEmpty()) {
-            // 检查是否需要显示权限解释
-            boolean shouldShowRationale = false;
-            for (String permission : permissionsToRequest) {
-                if (ActivityCompat.shouldShowRequestPermissionRationale(this, permission)) {
-                    shouldShowRationale = true;
-                    break;
-                }
+            @Override
+            public void requestPermissions(String[] permissions, int requestCode) {
+                ActivityCompat.requestPermissions(MainActivity.this, permissions, requestCode);
             }
-
-            if (shouldShowRationale) {
-                // 显示权限解释对话框
-                showPermissionRationale(permissionsToRequest.toArray(new String[0]));
-            } else {
-                // 直接请求权限
-                ActivityCompat.requestPermissions(this, permissionsToRequest.toArray(new String[0]), REQUEST_PERMISSIONS);
+            @Override
+            public void onPermissionsGranted() {
+                initLocationAndBleIfPermitted();
             }
-        }
+        }, REQUEST_PERMISSIONS);
     }
 
     private void showPermissionRationale(final String[] permissions) {
@@ -2550,113 +1708,13 @@ public class MainActivity extends AppCompatActivity {
      * 根据当前扫描强度级别应用扫描行为
      */
     private void applyScanIntensity() {
-        bleHelper.applyScanIntensity(scanIntensityLevel);
+        if (bleHelper != null) {
+            bleHelper.applyScanIntensity(scanIntensityLevel);
+        }
     }
 
     private void startBLEScanning() {
         bleHelper.startBLEScanning();
-    }
-
-    private Map<String, Marker> deviceMarkers = new HashMap<>();
-    private Map<String, Polyline> devicePolylines = new HashMap<>();
-    private Map<String, List<LatLng>> deviceLocations = new HashMap<>();
-
-    private void updateMapMarker(Device device) {
-        if (aMap == null || device == null) {
-            return;
-        }
-
-        double latitude = device.getLatitude();
-        double longitude = device.getLongitude();
-
-        // 检查设备是否有有效的位置
-        if (latitude == 0 && longitude == 0) {
-            LogUtil.d(TAG, "Device has no valid location: " + device.getName());
-            return;
-        }
-
-        LatLng latLng = new LatLng(latitude, longitude);
-        String deviceId = device.getDeviceId();
-
-        // 更新设备位置历史
-        List<LatLng> locations = deviceLocations.get(deviceId);
-        if (locations == null) {
-            locations = new ArrayList<>();
-            deviceLocations.put(deviceId, locations);
-        }
-        locations.add(latLng);
-        // 限制历史记录数量，避免内存占用过多
-        if (locations.size() > 100) {
-            locations.remove(0);
-        }
-
-        // 更新或创建轨迹线
-        updateDevicePolyline(deviceId, locations);
-
-        // 更新或创建标记
-        Marker marker = deviceMarkers.get(deviceId);
-        if (marker != null) {
-            // 更新现有标记
-            marker.setPosition(latLng);
-            marker.setTitle(device.getName());
-            marker.setSnippet(getString(R.string.signal_strength, device.getSignalStrength()) + "\n" +
-                    getString(R.string.last_update_with_time, com.RockiotTag.tag.util.TimeFormatter.formatSmartTime(MainActivity.this, device.getLastSeen())));
-        } else {
-            // 创建新标记
-            MarkerOptions markerOptions = new MarkerOptions()
-                    .position(latLng)
-                    .title(device.getName())
-                    .snippet(getString(R.string.signal_strength, device.getSignalStrength()) + "\n" +
-                            getString(R.string.last_update_with_time, com.RockiotTag.tag.util.TimeFormatter.formatSmartTime(MainActivity.this, device.getLastSeen())))
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)); // 使用蓝色标记，避免紫色
-
-            marker = aMap.addMarker(markerOptions);
-            deviceMarkers.put(deviceId, marker);
-        }
-
-        // 移动相机到设备位置
-        // aMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 18));
-    }
-
-    private void updateDevicePolyline(String deviceId, List<LatLng> locations) {
-        if (locations.size() < 2) {
-            return;
-        }
-
-        Polyline polyline = devicePolylines.get(deviceId);
-        if (polyline != null) {
-            // 更新现有轨迹线
-            polyline.setPoints(locations);
-        } else {
-            // 创建新轨迹线
-            PolylineOptions polylineOptions = new PolylineOptions()
-                    .addAll(locations)
-                    .width(5)
-                    .color(Color.BLUE)
-                    .setDottedLine(false);
-
-            polyline = aMap.addPolyline(polylineOptions);
-            devicePolylines.put(deviceId, polyline);
-        }
-    }
-
-    private void updateCurrentLocationMarker() {
-        if (aMap == null) {
-            return;
-        }
-        
-        LatLng latLng = new LatLng(currentLatitude, currentLongitude);
-        
-        if (currentLocationMarker == null) {
-            // 创建自定义的带R图标的标记 - 使用 MapMarkerHelper
-            MarkerOptions markerOptions = new MarkerOptions()
-                    .position(latLng)
-                    .icon(com.RockiotTag.tag.util.MapMarkerHelper.createCustomMarkerWithR());
-            currentLocationMarker = aMap.addMarker(markerOptions);
-        } else {
-            // 更新现有标记位置
-            currentLocationMarker.setPosition(latLng);
-        }
     }
     
     @Override
@@ -2682,7 +1740,7 @@ public class MainActivity extends AppCompatActivity {
                 LogUtil.d(TAG, "Reloading selected device from database: " + selectedDeviceId);
                 
                 // 从数据库重新加载设备信息
-                Device updatedDevice = databaseHelper.getDevice(selectedDeviceId);
+                TagDevice updatedDevice = databaseHelper.getDevice(selectedDeviceId);
                 if (updatedDevice != null) {
                     LogUtil.d(TAG, "Device loaded: name=" + updatedDevice.getName() + ", tag=" + updatedDevice.getTag() + 
                           ", lat=" + updatedDevice.getLatitude() + ", lng=" + updatedDevice.getLongitude());
@@ -2707,25 +1765,30 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (mapView != null) {
-            mapView.onResume();
+        boolean useAmap = amapLifecycleStarted;
+        if (mapView != null && useAmap) {
+            try {
+                mapView.onResume();
+            } catch (Throwable t) {
+                Log.e(TAG, "mapView.onResume failed", t);
+            }
+        }
+        if (mapAdapter != null) {
+            try {
+                mapAdapter.onResume();
+            } catch (Throwable t) {
+                Log.e(TAG, "mapAdapter.onResume failed", t);
+            }
+        }
+        if (mapManager != null && mapManager.isGoogleMap()) {
+            mapManager.ensureGoogleMapVisible();
         }
 
         LogUtil.d(TAG, "=== onResume called, currentTab=" + currentTab + " ===");
 
-        // 从轨迹界面返回时，切换到指定Tab
-        if (pendingTabSwitch >= 0) {
-            LogUtil.d(TAG, "Returning from TrackActivity, switching to tab " + pendingTabSwitch);
-            int targetTab = pendingTabSwitch;
-            pendingTabSwitch = -1;
-            switchToTab(targetTab);
-        } else if (currentTab == 2) {
-            // 只有从TrackActivity返回时currentTab才是2（轨迹Tab不使用Fragment显示）
-            LogUtil.d(TAG, "Returning from TrackActivity, switching to home tab");
-            switchToTab(0);
+        if (tabHelper != null) {
+            tabHelper.handlePendingTabSwitch();
         }
-
-        // 修复：从轨迹界面返回时，重置用户定位标志，允许地图自动跟随设备
         isUserLocated = false;
         LogUtil.d(TAG, "Reset isUserLocated flag on resume");
         
@@ -2750,11 +1813,11 @@ public class MainActivity extends AppCompatActivity {
             LogUtil.d(TAG, "Refreshing device info for deviceId: " + deviceId);
             
             try {
-                Device updatedDevice = databaseHelper.getDevice(deviceId);
+                TagDevice updatedDevice = databaseHelper.getDevice(deviceId);
                 if (updatedDevice != null) {
                     // 如果设备信息发生变化（例如名称修改），则更新内存中的设备
-                    if (!updatedDevice.getName().equals(selectedDevice.getName()) || 
-                        !updatedDevice.getTag().equals(selectedDevice.getTag())) {
+                    if (!java.util.Objects.equals(updatedDevice.getName(), selectedDevice.getName())
+                            || !java.util.Objects.equals(updatedDevice.getTag(), selectedDevice.getTag())) {
                         selectedDevice = updatedDevice;
                         LogUtil.d(TAG, "Device info changed, updating memory: name=" + selectedDevice.getName() + ", tag=" + selectedDevice.getTag());
                         updateDeviceNameWithTag(selectedDevice.getName(), selectedDevice.getTag());
@@ -2790,15 +1853,19 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         
+        LanguageIndicatorHelper.refreshMainActivity(this);
         startTrackRefresh();
     }
 
     @Override
     protected void onPause() {
-        super.onPause();
-        if (mapView != null) {
+        if (mapView != null && amapLifecycleStarted) {
             mapView.onPause();
         }
+        if (mapAdapter != null) {
+            mapAdapter.onPause();
+        }
+        super.onPause();
         stopTrackRefresh();
         
         // 【关键】只停止时间刷新，不停止蓝牙扫描（蓝牙扫描应该持续运行）
@@ -2820,499 +1887,44 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initTrackRefresh() {
-        trackRefreshHandler = new com.RockiotTag.tag.util.SafeHandler(new com.RockiotTag.tag.util.SafeHandler.Callback() {
-            @Override
-            public void handleMessage(android.os.Message msg) {
-                // 不需要处理消息，使用Runnable方式
-            }
-        });
-        
-        trackRefreshRunnable = new Runnable() {
-            @Override
-            public void run() {
-                refreshAndRecordLocation();
-                if (trackRefreshHandler != null) {
-                    trackRefreshHandler.postDelayed(this, TRACK_REFRESH_INTERVAL);
-                }
-            }
-        };
+        if (deviceRefreshHelper != null) deviceRefreshHelper.initTrackRefresh();
     }
 
     private void startTrackRefresh() {
-        if (trackRefreshHandler != null && trackRefreshRunnable != null) {
-            trackRefreshHandler.removeCallbacks(trackRefreshRunnable);
-            trackRefreshHandler.post(trackRefreshRunnable);
-        }
+        if (deviceRefreshHelper != null) deviceRefreshHelper.startTrackRefresh();
     }
 
     private void stopTrackRefresh() {
-        if (trackRefreshHandler != null && trackRefreshRunnable != null) {
-            trackRefreshHandler.removeCallbacks(trackRefreshRunnable);
-        }
+        if (deviceRefreshHelper != null) deviceRefreshHelper.stopTrackRefresh();
     }
 
-    private void refreshAndRecordLocation() {
-        if (selectedDevice == null) {
-            return;
-        }
-
-        final String deviceNum = selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId();
-        final int currentSeq = ++deviceRefreshSequence;
-        
-        // 根据设备号长度设置对应的API URL
-        NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNum));
-        
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    NewApiService.ApiResponse syncResponse = apiService.syncDevice(deviceNum);
-                    LogUtil.d(TAG, "Auto refresh - sync device response: " + (syncResponse != null ? syncResponse.isSuccess() : "null"));
-                    
-                    // 检查序列号，如果已有新请求则丢弃本结果
-                    if (currentSeq != deviceRefreshSequence) {
-                        LogUtil.d(TAG, "Auto refresh seq #" + currentSeq + " ignored (stale)");
-                        return;
-                    }
-                    
-                    NewApiService.DeviceInfo deviceInfo = null;
-                    if (syncResponse != null && syncResponse.isSuccess()) {
-                        deviceInfo = apiService.getDeviceLatest(deviceNum);
-                        LogUtil.d(TAG, "Auto refresh - got latest device info: " + (deviceInfo != null ? "yes" : "null"));
-                    }
-                    
-                    // 再次检查序列号
-                    if (currentSeq != deviceRefreshSequence) {
-                        LogUtil.d(TAG, "Auto refresh seq #" + currentSeq + " ignored (stale) after getDeviceLatest");
-                        return;
-                    }
-                    
-                    if (deviceInfo == null) {
-                        deviceInfo = apiService.getDeviceInfo(deviceNum);
-                        LogUtil.d(TAG, "Auto refresh - fallback to getDeviceInfo: " + (deviceInfo != null ? "yes" : "null"));
-                    }
-                    
-                    if (deviceInfo != null) {
-                        // 最终检查序列号
-                        if (currentSeq != deviceRefreshSequence) {
-                            LogUtil.d(TAG, "Auto refresh seq #" + currentSeq + " ignored (stale) before UI update");
-                            return;
-                        }
-                        
-                        final NewApiService.DeviceInfo finalDeviceInfo = deviceInfo;
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                // 后台自动刷新时不移动地图，只更新UI数据
-                                updateDeviceUIWithoutCameraMove(finalDeviceInfo);
-                            }
-                        });
-                        
-                        if (deviceInfo.latitude != 0 && deviceInfo.longitude != 0 && deviceInfo.timestamp > 0) {
-                            double newLat = deviceInfo.latitude;
-                            double newLng = deviceInfo.longitude;
-                            long newTimestamp = deviceInfo.timestamp;
-                            
-                            LogUtil.d(TAG, "Checking location: lat=" + newLat + ", lng=" + newLng + 
-                                  ", timestamp=" + newTimestamp + 
-                                  ", lastRecordedTimestamp=" + lastRecordedTimestamp);
-                            
-                            if (newTimestamp <= lastRecordedTimestamp && lastRecordedTimestamp > 0) {
-                                LogUtil.d(TAG, "Skipping - timestamp not newer than last recorded");
-                                return;
-                            }
-                            
-                            if (newLat < -90 || newLat > 90 || newLng < -180 || newLng > 180) {
-                                LogUtil.d(TAG, "Skipping - invalid coordinates");
-                                return;
-                            }
-                            
-                            boolean isAbnormalJump = false;
-                            if (lastRecordedLatitude != 0 && lastRecordedLongitude != 0) {
-                                double distance = CoordinateUtils.calculateDistanceMeters(
-                                    lastRecordedLatitude, lastRecordedLongitude,
-                                    newLat, newLng
-                                );
-                                long timeDiff = newTimestamp - lastRecordedTimestamp;
-                                if (timeDiff < 60000 && distance > 500) {
-                                    LogUtil.d(TAG, "Skipping - abnormal jump: " + distance + " meters in " + timeDiff + " ms");
-                                    isAbnormalJump = true;
-                                }
-                            }
-                            
-                            if (isAbnormalJump) {
-                                return;
-                            }
-                            
-                            boolean shouldRecord = false;
-                            if (lastRecordedLatitude == 0 && lastRecordedLongitude == 0) {
-                                shouldRecord = true;
-                                LogUtil.d(TAG, "First point - recording");
-                            } else {
-                                double distance = CoordinateUtils.calculateDistanceMeters(
-                                    lastRecordedLatitude, lastRecordedLongitude,
-                                    newLat, newLng
-                                );
-                                shouldRecord = distance > 10;
-                                LogUtil.d(TAG, "Distance: " + distance + " meters, shouldRecord=" + shouldRecord);
-                            }
-                            
-                            if (shouldRecord) {
-                                LogUtil.d(TAG, "Recording location: " + newLat + ", " + newLng + 
-                                      ", deviceTimestamp=" + newTimestamp);
-                                LocationRecord record = new LocationRecord(
-                                    selectedDevice.getDeviceId(),
-                                    newLat,
-                                    newLng,
-                                    newTimestamp
-                                );
-                                databaseHelper.addLocationRecord(record);
-                                lastRecordedLatitude = newLat;
-                                lastRecordedLongitude = newLng;
-                                lastRecordedTimestamp = newTimestamp;
-                                LogUtil.d(TAG, "Location recorded successfully");
-                            } else {
-                                LogUtil.d(TAG, "Skipping location record - change too small or same timestamp");
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error refreshing and recording location: " + e.getMessage(), e);
-                }
-            }
-        }).start();
-    }
-
-    /**
-     * 在地图初始化前恢复选中设备，用于设置地图初始位置
-     */
     private void restoreSelectedDeviceForMapInit() {
-        LogUtil.d(TAG, "Restoring selected device for map initialization");
-        if (databaseHelper == null) {
-            Log.e(TAG, "databaseHelper is null, cannot restore device");
-            return;
-        }
-        
-        android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-        
-        // 未登录时不恢复设备
-        String token = prefs.getString("auth_token", null);
-        if (token == null || token.isEmpty()) {
-            LogUtil.d(TAG, "User not logged in, skip restoring device for map init");
-            return;
-        }
-        
-        String selectedDeviceId = prefs.getString("selected_device_id", "");
-        LogUtil.d(TAG, "Saved selected device ID: " + selectedDeviceId);
-        
-        if (!selectedDeviceId.isEmpty()) {
-            Device device = databaseHelper.getDevice(selectedDeviceId);
-            if (device != null && device.getLatitude() != 0 && device.getLongitude() != 0) {
-                LogUtil.d(TAG, "Found device with location for map init: " + device.getName() + 
-                      ", lat=" + device.getLatitude() + ", lng=" + device.getLongitude());
-                // 设置地图目标位置为设备位置
-                if (mapManager != null) {
-                    mapManager.setTargetLocation(device.getLatitude(), device.getLongitude(), 17);
-                }
-            } else {
-                LogUtil.d(TAG, "Device has no valid location, will use default location");
-            }
-        } else {
-            LogUtil.d(TAG, "No saved device, will use default location");
-        }
+        if (deviceSelectionHelper != null) deviceSelectionHelper.restoreSelectedDeviceForMapInit();
     }
-    
+
     private void restoreSelectedDevice() {
-        LogUtil.d(TAG, "Restoring selected device");
-        if (databaseHelper == null) {
-            Log.e(TAG, "databaseHelper is null, cannot restore device");
-            return;
-        }
-        
-        // 未登录时不恢复设备选择
-        android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-        String token = prefs.getString("auth_token", null);
-        if (token == null || token.isEmpty()) {
-            LogUtil.d(TAG, "User not logged in, skip restoring device");
-            return;
-        }
-        
-        String selectedDeviceId = prefs.getString("selected_device_id", "");
-        LogUtil.d(TAG, "Saved selected device ID: " + selectedDeviceId);
-        
-        List<Device> allDevices = databaseHelper.getAllDevices();
-        LogUtil.d(TAG, "Found " + (allDevices != null ? allDevices.size() : 0) + " devices in database");
-        
-        if (!selectedDeviceId.isEmpty() && allDevices != null) {
-            for (Device device : allDevices) {
-                if (device.getDeviceId().equals(selectedDeviceId)) {
-                    LogUtil.d(TAG, "Found saved device: " + device.getName() + ", deviceId: " + device.getDeviceId());
-                    
-                    // 【新增优化】设置当前选中的设备ID（MAC地址），用于过滤蓝牙扫描的Toast提醒
-                    if (locationOptimizationManager != null) {
-                        String macAddress = device.getMac();
-                        if (macAddress != null && !macAddress.isEmpty()) {
-                            locationOptimizationManager.setCurrentSelectedDeviceId(macAddress);
-                            LogUtil.d(TAG, "Set current selected device MAC for bluetooth filtering: " + macAddress);
-                        } else {
-                            Log.w(TAG, "Device MAC is null/empty: " + device.getName());
-                        }
-                    }
-                    
-                    // MVVM - 通过 ViewModel 设置选中设备
-                    viewModel.setSelectedDevice(device);
-                    selectedDevice = device; // 保持兼容性
-                    
-                    // 恢复设备后等待服务器数据，返回后移动相机到设备位置
-                    pendingDeviceSelection = true;
-                    isUserLocated = false;
-                    resetAddressCache();
-                    viewModel.invalidateAddressRequests();
-                    
-                    updateDeviceNameWithTag(device.getName(), device.getTag());
-                    showBottomInfo();
-                    
-                    // 先显示默认的设备信息
-                    updateDeviceUIDefault();
-                    
-                    if (device.getLatitude() != 0 && device.getLongitude() != 0) {
-                        showCoordinatesAndGeocode(device.getLatitude(), device.getLongitude(), true);
-                        LogUtil.d(TAG, "Device has local location: lat=" + device.getLatitude() + ", lng=" + device.getLongitude());
-                    } else {
-                        deviceAddressText.setText(getString(R.string.position_getting_address));
-                    }
-                    
-                    // 从数据库中读取最后的轨迹记录来初始化状态
-                    initLastRecordedStateFromDb(selectedDeviceId);
-                    
-                    String deviceNumToFetch = device.getDeviceNum() != null ? device.getDeviceNum() : device.getDeviceId();
-                    LogUtil.d(TAG, "Calling fetchDeviceInfo for: " + deviceNumToFetch);
-                    // MVVM - 使用 ViewModel 获取设备信息
-                    viewModel.fetchDeviceInfo(deviceNumToFetch);
-                    return;
-                }
-            }
-            
-            LogUtil.d(TAG, "Saved device not found in database, clearing device info");
-            clearDeviceInfo();
-        }
-        
-        if (allDevices == null || allDevices.isEmpty()) {
-            LogUtil.d(TAG, "No devices in local database, waiting for user to add device...");
-            clearDeviceInfo();
-        } else {
-            LogUtil.d(TAG, "No saved device found, selecting first device from local database");
-            selectFirstDevice(allDevices);
-        }
+        if (deviceSelectionHelper != null) deviceSelectionHelper.restoreSelectedDevice();
     }
-    
-    private void initLastRecordedStateFromDb(String deviceId) {
-        // 获取今天的时间范围
-        Calendar startTime = Calendar.getInstance();
-        startTime.set(Calendar.HOUR_OF_DAY, 0);
-        startTime.set(Calendar.MINUTE, 0);
-        startTime.set(Calendar.SECOND, 0);
-        startTime.set(Calendar.MILLISECOND, 0);
-        
-        Calendar endTime = Calendar.getInstance();
-        endTime.set(Calendar.HOUR_OF_DAY, 23);
-        endTime.set(Calendar.MINUTE, 59);
-        endTime.set(Calendar.SECOND, 59);
-        endTime.set(Calendar.MILLISECOND, 999);
-        
-        List<LocationRecord> records = databaseHelper.getLocationRecords(
-            deviceId, startTime.getTimeInMillis(), endTime.getTimeInMillis());
-        
-        if (records != null && !records.isEmpty()) {
-            // 获取最后一条记录
-            LocationRecord lastRecord = records.get(records.size() - 1);
-            lastRecordedLatitude = lastRecord.getLatitude();
-            lastRecordedLongitude = lastRecord.getLongitude();
-            lastRecordedTimestamp = lastRecord.getTimestamp();
-            LogUtil.d(TAG, "Initialized from DB: lat=" + lastRecordedLatitude + 
-                  ", lng=" + lastRecordedLongitude + 
-                  ", timestamp=" + lastRecordedTimestamp);
-        } else {
-            // 没有记录，重置状态
-            lastRecordedLatitude = 0;
-            lastRecordedLongitude = 0;
-            lastRecordedTimestamp = 0;
-            LogUtil.d(TAG, "No records in DB, reset state");
-        }
-    }
-    
+
     private void clearDeviceInfo() {
-        LogUtil.d(TAG, "Clearing device info");
-        selectedDevice = null;
-        updateDeviceNameWithTag(getString(R.string.no_device_selected), null);
-        showBottomInfo();
-        batteryLevelText.setText(getString(R.string.battery_level_empty));
-        deviceAddressText.setText(getString(R.string.position_empty));
-        updateTimeText.setText(getString(R.string.last_update_empty));
-        
-        if (deviceLocationMarker != null) {
-            deviceLocationMarker.remove();
-            deviceLocationMarker = null;
-        }
+        if (deviceSelectionHelper != null) deviceSelectionHelper.clearDeviceInfo();
     }
-    
+
     private void syncDevicesFromApiAndSelectFirst() {
-        // 使用默认的服务器URL（12位设备号的服务器）
-        NewApiService.setApiBaseUrl(ApiConfig.SERVER_URL_12BIT);
-        
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    LogUtil.d(TAG, "Starting API sync...");
-                    
-                    // 同步数据
-                    LogUtil.d(TAG, "Syncing data from vendor API...");
-                    NewApiService.ApiResponse syncResponse = apiService.syncAll();
-                    LogUtil.d(TAG, "Sync response: " + (syncResponse != null ? syncResponse.isSuccess() : "null"));
-                    
-                    LogUtil.d(TAG, "Fetching bound devices from API...");
-                    List<NewApiService.DeviceInfo> apiDevices = apiService.getBoundDeviceList();
-                    LogUtil.d(TAG, "Found " + apiDevices.size() + " devices from API");
-                    
-                    if (apiDevices.isEmpty()) {
-                        Log.w(TAG, "API returned empty device list, skipping sync");
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                clearDeviceInfo();
-                            }
-                        });
-                        return;
-                    }
-                    
-                    final List<Device> syncedDevices = new ArrayList<>();
-                    int skippedCount = 0;
-                    
-                    for (NewApiService.DeviceInfo info : apiDevices) {
-                        if (info.deviceNum == null) continue;
-                        
-                        String deviceId = info.deviceNum;
-                        
-                        if (unboundDeviceManager.isDeviceUnbound(deviceId)) {
-                            LogUtil.d(TAG, "Skipping unbound device: " + deviceId);
-                            skippedCount++;
-                            continue;
-                        }
-                        
-                        if (!databaseHelper.isDeviceBound(deviceId)) {
-                            Device device = new Device(deviceId, info.nickName != null ? info.nickName : getString(R.string.device_default_name, info.deviceNum));
-                            device.setDeviceNum(info.deviceNum);
-                            device.setLatitude(info.latitude);
-                            device.setLongitude(info.longitude);
-                            device.setLastSeen(info.timestamp > 0 ? info.timestamp : System.currentTimeMillis());
-                            databaseHelper.addDevice(device);
-                            syncedDevices.add(device);
-                            LogUtil.d(TAG, "Synced new device: " + device.getName());
-                        } else {
-                            Device existingDevice = databaseHelper.getDevice(deviceId);
-                            if (existingDevice != null) {
-                                if (existingDevice.getDeviceNum() == null) {
-                                    existingDevice.setDeviceNum(info.deviceNum);
-                                }
-                                // 昵称：保留本地昵称，不使用服务器昵称覆盖
-                                existingDevice.setLatitude(info.latitude);
-                                existingDevice.setLongitude(info.longitude);
-                                existingDevice.setLastSeen(info.timestamp > 0 ? info.timestamp : System.currentTimeMillis());
-                                databaseHelper.addDevice(existingDevice);
-                                syncedDevices.add(existingDevice);
-                                LogUtil.d(TAG, "Updated device: " + existingDevice.getName());
-                            }
-                        }
-                    }
-                    
-                    final int finalSkippedCount = skippedCount;
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (!syncedDevices.isEmpty()) {
-                                selectFirstDevice(syncedDevices);
-                                Toast.makeText(MainActivity.this, getString(R.string.synced_devices, syncedDevices.size()), Toast.LENGTH_SHORT).show();
-                            } else if (finalSkippedCount > 0) {
-                                clearDeviceInfo();
-                            } else {
-                                clearDeviceInfo();
-                            }
-                        }
-                    });
-                    
-                } catch (Exception e) {
-                    Log.e(TAG, "Error syncing device list: " + e.getMessage(), e);
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(MainActivity.this, getString(R.string.sync_device_failed, e.getMessage()), Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                }
-            }
-        }).start();
+        if (deviceSelectionHelper != null) deviceSelectionHelper.syncDevicesFromApiAndSelectFirst();
     }
-    
-    private void selectFirstDevice(List<Device> devices) {
-        if (devices == null || devices.isEmpty()) {
-            LogUtil.d(TAG, "No devices to select");
-            clearDeviceInfo();
-            return;
-        }
-        
-        Device firstDevice = devices.get(0);
-        LogUtil.d(TAG, "Auto-selecting first device: " + firstDevice.getName() + ", deviceId: " + firstDevice.getDeviceId());
-        
-        // 【新增优化】设置当前选中的设备ID（MAC地址），用于过滤蓝牙扫描的Toast提醒
-        if (locationOptimizationManager != null) {
-            String macAddress = firstDevice.getMac();
-            if (macAddress != null && !macAddress.isEmpty()) {
-                locationOptimizationManager.setCurrentSelectedDeviceId(macAddress);
-                LogUtil.d(TAG, "Set current selected device MAC for bluetooth filtering: " + macAddress);
-            } else {
-                Log.w(TAG, "First device MAC is null/empty: " + firstDevice.getName());
-            }
-        }
-        
-        // MVVM - 通过 ViewModel 设置选中设备
-        viewModel.setSelectedDevice(firstDevice);
-        selectedDevice = firstDevice; // 保持兼容性
-        
-        // 登录后首次加载：等待服务器数据返回后移动相机
-        pendingDeviceSelection = true;
-        isUserLocated = false;
-        resetAddressCache();
-        viewModel.invalidateAddressRequests();
-        
-        updateDeviceNameWithTag(firstDevice.getName(), firstDevice.getTag());
-        showBottomInfo();
-        
-        // 先显示默认的设备信息
-        updateDeviceUIDefault();
-        
-        android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-        android.content.SharedPreferences.Editor editor = prefs.edit();
-        editor.putString("selected_device_id", firstDevice.getDeviceId());
-        editor.apply();
-        
-        if (firstDevice.getLatitude() != 0 && firstDevice.getLongitude() != 0) {
-            showCoordinatesAndGeocode(firstDevice.getLatitude(), firstDevice.getLongitude(), true);
-            LogUtil.d(TAG, "Device has local location: lat=" + firstDevice.getLatitude() + ", lng=" + firstDevice.getLongitude());
-        } else {
-            deviceAddressText.setText(getString(R.string.position_getting_address));
-        }
-        
-        String deviceNumToFetch = firstDevice.getDeviceNum() != null ? firstDevice.getDeviceNum() : firstDevice.getDeviceId();
-        LogUtil.d(TAG, "Calling fetchDeviceInfo for: " + deviceNumToFetch);
-        // MVVM - 使用 ViewModel 获取设备信息
-        viewModel.fetchDeviceInfo(deviceNumToFetch);
+
+    private void selectFirstDevice(List<TagDevice> devices) {
+        if (deviceSelectionHelper != null) deviceSelectionHelper.selectFirstDevice(devices);
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        if (mapView != null) {
+        outState.putInt("current_tab", currentTab);
+        if (mapView != null && amapLifecycleStarted
+                && mapAdapter != null
+                && com.RockiotTag.tag.map.MapAdapterFactory.PROVIDER_AMAP.equals(mapAdapter.getProvider())) {
             mapView.onSaveInstanceState(outState);
         }
     }
@@ -3321,44 +1933,24 @@ public class MainActivity extends AppCompatActivity {
      * 更新当前位置到地图（通用方法，适配高德和谷歌地图）
      */
     private void updateCurrentLocationOnMap() {
-        if (mapManager != null) {
-            if (mapManager.isGoogleMap()) {
-                // 谷歌地图模式：完全禁用自动移动相机，由用户完全控制
-                LogUtil.d(TAG, "Google Map - Auto camera move disabled, user has full control");
-            } else {
-                // 高德地图模式：优化后的逻辑
-                if (selectedDevice == null) {
-                    // 没有选择设备时，只在第一次定位时移动地图
-                    if (isFirstLocation) {
-                        mapManager.moveCamera(currentLatitude, currentLongitude, 17);
-                        isFirstLocation = false;
-                        LogUtil.d(TAG, "AMap - First location, moving to current position with zoom 17");
-                    } else {
-                        // 关键修复：禁用自动返回功能，避免干扰用户查看地图
-                        // 用户如果想看自己的位置，可以点击定位按钮
-                        LogUtil.d(TAG, "AMap - No device selected, but auto-return disabled to avoid map jumping");
-                    }
-                } else {
-                    LogUtil.d(TAG, "AMap - Device selected, not moving map to phone location. Device: " + selectedDevice.getName());
-                }
-            }
-
-            // 【禁用】请求附近的设备 - 不需要此功能
-            // if (crowdSourcingManager != null) {
-            //     crowdSourcingManager.requestNearbyDevices(currentLatitude, currentLongitude, 5000);
-            // }
-        }
+        if (locationHelper != null) locationHelper.updateCurrentLocationOnMap();
     }
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
-        
+        if (mapInitHelper != null) {
+            mapInitHelper.cancelPendingTasks();
+        }
+        if (mapHelper != null) {
+            mapHelper.cancelPendingTasks();
+        }
+
         // 1. 清理定位优化管理器（新增）
         if (locationOptimizationManager != null) {
-            // 【确保】停止蓝牙扫描
-            locationOptimizationManager.stopBluetoothScanning();
-            locationOptimizationManager.cleanup();
+            locationOptimizationManager.prepareForActivityRecreate();
+            if (!isChangingConfigurations()) {
+                locationOptimizationManager.cleanup();
+            }
             locationOptimizationManager = null;
         }
         
@@ -3369,11 +1961,12 @@ public class MainActivity extends AppCompatActivity {
             trackRefreshHandler = null;
         }
         
-        // 3. 清理高德地图服务
-        if (amapLocationService != null) {
-            amapLocationService.onDestroy();
-            amapLocationService = null;
+        // 3. 清理定位服务
+        if (systemLocationService != null) {
+            systemLocationService.onDestroy();
+            systemLocationService = null;
         }
+        locationServicesStarted = false;
         if (amapGeocoder != null) {
             amapGeocoder.onDestroy();
             amapGeocoder = null;
@@ -3396,22 +1989,26 @@ public class MainActivity extends AppCompatActivity {
             bleManager = null;
         }
         
-        // 6. 清理地图资源
-        if (mapView != null) {
-            mapView.onDestroy();
+        // 6. 清理地图适配器资源
+        if (mapAdapter != null) {
+            mapAdapter.onDestroy();
+            mapAdapter = null;
+        }
+        if (mapView != null && amapLifecycleStarted) {
+            if (!isChangingConfigurations()) {
+                mapView.onDestroy();
+            }
             mapView = null;
         }
-        
+
         // 7. 清理 MapManager 引用
         if (mapManager != null) {
+            mapManager.releasePendingCallbacks();
             mapManager = null;
         }
         
-        // 8. 关闭数据库连接
-        if (databaseHelper != null) {
-            databaseHelper.close();
-            databaseHelper = null;
-        }
+        // 8. 释放数据库引用（单例不 close，随进程生命周期存在）
+        databaseHelper = null;
         
         // 9. 清理 API 服务
         if (apiService != null) {
@@ -3439,46 +2036,46 @@ public class MainActivity extends AppCompatActivity {
         selectedDevice = null;
         currentLocationMarker = null;
         deviceLocationMarker = null;
-        googleDeviceLocationMarker = null;
         aMap = null;
         googleMapFragment = null;
         
         LogUtil.d(TAG, "MainActivity resources fully cleaned up");
+        mainUiHandler.removeCallbacks(pendingLocationBleInitRunnable);
+        mainUiHandler.removeCallbacksAndMessages(null);
+        pendingScanIndicatorHideRunnable = null;
+        super.onDestroy();
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_PERMISSIONS) {
-            boolean allGranted = true;
-            List<String> deniedPermissions = new ArrayList<>();
-            
-            for (int i = 0; i < permissions.length; i++) {
-                if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
-                    allGranted = false;
-                    deniedPermissions.add(permissions[i]);
+        if (requestCode != REQUEST_PERMISSIONS) {
+            return;
+        }
+
+        if (MainPermissionHelper.hasAllPermissions(this)) {
+            ToastHelper.show(this, R.string.permission_granted);
+            initLocationAndBleIfPermitted();
+            return;
+        }
+
+        String[] stillMissing = MainPermissionHelper.getMissingPermissions(this);
+        if (stillMissing.length > 0) {
+            boolean permanentlyDenied = false;
+            for (String permission : stillMissing) {
+                if (!ActivityCompat.shouldShowRequestPermissionRationale(this, permission)) {
+                    permanentlyDenied = true;
+                    break;
                 }
             }
-            
-            if (allGranted) {
-                Toast.makeText(this, R.string.permission_granted, Toast.LENGTH_SHORT).show();
-                initLocation();
-                initBLE();
+            if (permanentlyDenied) {
+                showPermissionSettingsDialog();
             } else {
-                boolean permanentlyDenied = false;
-                for (String permission : deniedPermissions) {
-                    if (!ActivityCompat.shouldShowRequestPermissionRationale(this, permission)) {
-                        permanentlyDenied = true;
-                        break;
-                    }
-                }
-                
-                if (permanentlyDenied) {
-                    showPermissionSettingsDialog();
-                } else {
-                    Toast.makeText(this, R.string.permission_denied, Toast.LENGTH_SHORT).show();
-                }
+                ToastHelper.show(this, R.string.permission_denied);
+                ActivityCompat.requestPermissions(this, stillMissing, REQUEST_PERMISSIONS);
             }
+        } else {
+            ToastHelper.show(this, R.string.permission_denied);
         }
     }
 
@@ -3488,188 +2085,42 @@ public class MainActivity extends AppCompatActivity {
     
     /**
      * MVVM - 设置 ViewModel 观察者
-     * 核心原则：View 层只负责监听数据变化并渲染 UI，不修改数据
      */
     private void setupViewModelObservers() {
-        // 观察选中的设备（包含位置信息）
-        viewModel.getSelectedDevice().observe(this, device -> {
-            if (device != null) {
-                LogUtil.d(TAG, "ViewModel: Selected device updated: " + device.getName() + 
-                      ", lat=" + device.getLatitude() + ", lng=" + device.getLongitude());
-                        
-                String oldDeviceId = selectedDevice != null ? selectedDevice.getDeviceId() : null;
-                String newDeviceId = device.getDeviceId();
-                boolean isDeviceChanged = oldDeviceId == null || !newDeviceId.equals(oldDeviceId);
-                double oldLat = selectedDevice != null ? selectedDevice.getLatitude() : 0;
-                double oldLng = selectedDevice != null ? selectedDevice.getLongitude() : 0;
-                boolean coordsJustAvailable = (oldLat == 0 || oldLng == 0)
-                    && device.getLatitude() != 0 && device.getLongitude() != 0;
-                        
-                // 【关键修复】检查时间戳，防止服务器旧数据覆盖本地新数据
-                // 但如果用户刚切换设备（pendingDeviceSelection=true）或坐标刚变为有效，则不跳过
-                if (selectedDevice != null && !isDeviceChanged && !pendingDeviceSelection && !coordsJustAvailable) {
-                    long currentTimestamp = selectedDevice.getLastSeen();
-                    long newTimestamp = device.getLastSeen();
-                    if (newTimestamp > 0 && currentTimestamp > 0 && newTimestamp <= currentTimestamp) {
-                        LogUtil.d(TAG, "Server data has older timestamp (" + newTimestamp + " <= " + currentTimestamp + "), ignoring update");
-                        return; // 跳过更新，保留本地较新的数据
-                    }
-                }
-                        
-                selectedDevice = device;
-                updateDeviceNameWithTag(device.getName(), device.getTag());
-                        
-                // 如果设备有有效坐标，更新地图和地址
-                if (device.getLatitude() != 0 && device.getLongitude() != 0) {
-                    LogUtil.d(TAG, "Device has valid coordinates, isDeviceChanged=" + isDeviceChanged
-                        + ", pendingDeviceSelection=" + pendingDeviceSelection
-                        + ", coordsJustAvailable=" + coordsJustAvailable);
-                            
-                    // 设备切换、等待服务器数据、或坐标刚变为有效时，移动相机
-                    if (isDeviceChanged || pendingDeviceSelection || coordsJustAvailable) {
-                        LogUtil.d(TAG, "Moving camera to device position (switch/pending/new coords)");
-                        pendingDeviceSelection = false;
-                        locateToDevicePosition(false);
-                    } else {
-                        LogUtil.d(TAG, "Background refresh, updating marker and address (no camera move)");
-                        // 后台刷新时，更新MapViewModel并获取地址
-                        com.RockiotTag.tag.model.TagDevice tagDevice = new com.RockiotTag.tag.model.TagDevice(
-                            device.getDeviceId(), device.getName()
-                        );
-                        tagDevice.setMac(device.getMac());
-                        tagDevice.setLatitude(device.getLatitude());
-                        tagDevice.setLongitude(device.getLongitude());
-                        mapViewModel.updateDeviceLocation(tagDevice);
-                        updateDeviceMarkerOnMap(tagDevice);
-                        showCoordinatesAndGeocode(device.getLatitude(), device.getLongitude(), false);
-                    }
-                } else {
-                    LogUtil.d(TAG, "Device has no valid coordinates yet, pendingDeviceSelection=" + pendingDeviceSelection);
-                    if (pendingDeviceSelection) {
-                        // 刚切换设备，服务器数据还没返回，显示"正在获取..."
-                        deviceAddressText.setText(getString(R.string.position_getting_address));
-                    } else {
-                        // 非切换场景，设备确实没有坐标
-                        batteryLevelText.setText(getString(R.string.battery_level_empty));
-                        deviceAddressText.setText(getString(R.string.position_empty));
-                        updateTimeText.setText(getString(R.string.last_update_empty));
-                    }
-                }
+        MainViewModelObserverHelper.setupObservers(new MainViewModelObserverHelper.Host() {
+            @Override public androidx.lifecycle.LifecycleOwner getLifecycleOwner() { return MainActivity.this; }
+            @Override public AppCompatActivity getActivity() { return MainActivity.this; }
+            @Override public MainViewModel getViewModel() { return viewModel; }
+            @Override public BleViewModel getBleViewModel() { return bleViewModel; }
+            @Override public MapViewModel getMapViewModel() { return mapViewModel; }
+            @Override public UnboundDeviceManager getUnboundDeviceManager() { return unboundDeviceManager; }
+            @Override public AMap getAMap() { return aMap; }
+            @Override public TagDevice getSelectedDevice() { return selectedDevice; }
+            @Override public void setSelectedDevice(TagDevice device) { selectedDevice = device; }
+            @Override public boolean isPendingDeviceSelection() { return pendingDeviceSelection; }
+            @Override public void setPendingDeviceSelection(boolean pending) { pendingDeviceSelection = pending; }
+            @Override public double getLastAddressLatitude() { return lastAddressLatitude; }
+            @Override public double getLastAddressLongitude() { return lastAddressLongitude; }
+            @Override public TextView getBatteryLevelText() { return batteryLevelText; }
+            @Override public TextView getDeviceAddressText() { return deviceAddressText; }
+            @Override public TextView getUpdateTimeText() { return updateTimeText; }
+            @Override public void updateDeviceNameWithTag(String name, String tag) {
+                MainActivity.this.updateDeviceNameWithTag(name, tag);
             }
-        });
-        
-        // 观察电池电量
-        viewModel.getBatteryLevel().observe(this, batteryStr -> {
-            if (batteryLevelText != null) {
-                // 未登录或无设备时显示"--"
-                if (selectedDevice == null) {
-                    batteryLevelText.setText(getString(R.string.battery_level_empty));
-                    return;
-                }
-                if (batteryStr != null) {
-                    try {
-                        int battery = Integer.parseInt(batteryStr);
-                        if (battery > 0) {
-                            batteryLevelText.setText(getString(R.string.battery_level_value, String.valueOf(battery)));
-                        } else if (battery == 0) {
-                            batteryLevelText.setText(getString(R.string.battery_level_zero));
-                        } else {
-                            batteryLevelText.setText(getString(R.string.battery_level_empty));
-                        }
-                    } catch (NumberFormatException e) {
-                        batteryLevelText.setText(getString(R.string.battery_level_empty));
-                    }
-                }
+            @Override public void locateToDevicePosition(boolean setUserLocated) {
+                MainActivity.this.locateToDevicePosition(setUserLocated);
             }
-        });
-        
-        // 关键修复：重新启用设备地址的LiveData观察者，让逆地理编码结果更新到UI
-        // updateDeviceUIWithLatest() 设置"正在获取地址..."后，LiveData会异步更新为真实地址
-        viewModel.getDeviceAddress().observe(this, address -> {
-            if (deviceAddressText != null) {
-                // 未登录或无设备时显示"--"
-                if (selectedDevice == null) {
-                    deviceAddressText.setText(getString(R.string.position_empty));
-                    return;
-                }
-                if (address != null) {
-                    LogUtil.d(TAG, "LiveData observer received address: " + address);
-                    
-                    if ("not_reported".equals(address)) {
-                        deviceAddressText.setText(getString(R.string.position_empty));
-                    } else {
-                        deviceAddressText.setText(getString(R.string.position_with_address, address));
-                    }
-                }
+            @Override public void updateDeviceMarkerOnMap(TagDevice device) {
+                MainActivity.this.updateDeviceMarkerOnMap(device);
             }
-        });
-        
-        // 观察更新时间 - 使用 TimeFormatter 智能格式化
-        viewModel.getUpdateTime().observe(this, timeStr -> {
-            if (updateTimeText != null) {
-                // 未登录或无设备时显示"--"
-                if (selectedDevice == null) {
-                    updateTimeText.setText(getString(R.string.last_update_empty));
-                    return;
-                }
-                if (timeStr != null) {
-                    LogUtil.d(TAG, "========== UPDATE TIME OBSERVER TRIGGERED ==========");
-                    LogUtil.d(TAG, "Received timeStr: " + timeStr);
-                    
-                    if ("not_reported".equals(timeStr)) {
-                        LogUtil.d(TAG, "Setting text to: --");
-                        updateTimeText.setText(getString(R.string.last_update_empty));
-                    } else {
-                        try {
-                            long timestamp = Long.parseLong(timeStr);
-                            String formattedTime = com.RockiotTag.tag.util.TimeFormatter.formatSmartTime(MainActivity.this, timestamp);
-                            LogUtil.d(TAG, "Parsed timestamp: " + timestamp + " (" + 
-                                new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
-                                    .format(new java.util.Date(timestamp)) + ")");
-                            LogUtil.d(TAG, "Formatted time: " + formattedTime);
-                            
-                            updateTimeText.setText(getString(R.string.last_update_with_time, formattedTime));
-                            LogUtil.d(TAG, "✓ UI updated with timestamp: " + timestamp);
-                        } catch (NumberFormatException e) {
-                            Log.e(TAG, "✗ Failed to parse timestamp: " + timeStr, e);
-                            updateTimeText.setText(getString(R.string.last_update_empty));
-                        }
-                    }
-                }
-                LogUtil.d(TAG, "====================================================");
+            @Override public void showCoordinatesAndGeocode(double lat, double lng, boolean force) {
+                MainActivity.this.showCoordinatesAndGeocode(lat, lng, force);
             }
-        });
-        
-        // 观察加载状态
-        viewModel.getIsLoading().observe(this, isLoading -> {
-            if (isLoading != null) {
-                if (isLoading) startRefreshAnimation();
-                else stopRefreshAnimation();
-            }
-        });
-        
-        // 观察错误信息
-        viewModel.getErrorMessage().observe(this, error -> {
-            if (error != null && !error.isEmpty()) {
-                Toast.makeText(this, error, Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        // --- BleViewModel Observers ---
-        bleViewModel.getScanResults().observe(this, devices -> {
-            if (devices != null && unboundDeviceManager != null) {
-                unboundDeviceManager.updateUnboundDevices(devices);
-            }
-        });
-        
-        bleViewModel.getIsConnected().observe(this, connected -> {
-            if (connected) Toast.makeText(this, R.string.bluetooth_connected, Toast.LENGTH_SHORT).show();
-        });
-
-        // --- MapViewModel Observers ---
-        mapViewModel.getDeviceLocation().observe(this, device -> {
-            if (device != null && aMap != null) {
-                updateDeviceMarkerOnMap(device);
+            @Override public void startRefreshAnimation() { MainActivity.this.startRefreshAnimation(); }
+            @Override public void stopRefreshAnimation() { MainActivity.this.stopRefreshAnimation(); }
+            @Override public String getString(int resId) { return MainActivity.this.getString(resId); }
+            @Override public String getString(int resId, Object... args) {
+                return MainActivity.this.getString(resId, args);
             }
         });
     }

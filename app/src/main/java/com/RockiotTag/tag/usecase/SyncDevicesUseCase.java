@@ -33,10 +33,9 @@ public class SyncDevicesUseCase extends BaseUseCase<Void, List<NewApiService.Dev
         try {
             // 设置API地址
             String apiUrl = ApiConfig.getDefaultServerUrl();
-            NewApiService.setApiBaseUrl(apiUrl);
             
             // 从服务器获取设备列表
-            List<NewApiService.DeviceInfo> devices = NewApiService.getInstance().getDevices();
+            List<NewApiService.DeviceInfo> devices = NewApiService.getInstance().getDevices(apiUrl);
             
             if (devices == null) {
                 throw new RuntimeException("无法获取设备列表");

@@ -195,4 +195,99 @@ public class GoogleMapTrackRenderer {
                today.get(Calendar.MONTH) == selectedDate.get(Calendar.MONTH) &&
                today.get(Calendar.DAY_OF_MONTH) == selectedDate.get(Calendar.DAY_OF_MONTH);
     }
+
+    /**
+     * Google 地图完整轨迹渲染结果
+     */
+    public static class GoogleTrackRenderResult {
+        public Polyline trackPolyline;
+        public final List<Marker> positionMarkers = new ArrayList<>();
+        public final List<Marker> arrowMarkers = new ArrayList<>();
+        public final List<LatLng> validLatLngList = new ArrayList<>();
+    }
+
+    /**
+     * 在 Google 地图上渲染完整轨迹（线、箭头、起终点标记、相机）
+     */
+    public static GoogleTrackRenderResult renderTrackOnGoogleMap(
+            Context context,
+            GoogleMap googleMap,
+            List<StayPoint> stayPoints,
+            Calendar selectedDate,
+            boolean showPolyline,
+            int accuracyThreshold,
+            float zoomToPreserve,
+            boolean shouldPreserveZoom) {
+
+        GoogleTrackRenderResult result = new GoogleTrackRenderResult();
+        if (googleMap == null || stayPoints == null || stayPoints.isEmpty()) {
+            return result;
+        }
+
+        int filteredInvalidCount = 0;
+        for (StayPoint stayPoint : stayPoints) {
+            if (Math.abs(stayPoint.getLatitude()) < 0.0001 && Math.abs(stayPoint.getLongitude()) < 0.0001) {
+                filteredInvalidCount++;
+                continue;
+            }
+            result.validLatLngList.add(
+                    new LatLng(stayPoint.getLatitude(), stayPoint.getLongitude()));
+        }
+        if (filteredInvalidCount > 0) {
+            LogUtil.d(TAG, "Filtered " + filteredInvalidCount + " invalid coordinates from Google render");
+        }
+
+        if (result.validLatLngList.size() > 1) {
+            Polyline polyline = drawTrackPolyline(googleMap, stayPoints);
+            if (polyline != null) {
+                polyline.setVisible(showPolyline);
+                result.trackPolyline = polyline;
+            }
+            result.arrowMarkers.addAll(addDirectionArrows(googleMap, result.validLatLngList));
+        }
+
+        boolean isToday = isToday(selectedDate);
+        for (int i = 0; i < stayPoints.size(); i++) {
+            StayPoint stayPoint = stayPoints.get(i);
+            if (stayPoints.size() == 1) {
+                MarkerOptions options = createStartEndMarkerOption(
+                        context, stayPoint, isToday, !isToday);
+                Marker marker = googleMap.addMarker(options);
+                result.positionMarkers.add(marker);
+                break;
+            }
+            MarkerOptions options;
+            if (i == 0) {
+                options = createStartEndMarkerOption(context, stayPoint, true, false);
+            } else if (i == stayPoints.size() - 1) {
+                options = createStartEndMarkerOption(context, stayPoint, false, true);
+            } else {
+                options = createNormalMarkerOption(context, stayPoint, i);
+            }
+            result.positionMarkers.add(googleMap.addMarker(options));
+        }
+
+        if (!result.validLatLngList.isEmpty()) {
+            float zoomToUse = shouldPreserveZoom ? zoomToPreserve
+                    : calculateZoomForAccuracy(accuracyThreshold);
+            LatLng firstPoint = result.validLatLngList.get(0);
+            try {
+                googleMap.animateCamera(
+                        com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(firstPoint, zoomToUse));
+            } catch (Exception e) {
+                Log.e(TAG, "Error animating Google Map camera: " + e.getMessage(), e);
+            }
+        }
+        return result;
+    }
+
+    public static float calculateZoomForAccuracy(int accuracyThreshold) {
+        if (accuracyThreshold <= 0) {
+            return 17.0f;
+        }
+        double diameterMeters = accuracyThreshold * 2.0;
+        double zoom = 17.0 - Math.log(diameterMeters / 300.0) / Math.log(2.0);
+        zoom = Math.max(3.0, Math.min(20.0, zoom));
+        return (float) zoom;
+    }
 }

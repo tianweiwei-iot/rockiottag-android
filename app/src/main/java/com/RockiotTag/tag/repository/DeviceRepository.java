@@ -3,8 +3,8 @@ package com.RockiotTag.tag.repository;
 import android.content.Context;
 import android.util.Log;
 
+import com.RockiotTag.tag.ApiConfig;
 import com.RockiotTag.tag.DatabaseHelper;
-import com.RockiotTag.tag.Device;
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.util.LogUtil;
@@ -20,7 +20,7 @@ public class DeviceRepository {
     
     private DatabaseHelper databaseHelper;
     private NewApiService apiService;
-    private static DeviceRepository instance;
+    private static volatile DeviceRepository instance;
     
     public static synchronized DeviceRepository getInstance(Context context) {
         if (instance == null) {
@@ -29,52 +29,31 @@ public class DeviceRepository {
         return instance;
     }
     
-    // 公开构造函数，供ViewModel工厂使用
-    public DeviceRepository(Context context) {
-        this.databaseHelper = new DatabaseHelper(context);
+    private DeviceRepository(Context context) {
+        this.databaseHelper = DatabaseHelper.getInstance(context);
         this.apiService = NewApiService.getInstance();
     }
     
     /**
-     * 从本地数据库获取所有设备（转换为新模型）
+     * 从本地数据库获取所有设备
      */
     public List<TagDevice> getAllLocalDevices() {
         LogUtil.d(TAG, "Getting all local devices");
-        List<Device> oldDevices = databaseHelper.getAllDevices();
+        List<TagDevice> devices = databaseHelper.getAllDevices();
         List<TagDevice> newDevices = new ArrayList<>();
-        for (Device d : oldDevices) {
-            TagDevice td = convertToTagDevice(d);
-            if (td != null) newDevices.add(td);
+        for (TagDevice d : devices) {
+            if (d != null) newDevices.add(d);
         }
         return newDevices;
     }
-    
-    /**
-     * 转换旧 Device 为新 TagDevice
-     */
-    private TagDevice convertToTagDevice(Device device) {
-        if (device == null) return null;
-        TagDevice td = new TagDevice();
-        td.setDeviceId(device.getDeviceId());
-        td.setDeviceNum(device.getDeviceNum());
-        td.setName(device.getName());
-        td.setAddress(device.getAddress());
-        td.setTag(device.getTag());
-        td.setMac(device.getMac());
-        td.setLatitude(device.getLatitude());
-        td.setLongitude(device.getLongitude());
-        td.setSignalStrength(device.getSignalStrength());
-        td.setLastSeen(device.getLastSeen());
-        return td;
-    }
-    
+
     /**
      * 从服务器获取设备列表
      */
     public List<NewApiService.DeviceInfo> getRemoteDevices() {
         LogUtil.d(TAG, "Getting remote devices from server");
         try {
-            return apiService.getDevices();
+            return apiService.getDevices(ApiConfig.getDefaultServerUrl());
         } catch (Exception e) {
             Log.e(TAG, "Error getting remote devices: " + e.getMessage(), e);
             return new ArrayList<>();
@@ -84,17 +63,17 @@ public class DeviceRepository {
     /**
      * 保存或更新设备到本地数据库
      */
-    public synchronized void saveDevice(Device device) {
+    public synchronized void saveDevice(TagDevice device) {
         LogUtil.d(TAG, "Saving device: " + device.getName());
         databaseHelper.addDevice(device);
     }
     
-    public Device getDeviceById(String deviceId) {
+    public TagDevice getDeviceById(String deviceId) {
         LogUtil.d(TAG, "Getting device by ID: " + deviceId);
         return databaseHelper.getDevice(deviceId);
     }
-    
-    public Device getDeviceByNum(String deviceNum) {
+
+    public TagDevice getDeviceByNum(String deviceNum) {
         LogUtil.d(TAG, "Getting device by deviceNum: " + deviceNum);
         return databaseHelper.getDeviceByDeviceNum(deviceNum);
     }
@@ -163,8 +142,7 @@ public class DeviceRepository {
                 if (deviceNum != null && !deviceNum.isEmpty()) {
                     try {
                         LogUtil.d(TAG, "[Thread] Updating server for device: " + deviceNum);
-                        NewApiService.setApiBaseUrl(com.RockiotTag.tag.ApiConfig.getMyServerUrl(deviceNum));
-                        NewApiService.ApiResponse response = apiService.updateDevice(deviceNum, name, customerCode);
+                        NewApiService.ApiResponse response = apiService.updateDevice(com.RockiotTag.tag.ApiConfig.getMyServerUrl(deviceNum), deviceNum, name, customerCode);
                         LogUtil.d(TAG, "[Thread] Server update response: success=" + (response != null ? response.isSuccess() : "null"));
                         
                         // 检查服务器响应

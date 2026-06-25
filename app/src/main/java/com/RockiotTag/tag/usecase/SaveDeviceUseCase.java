@@ -2,7 +2,7 @@ package com.RockiotTag.tag.usecase;
 
 import android.util.Log;
 
-import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.repository.DeviceRepository;
 import com.RockiotTag.tag.util.LogUtil;
 
@@ -13,7 +13,7 @@ import com.RockiotTag.tag.util.LogUtil;
  * 1. 验证设备数据完整性
  * 2. 保存到本地数据库
  */
-public class SaveDeviceUseCase extends BaseUseCase<Device, Boolean> {
+public class SaveDeviceUseCase extends BaseUseCase<TagDevice, Boolean> {
     
     private static final String TAG = "SaveDeviceUseCase";
     
@@ -24,7 +24,7 @@ public class SaveDeviceUseCase extends BaseUseCase<Device, Boolean> {
     }
     
     @Override
-    protected Boolean executeSync(Device device) throws Exception {
+    protected Boolean executeSync(TagDevice device) throws Exception {
         LogUtil.d(TAG, "Saving device: " + (device != null ? device.getName() : "null"));
         
         // 1. 参数验证

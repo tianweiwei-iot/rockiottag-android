@@ -122,8 +122,7 @@ public class NetworkManager {
      */
     public void getDeviceInfo(String deviceNum, NetworkCallback<NewApiService.DeviceInfo> callback) {
         executeWithRetry(() -> {
-            NewApiService.setApiBaseUrl(com.RockiotTag.tag.ApiConfig.getMyServerUrl(deviceNum));
-            return NewApiService.getInstance().getDeviceLatest(deviceNum);
+            return NewApiService.getInstance().getDeviceLatest(com.RockiotTag.tag.ApiConfig.getMyServerUrl(deviceNum), deviceNum);
         }, callback);
     }
     

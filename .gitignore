@@ -48,8 +48,13 @@ captures/
 
 # Keystore files
 # Uncomment the following lines in case you're keeping these files in the project directory
-# *.jks
-# *.keystore
+*.jks
+*.keystore
+
+# Sensitive configuration files (contains API keys, passwords)
+local.properties
+secrets.properties
+gradle.secret.properties
 
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild

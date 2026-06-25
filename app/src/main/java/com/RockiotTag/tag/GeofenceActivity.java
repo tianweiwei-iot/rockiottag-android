@@ -1,5 +1,7 @@
 package com.RockiotTag.tag;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
@@ -7,12 +9,12 @@ import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.util.LogUtil;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Spinner;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
@@ -47,7 +49,7 @@ public class GeofenceActivity extends AppCompatActivity {
     private double currentLatitude = 22.543611;
     private double currentLongitude = 113.881944;
     private float geofenceRadius = 100;
-    private Map<String, Device> deviceMap = new HashMap<>();
+    private Map<String, TagDevice> deviceMap = new HashMap<>();
     
     // MVVM - ViewModel
     private GeofenceViewModel viewModel;
@@ -88,33 +90,39 @@ public class GeofenceActivity extends AppCompatActivity {
         }
         
         mapView = findViewById(R.id.mapView);
-        mapView.onCreate(savedInstanceState);
+        if (mapView != null) {
+            mapView.onCreate(savedInstanceState);
+        }
         radiusEditText = findViewById(R.id.radiusEditText);
         deviceSpinner = findViewById(R.id.deviceSpinner);
         saveButton = findViewById(R.id.saveButton);
         Button backButton = findViewById(R.id.back_btn);
-        
+
         // MVVM - 初始化 ViewModel
         viewModel = new ViewModelProvider(this).get(GeofenceViewModel.class);
         setupViewModelObservers();
-        
+
         initMap();
         initNotificationChannel();
         initDevices();
-        
-        saveButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                saveGeofenceSettings();
-            }
-        });
-        
-        backButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                finish();
-            }
-        });
+
+        if (saveButton != null) {
+            saveButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    saveGeofenceSettings();
+                }
+            });
+        }
+
+        if (backButton != null) {
+            backButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    finish();
+                }
+            });
+        }
     }
     
     /**
@@ -123,7 +131,7 @@ public class GeofenceActivity extends AppCompatActivity {
     private void setupViewModelObservers() {
         viewModel.getStatusMessage().observe(this, message -> {
             if (message != null) {
-                Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+                ToastHelper.show(this, message);
             }
         });
         
@@ -175,7 +183,7 @@ public class GeofenceActivity extends AppCompatActivity {
     }
     
     private void initDevices() {
-        Device device = new Device("test-device-1", getString(R.string.device_default_name, "test-device-1"));
+        TagDevice device = new TagDevice("test-device-1", getString(R.string.device_default_name, "test-device-1"));
         device.setLatitude(currentLatitude);
         device.setLongitude(currentLongitude);
         deviceMap.put(device.getDeviceId(), device);
@@ -200,7 +208,7 @@ public class GeofenceActivity extends AppCompatActivity {
         
         // MVVM - 验证半径
         if (!viewModel.validateRadius(radiusText)) {
-            Toast.makeText(this, R.string.enter_valid_radius, Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, R.string.enter_valid_radius);
             return;
         }
         

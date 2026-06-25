@@ -1,15 +1,13 @@
 package com.RockiotTag.tag.helper;
 
 import android.util.Log;
-import android.widget.Toast;
-
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.DeviceApiService;
 import com.RockiotTag.tag.R;
+import com.RockiotTag.tag.util.BoundDevicesHelper;
 import com.RockiotTag.tag.util.LogUtil;
-import com.google.gson.Gson;
 
 import java.util.List;
 
@@ -31,8 +29,8 @@ public class MainAuthHelper {
         com.RockiotTag.tag.DatabaseHelper getDatabaseHelper();
         com.RockiotTag.tag.viewmodel.MainViewModel getViewModel();
         com.RockiotTag.tag.viewmodel.MapViewModel getMapViewModel();
-        Device getSelectedDevice();
-        void setSelectedDevice(Device device);
+        TagDevice getSelectedDevice();
+        void setSelectedDevice(TagDevice device);
         void refreshDeviceListFragment();
         void refreshProfileFragment();
         void clearMapMarkers();
@@ -51,49 +49,42 @@ public class MainAuthHelper {
      * @param token Bearer Token
      */
     public void fetchBoundDevicesAfterLogin(String token) {
-        LogUtil.d(TAG, "Fetching bound devices after login...");
-        new Thread(() -> {
-            try {
-                DeviceApiService.DeviceApiResponse response = DeviceApiService.getInstance().getBoundDevices(token);
-                activity.runOnUiThread(() -> {
-                    if (response.isSuccess() && response.getDevices() != null) {
-                        List<DeviceApiService.BoundDevice> boundDevices = response.getDevices();
-                        LogUtil.d(TAG, "Got " + boundDevices.size() + " bound devices from server");
-
-                        // 存储绑定设备列表到SharedPreferences（JSON格式）
-                        Gson gson = new Gson();
-                        String devicesJson = gson.toJson(boundDevices);
-                        activity.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE).edit()
-                            .putString("bound_devices", devicesJson)
-                            .apply();
-
-                        // 同步到本地数据库
-                        syncBoundDevicesToLocalDatabase(boundDevices);
-
-                        // 检查是否有已保存的选中设备，如果没有则自动选中第一个设备
-                        // 注意：必须在 refreshDeviceListFragment 之前执行，这样设备列表加载时才能正确高亮
-                        android.content.SharedPreferences prefs = activity.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE);
-                        String savedDeviceId = prefs.getString("selected_device_id", null);
-                        if (savedDeviceId == null || savedDeviceId.isEmpty()) {
-                            LogUtil.d(TAG, "No saved device, auto-selecting first device");
-                            callbacks.selectFirstDeviceAndRefresh();
-                        }
-
-                        // 更新DeviceListFragment（此时 selected_device_id 已设置，可以正确高亮）
-                        callbacks.refreshDeviceListFragment();
-
-                    } else {
-                        Log.w(TAG, "Failed to get bound devices: " + response.getMessage());
-                        // 清空本地绑定设备数据
-                        activity.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE).edit()
-                            .remove("bound_devices")
-                            .apply();
-                    }
-                });
-            } catch (Exception e) {
-                Log.e(TAG, "Error fetching bound devices: " + e.getMessage(), e);
+        LogUtil.d(TAG, "Fetching bound devices after login, token=" + (token != null ? "exists" : "null"));
+        BoundDevicesHelper.clearBoundDevicesCache(activity);
+        callbacks.refreshDeviceListFragment();
+        BoundDevicesHelper.fetchBoundDevicesFromServer(activity, token, new BoundDevicesHelper.FetchCallback() {
+            @Override
+            public void onSuccess(List<DeviceApiService.BoundDevice> boundDevices) {
+                activity.runOnUiThread(() -> handleBoundDevicesFetched(boundDevices));
             }
-        }).start();
+
+            @Override
+            public void onFailure(String message) {
+                Log.e(TAG, "Failed to get bound devices: " + message);
+                activity.runOnUiThread(() -> callbacks.refreshDeviceListFragment());
+            }
+        });
+    }
+
+    private void handleBoundDevicesFetched(List<DeviceApiService.BoundDevice> boundDevices) {
+        LogUtil.d(TAG, "Got " + boundDevices.size() + " bound devices from server");
+
+        for (DeviceApiService.BoundDevice bd : boundDevices) {
+            LogUtil.d(TAG, "BoundDevice: deviceNum=" + bd.getDeviceNum()
+                    + ", nickName=" + bd.nickName + ", alias=" + bd.alias);
+        }
+
+        syncBoundDevicesToLocalDatabase(boundDevices);
+
+        android.content.SharedPreferences prefs =
+                activity.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE);
+        String savedDeviceId = prefs.getString("selected_device_id", null);
+        if ((savedDeviceId == null || savedDeviceId.isEmpty()) && !boundDevices.isEmpty()) {
+            LogUtil.d(TAG, "No saved device, auto-selecting first device");
+            callbacks.selectFirstDeviceAndRefresh();
+        }
+
+        callbacks.refreshDeviceListFragment();
     }
 
     /**
@@ -112,7 +103,7 @@ public class MainAuthHelper {
             }
 
             // 使用 getDeviceByDeviceNum 查询设备（通过 deviceNum 字段查询，而不是 deviceId）
-            Device existingDevice = callbacks.getDatabaseHelper().getDeviceByDeviceNum(deviceNum);
+            TagDevice existingDevice = callbacks.getDatabaseHelper().getDeviceByDeviceNum(deviceNum);
             if (existingDevice != null) {
                 // 更新别名（如果服务器有实际别名且与本地不同）
                 if (displayName != null && !displayName.isEmpty() && !displayName.equals(existingDevice.getName())) {
@@ -122,7 +113,7 @@ public class MainAuthHelper {
             } else {
                 // 本地没有此设备，添加新设备（使用 deviceNum 作为 deviceId）
                 String deviceName = (displayName != null && !displayName.isEmpty()) ? displayName : deviceNum;
-                Device newDevice = new Device(deviceNum, deviceName);
+                TagDevice newDevice = new TagDevice(deviceNum, deviceName);
                 newDevice.setDeviceNum(deviceNum);
                 callbacks.getDatabaseHelper().addDevice(newDevice);
                 LogUtil.d(TAG, "Added new bound device: " + deviceNum + " (" + deviceName + ")");
@@ -149,8 +140,8 @@ public class MainAuthHelper {
         }
         activity.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE).edit()
             .remove("selected_device_id")
-            .remove("bound_devices")
             .apply();
+        BoundDevicesHelper.clearBoundDevicesCache(activity);
         // 重置首页设备信息显示为默认状态
         callbacks.resetDeviceUIToDefault();
         // 清除地图上的设备标记

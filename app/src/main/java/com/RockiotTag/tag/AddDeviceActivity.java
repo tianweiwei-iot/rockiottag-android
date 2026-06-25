@@ -1,5 +1,7 @@
 package com.RockiotTag.tag;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
@@ -26,7 +28,6 @@ import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -37,6 +38,7 @@ import androidx.core.view.WindowCompat;
 import androidx.exifinterface.media.ExifInterface;
 import androidx.lifecycle.ViewModelProvider;
 
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.viewmodel.AddDeviceViewModel;
 
 import com.google.zxing.BarcodeFormat;
@@ -105,10 +107,10 @@ public class AddDeviceActivity extends AppCompatActivity {
 
                     deviceNumEdit.setText(scanResult);
                     deviceNumEdit.setSelection(scanResult.length());
-                    Toast.makeText(this, getString(R.string.scan_success, scanResult), Toast.LENGTH_SHORT).show();
+                    ToastHelper.show(this, getString(R.string.scan_success, scanResult));
                 } else {
 
-                    Toast.makeText(this, R.string.scan_no_content, Toast.LENGTH_SHORT).show();
+                    ToastHelper.show(this, R.string.scan_no_content);
                 }
             } else {
 
@@ -151,44 +153,49 @@ public class AddDeviceActivity extends AppCompatActivity {
         LanguageUtils.applyLanguage(this, languageCode);
         
         super.onCreate(savedInstanceState);
+
+        if (!com.RockiotTag.tag.util.BoundDevicesHelper.isLoggedIn(this)) {
+            ToastHelper.show(this, R.string.please_login_first);
+            finish();
+            return;
+        }
         
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         
         setContentView(R.layout.activity_add_device);
 
-        // 设置状态栏白色背景和深色图标
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            getWindow().setStatusBarColor(Color.parseColor("#FFFFFF"));
-            getWindow().getDecorView().setSystemUiVisibility(
-                getWindow().getDecorView().getSystemUiVisibility() 
-                | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-        }
+        // 根据深色模式设置状态栏
+        com.RockiotTag.tag.util.StatusBarHelper.setupStatusBar(this);
 
         LinearLayout titleBar = findViewById(R.id.title_bar);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            titleBar.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
-                @Override
-                public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-                    v.setPadding(0, insets.getInsets(WindowInsets.Type.statusBars()).top, 0, 0);
-                    return insets;
-                }
-            });
-        } else {
-            int statusBarHeight = getStatusBarHeight();
-            titleBar.setPadding(0, statusBarHeight, 0, 0);
+        if (titleBar != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                titleBar.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                    @Override
+                    public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                        v.setPadding(0, insets.getInsets(WindowInsets.Type.statusBars()).top, 0, 0);
+                        return insets;
+                    }
+                });
+            } else {
+                int statusBarHeight = getStatusBarHeight();
+                titleBar.setPadding(0, statusBarHeight, 0, 0);
+            }
         }
 
         handler = new SafeHandler(this);
         apiService = NewApiService.getInstance();
         SharedPreferencesManager.loadAuth(this);
-        databaseHelper = new DatabaseHelper(this);
+        databaseHelper = DatabaseHelper.getInstance(this);
         
         // MVVM - 初始化 ViewModel
         viewModel = new ViewModelProvider(this).get(AddDeviceViewModel.class);
         setupViewModelObservers();
 
         ImageButton backBtn = findViewById(R.id.back_btn);
-        backBtn.setOnClickListener(v -> finish());
+        if (backBtn != null) {
+            backBtn.setOnClickListener(v -> finish());
+        }
 
         statusText = findViewById(R.id.status_text);
         scanQrBtn = findViewById(R.id.scan_qr_btn);
@@ -199,9 +206,11 @@ public class AddDeviceActivity extends AppCompatActivity {
         deviceNicknameEdit = findViewById(R.id.device_nickname_edit);
         
         // 设置昵称长度限制：中文最多10个，英文最多25个
-        deviceNicknameEdit.setFilters(new android.text.InputFilter[]{
-            new com.RockiotTag.tag.util.DeviceNicknameFilter()
-        });
+        if (deviceNicknameEdit != null) {
+            deviceNicknameEdit.setFilters(new android.text.InputFilter[]{
+                new com.RockiotTag.tag.util.DeviceNicknameFilter()
+            });
+        }
         
         bindDeviceBtn = findViewById(R.id.bind_device_btn);
 
@@ -228,14 +237,14 @@ public class AddDeviceActivity extends AppCompatActivity {
         
         viewModel.getBindSuccess().observe(this, success -> {
             if (success) {
-                Toast.makeText(this, R.string.device_bind_success, Toast.LENGTH_SHORT).show();
+                ToastHelper.show(this, R.string.device_bind_success);
                 handler.postDelayed(() -> finish(), 1500);
             }
         });
         
         viewModel.getErrorMessage().observe(this, error -> {
             if (error != null && !error.isEmpty()) {
-                Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+                ToastHelper.showLong(this, error);
             }
         });
     }
@@ -303,7 +312,7 @@ public class AddDeviceActivity extends AppCompatActivity {
         boolean canBind = !deviceNum.isEmpty();
         bindDeviceBtn.setEnabled(canBind);
         bindDeviceBtn.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-            canBind ? 0xFF2196F3 : 0xFF888888));
+            canBind ? getColor(R.color.brand_primary) : 0xFF888888));
     }
 
     private void setupButtons() {
@@ -337,7 +346,7 @@ public class AddDeviceActivity extends AppCompatActivity {
             try {
                 InputStream inputStream = getContentResolver().openInputStream(imageUri);
                 if (inputStream == null) {
-                    runOnUiThread(() -> Toast.makeText(this, R.string.cannot_read_image, Toast.LENGTH_SHORT).show());
+                    runOnUiThread(() -> ToastHelper.show(this, R.string.cannot_read_image));
                     return;
                 }
 
@@ -366,7 +375,7 @@ public class AddDeviceActivity extends AppCompatActivity {
                 inputStream.close();
 
                 if (bitmap == null) {
-                    runOnUiThread(() -> Toast.makeText(this, R.string.cannot_decode_image, Toast.LENGTH_SHORT).show());
+                    runOnUiThread(() -> ToastHelper.show(this, R.string.cannot_decode_image));
                     return;
                 }
 
@@ -390,17 +399,17 @@ public class AddDeviceActivity extends AppCompatActivity {
                     runOnUiThread(() -> {
                         deviceNumEdit.setText(content);
                         deviceNumEdit.setSelection(content.length());
-                        Toast.makeText(this, getString(R.string.recognize_success, content), Toast.LENGTH_SHORT).show();
+                        ToastHelper.show(this, getString(R.string.recognize_success, content));
                     });
                 } else {
-                    runOnUiThread(() -> Toast.makeText(this, R.string.cannot_recognize_qr, Toast.LENGTH_SHORT).show());
+                    runOnUiThread(() -> ToastHelper.show(this, R.string.cannot_recognize_qr));
                 }
                 
                 bitmap.recycle();
                 
             } catch (Exception e) {
 
-                runOnUiThread(() -> Toast.makeText(this, getString(R.string.recognize_failed, e.getMessage()), Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> ToastHelper.show(this, getString(R.string.recognize_failed, e.getMessage())));
             }
         }).start();
     }
@@ -517,25 +526,79 @@ public class AddDeviceActivity extends AppCompatActivity {
         String nickname = deviceNicknameEdit.getText().toString().trim();
 
         if (deviceNumInput.isEmpty()) {
-            Toast.makeText(this, R.string.please_enter_device_number, Toast.LENGTH_SHORT).show();
+            ToastHelper.show(this, R.string.please_enter_device_number);
             return;
         }
 
-        final String deviceNum = deviceNumInput.contains(":") ? 
+        final String deviceNum = deviceNumInput.contains(":") ?
             deviceNumInput.replace(":", "").toUpperCase() : deviceNumInput.toUpperCase();
 
+        // 检查本地数据库是否已有设备
         if (viewModel.isDeviceBound(deviceNum)) {
-            Toast.makeText(this, R.string.device_already_added, Toast.LENGTH_SHORT).show();
-            return;
+            // 检查是否在 bound_devices 中（登录用户的绑定设备列表）
+            android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
+            String token = prefs.getString("auth_token", null);
+            String boundDevicesJson = prefs.getString("bound_devices", null);
+
+            if (token != null && !token.isEmpty()) {
+                // 已登录：检查设备是否在 bound_devices 中
+                boolean inBoundDevices = false;
+                if (boundDevicesJson != null && !boundDevicesJson.isEmpty()) {
+                    try {
+                        com.google.gson.Gson gson = new com.google.gson.Gson();
+                        com.google.gson.reflect.TypeToken<java.util.List<DeviceApiService.BoundDevice>> tokenType =
+                            new com.google.gson.reflect.TypeToken<java.util.List<DeviceApiService.BoundDevice>>() {};
+                        java.util.List<DeviceApiService.BoundDevice> boundDevices = gson.fromJson(boundDevicesJson, tokenType.getType());
+                        if (boundDevices != null) {
+                            for (DeviceApiService.BoundDevice bd : boundDevices) {
+                                String bdNum = bd.getDeviceNum();
+                                if (bdNum != null) {
+                                    String normalizedBdNum = bdNum.contains(":") ? bdNum.replace(":", "").toUpperCase() : bdNum.toUpperCase();
+                                    String normalizedDeviceNum = deviceNum.contains(":") ? deviceNum.replace(":", "").toUpperCase() : deviceNum.toUpperCase();
+                                    if (normalizedBdNum.equals(normalizedDeviceNum) || bdNum.equals(deviceNum)) {
+                                        inBoundDevices = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                if (inBoundDevices) {
+                    // 设备已在 bound_devices 中，真正已绑定
+                    ToastHelper.show(this, R.string.device_already_added);
+                    return;
+                } else {
+                    // 设备在本地数据库但不在 bound_devices 中，尝试重新绑定到账号
+                    ToastHelper.show(this, R.string.syncing_device_to_account);
+                    viewModel.syncDeviceToAccount(deviceNum, nickname, new AddDeviceViewModel.BindCallback() {
+                        @Override
+                        public void onSuccess(TagDevice device) {
+                            ToastHelper.show(AddDeviceActivity.this, R.string.device_sync_success);
+                            finish();
+                        }
+                        @Override
+                        public void onError(String error) {
+                            ToastHelper.show(AddDeviceActivity.this, error);
+                        }
+                    });
+                    return;
+                }
+            } else {
+                // 未登录：设备已在本地数据库，直接提示已添加
+                ToastHelper.show(this, R.string.device_already_added);
+                return;
+            }
         }
 
         viewModel.bindDevice(deviceNum, nickname, selectedTag, new AddDeviceViewModel.BindCallback() {
             @Override
-            public void onSuccess(Device device) {
+            public void onSuccess(TagDevice device) {
                 getSharedPreferences("app_settings", MODE_PRIVATE)
                     .edit().putString("selected_device_id", device.getDeviceId()).apply();
             }
-            
+
             @Override
             public void onError(String error) {
             }

@@ -1,10 +1,11 @@
 package com.RockiotTag.tag.helper;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.content.Context;
 import android.util.Log;
-import android.widget.Toast;
 
-import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.DatabaseHelper;
 import com.RockiotTag.tag.util.LogUtil;
 
@@ -18,7 +19,7 @@ public class MainActivityDeviceHelper {
     private static final String TAG = "MainDeviceHelper";
     
     public interface DeviceListCallback {
-        void onDeviceListLoaded(List<Device> devices);
+        void onDeviceListLoaded(List<TagDevice> devices);
         void onError(String message);
     }
     
@@ -36,7 +37,7 @@ public class MainActivityDeviceHelper {
     public void loadDevicesFromDatabase() {
         new Thread(() -> {
             try {
-                List<Device> devices = databaseHelper.getAllDevices();
+                List<TagDevice> devices = databaseHelper.getAllDevices();
                 
                 if (devices != null) {
                     // 按最后 seen 时间排序
@@ -64,14 +65,14 @@ public class MainActivityDeviceHelper {
     /**
      * 刷新单个设备信息
      */
-    public void refreshDevice(Device device) {
+    public void refreshDevice(TagDevice device) {
         if (device == null) {
             return;
         }
         
         new Thread(() -> {
             try {
-                Device updatedDevice = databaseHelper.getDevice(device.getDeviceId());
+                TagDevice updatedDevice = databaseHelper.getDevice(device.getDeviceId());
                 if (updatedDevice != null && callback != null) {
                     callback.onDeviceListLoaded(java.util.Collections.singletonList(updatedDevice));
                 }
@@ -95,7 +96,7 @@ public class MainActivityDeviceHelper {
                     
                     if (context != null) {
                         ((android.app.Activity) context).runOnUiThread(() -> {
-                            Toast.makeText(context, "设备已删除", Toast.LENGTH_SHORT).show();
+                            ToastHelper.show(context, "设备已删除");
                         });
                     }
                 }
@@ -103,7 +104,7 @@ public class MainActivityDeviceHelper {
                 Log.e(TAG, "Error deleting device: " + e.getMessage(), e);
                 if (context != null) {
                     ((android.app.Activity) context).runOnUiThread(() -> {
-                        Toast.makeText(context, "删除失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        ToastHelper.show(context, "删除失败: " + e.getMessage());
                     });
                 }
             }
@@ -116,12 +117,12 @@ public class MainActivityDeviceHelper {
     public void searchDevices(String keyword, DeviceListCallback searchCallback) {
         new Thread(() -> {
             try {
-                List<Device> allDevices = databaseHelper.getAllDevices();
-                List<Device> filteredDevices = new java.util.ArrayList<>();
+                List<TagDevice> allDevices = databaseHelper.getAllDevices();
+                List<TagDevice> filteredDevices = new java.util.ArrayList<>();
                 
                 if (allDevices != null && keyword != null && !keyword.isEmpty()) {
                     String lowerKeyword = keyword.toLowerCase();
-                    for (Device device : allDevices) {
+                    for (TagDevice device : allDevices) {
                         if (device.getDeviceNum() != null && 
                             device.getDeviceNum().toLowerCase().contains(lowerKeyword)) {
                             filteredDevices.add(device);

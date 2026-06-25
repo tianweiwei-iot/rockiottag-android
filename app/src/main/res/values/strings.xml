@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">RockiotTag</string>
+    <string name="app_startup_failed">应用启动失败，请重新安装或联系支持</string>
     <string name="menu">菜单</string>
     <string name="menu_title">菜单</string>
     <string name="device_list">设备列表</string>
@@ -11,6 +12,7 @@
     <string name="version_format">版本: %1$s (%2$d)</string>
     <string name="cancel">取消</string>
     <string name="language_title">选择语言</string>
+    <string name="current_language_cd">当前语言</string>
     <string name="chinese">中文</string>
     <string name="english">英语</string>
     <string name="brazilian_portuguese">巴西葡萄牙语</string>
@@ -261,6 +263,8 @@
     <string name="google_map">谷歌地图</string>
     <string name="switched_to_amap">已切换到高德地图</string>
     <string name="switched_to_google_map">已切换到谷歌地图</string>
+    <string name="map_switch_warn_google_in_china">谷歌地图在中国大陆可能无法正常加载，是否仍要切换？</string>
+    <string name="map_switch_warn_amap_abroad">高德地图在海外可能无法正常加载，是否仍要切换？</string>
     <string name="stay_duration">停留时长: %s</string>
     <string name="merged_points">合并点数: %d</string>
     <string name="stay_point">停留点</string>
@@ -390,6 +394,7 @@
     
     <!-- 精度调节 -->
     <string name="accuracy_adjustment">精度调节</string>
+    <string name="track_info_panel_expand">展开轨迹信息</string>
     <string name="high_accuracy">高</string>
     <string name="low_accuracy">低</string>
     <string name="accuracy_level_high">高</string>
@@ -472,4 +477,21 @@
     <string name="compass">指南针</string>
     <string name="zoom_in">放大</string>
     <string name="zoom_out">缩小</string>
+    <string name="current_avatar">当前头像</string>
+    <string name="select_avatar">选择头像</string>
+    <string name="nickname_hint">请输入昵称</string>
+    <string name="profile_saved">资料已保存</string>
+    <string name="profile_nickname_empty">昵称不能为空</string>
+    <string name="old_password_empty">请输入旧密码</string>
+    <string name="password_changed">密码修改成功</string>
+    <string name="password_change_failed">密码修改失败</string>
+    <string name="confirm_new_password">确认新密码</string>
+    <string name="input_old_password">请输入旧密码</string>
+    <string name="email_invalid">邮箱格式不正确</string>
+    <string name="email_bind_failed">邮箱绑定失败</string>
+    <string name="email_hint">请输入邮箱地址</string>
+    <string name="email_empty">邮箱不能为空</string>
+    <string name="select_avatar_register">选择你的头像</string>
+    <string name="syncing_device_to_account">正在同步设备到账号...</string>
+    <string name="device_sync_success">设备同步成功</string>
 </resources>

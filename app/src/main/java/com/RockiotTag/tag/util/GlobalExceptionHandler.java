@@ -81,9 +81,9 @@ public class GlobalExceptionHandler implements Thread.UncaughtExceptionHandler {
             sb.append("\n==================\n\n");
             
             // 写入文件
-            FileWriter writer = new FileWriter(logFile, true);
-            writer.write(sb.toString());
-            writer.close();
+            try (FileWriter writer = new FileWriter(logFile, true)) {
+                writer.write(sb.toString());
+            }
             
             LogUtil.d(TAG, "Crash log saved to: " + logFile.getAbsolutePath());
             

@@ -3,6 +3,7 @@ package com.RockiotTag.tag.repository;
 import android.content.Context;
 import android.util.Log;
 
+import com.RockiotTag.tag.ApiConfig;
 import com.RockiotTag.tag.DatabaseHelper;
 import com.RockiotTag.tag.LocationRecord;
 import com.RockiotTag.tag.NewApiService;
@@ -31,7 +32,7 @@ public class LocationRepository {
     
     // 公开构造函数，供ViewModel工厂使用
     public LocationRepository(Context context) {
-        this.databaseHelper = new DatabaseHelper(context);
+        this.databaseHelper = DatabaseHelper.getInstance(context);
         this.apiService = NewApiService.getInstance();
     }
     
@@ -101,7 +102,7 @@ public class LocationRepository {
     public List<NewApiService.LocationInfo> getRemoteLocations(String deviceNum, long startTime, long endTime) {
         LogUtil.d(TAG, "Getting remote locations for device: " + deviceNum);
         try {
-            return apiService.getLocations(deviceNum, startTime, endTime);
+            return apiService.getLocations(ApiConfig.getMyServerUrl(deviceNum), deviceNum, startTime, endTime);
         } catch (Exception e) {
             Log.e(TAG, "Error getting remote locations: " + e.getMessage(), e);
             return new ArrayList<>();
@@ -121,7 +122,7 @@ public class LocationRepository {
         
         new Thread(() -> {
             try {
-                NewApiService.ApiResponse response = apiService.syncLocation(deviceNum, latitude, longitude, battery, timestamp);
+                NewApiService.ApiResponse response = apiService.syncLocation(ApiConfig.getMyServerUrl(deviceNum), deviceNum, latitude, longitude, battery, timestamp);
                 
                 if (response != null && response.isSuccess()) {
                     LogUtil.d(TAG, "Location synced successfully");

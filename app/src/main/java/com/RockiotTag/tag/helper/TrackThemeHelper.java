@@ -70,14 +70,8 @@ public class TrackThemeHelper {
         TextView titleText = activity.findViewById(R.id.title_text);
         if (titleText != null) titleText.setTextColor(onSurfaceColor);
 
-        // 工具栏容器
-        View toolbarContainer = activity.findViewById(R.id.toolbar_container);
-        if (toolbarContainer != null) {
-            toolbarContainer.setBackgroundColor(topBarColor);
-            if (toolbarContainer instanceof ViewGroup) {
-                updateChildViewsColor((ViewGroup) toolbarContainer, onSurfaceColor, textSecColor);
-            }
-        }
+        // 轨迹页浮动按钮（统计 / 刷新）
+        com.RockiotTag.tag.util.MapFloatingButtonHelper.applyTrackScreenButtons(activity, isDarkMode);
 
         // 轨迹信息卡片
         CardView trackInfoCard = activity.findViewById(R.id.track_info_card);
@@ -93,7 +87,7 @@ public class TrackThemeHelper {
         if (bottomNav != null) bottomNav.setBackgroundColor(topBarColor);
 
         // 更新导航栏Tab文字和图标颜色
-        int selectedColor = activity.getResources().getColor(R.color.purple_500, null);
+        int selectedColor = activity.getResources().getColor(R.color.brand_primary, null);
         int unselectedColor = isDarkMode ?
             activity.getResources().getColor(R.color.dark_text_secondary, null) :
             activity.getResources().getColor(R.color.text_secondary, null);
@@ -111,21 +105,7 @@ public class TrackThemeHelper {
         }
 
         // 状态栏
-        if (isDarkMode) {
-            activity.getWindow().setStatusBarColor(activity.getResources().getColor(R.color.dark_surface, null));
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                activity.getWindow().getDecorView().setSystemUiVisibility(
-                    activity.getWindow().getDecorView().getSystemUiVisibility()
-                    & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            }
-        } else {
-            activity.getWindow().setStatusBarColor(activity.getResources().getColor(R.color.top_bar_background, null));
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                activity.getWindow().getDecorView().setSystemUiVisibility(
-                    activity.getWindow().getDecorView().getSystemUiVisibility()
-                    | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            }
-        }
+        com.RockiotTag.tag.util.StatusBarHelper.setupStatusBar(activity, isDarkMode);
 
         // 深色模式：设置地图样式（添加完善的异常处理）
         try {
@@ -184,7 +164,7 @@ public class TrackThemeHelper {
         if (callbacks.getTabTrack() != null) callbacks.getTabTrack().setSelected(tabIndex == 2);
         if (callbacks.getTabProfile() != null) callbacks.getTabProfile().setSelected(tabIndex == 3);
 
-        int selectedColor = activity.getResources().getColor(R.color.purple_500, null);
+        int selectedColor = activity.getResources().getColor(R.color.brand_primary, null);
         int unselectedColor = activity.getResources().getColor(R.color.text_secondary, null);
 
         if (callbacks.getTabHomeIcon() != null) callbacks.getTabHomeIcon().setColorFilter(tabIndex == 0 ? selectedColor : unselectedColor);

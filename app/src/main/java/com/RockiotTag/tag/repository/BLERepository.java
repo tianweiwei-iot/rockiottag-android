@@ -5,7 +5,6 @@ import android.content.Context;
 import android.util.Log;
 
 import com.RockiotTag.tag.BLEManager;
-import com.RockiotTag.tag.Device;
 import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.util.LogUtil;
 
@@ -51,7 +50,7 @@ public class BLERepository {
         LogUtil.d(TAG, "Starting BLE scan with new model");
         bleManager.startScanning(new BLEManager.DeviceScanCallback() {
             @Override
-            public void onDeviceFound(Device device) {
+            public void onDeviceFound(TagDevice device) {
                 if (callback != null) {
                     TagDevice td = new TagDevice(device.getDeviceId(), device.getName());
                     td.setMac(device.getMac());

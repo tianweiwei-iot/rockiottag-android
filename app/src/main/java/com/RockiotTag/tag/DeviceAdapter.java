@@ -7,19 +7,21 @@ import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
 
+import com.RockiotTag.tag.model.TagDevice;
+
 import java.util.ArrayList;
 import java.util.List;
 
-public class DeviceAdapter extends ArrayAdapter<Device> {
+public class DeviceAdapter extends ArrayAdapter<TagDevice> {
 
-    private List<Device> deviceList;
+    private List<TagDevice> deviceList;
     private OnDeviceClickListener listener;
 
     public interface OnDeviceClickListener {
-        void onDeviceClick(Device device);
+        void onDeviceClick(TagDevice device);
     }
 
-    public DeviceAdapter(Context context, List<Device> devices) {
+    public DeviceAdapter(Context context, List<TagDevice> devices) {
         super(context, 0, devices);
         this.deviceList = new ArrayList<>(devices);
     }
@@ -34,7 +36,7 @@ public class DeviceAdapter extends ArrayAdapter<Device> {
             convertView = LayoutInflater.from(getContext()).inflate(R.layout.item_device, parent, false);
         }
 
-        Device device = getItem(position);
+        TagDevice device = getItem(position);
         if (device != null) {
             TextView deviceNameText = convertView.findViewById(R.id.device_name);
             TextView deviceAddressText = convertView.findViewById(R.id.device_address);
@@ -56,13 +58,13 @@ public class DeviceAdapter extends ArrayAdapter<Device> {
         return convertView;
     }
 
-    public void updateDeviceList(List<Device> newDevices) {
+    public void updateDeviceList(List<TagDevice> newDevices) {
         clear();
         addAll(newDevices);
         notifyDataSetChanged();
     }
 
-    public void addDevice(Device device) {
+    public void addDevice(TagDevice device) {
         String deviceName = device.getName();
         if (deviceName == null || deviceName.isEmpty() || !deviceName.contains("D_Card")) {
             return;
@@ -70,7 +72,7 @@ public class DeviceAdapter extends ArrayAdapter<Device> {
         
         boolean exists = false;
         for (int i = 0; i < getCount(); i++) {
-            Device d = getItem(i);
+            TagDevice d = getItem(i);
             if (d != null && d.getDeviceId().equals(device.getDeviceId())) {
                 exists = true;
                 break;

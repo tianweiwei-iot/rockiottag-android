@@ -1,7 +1,10 @@
 package com.RockiotTag.tag;
 
-import android.os.Bundle;
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.graphics.Typeface;
+import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -10,14 +13,15 @@ import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
-import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.repository.DeviceRepository;
 import com.RockiotTag.tag.util.BoundDevicesHelper;
+import com.RockiotTag.tag.util.LanguageIndicatorHelper;
 import com.RockiotTag.tag.util.LogUtil;
 import com.RockiotTag.tag.util.TagPickerHelper;
 import com.RockiotTag.tag.util.ThemedDialogHelper;
@@ -32,7 +36,7 @@ public class DeviceListFragment extends Fragment {
     private ImageButton addDeviceBtn;
     private DeviceListAdapter adapter;
     private DatabaseHelper databaseHelper;
-    private List<Device> deviceList = new ArrayList<>();
+    private List<TagDevice> deviceList = new ArrayList<>();
 
     @Nullable
     @Override
@@ -57,7 +61,7 @@ public class DeviceListFragment extends Fragment {
                 titleBar.getPaddingBottom());
         }
 
-        databaseHelper = new DatabaseHelper(requireContext());
+        databaseHelper = DatabaseHelper.getInstance(requireContext());
         adapter = new DeviceListAdapter(deviceList, this::onDeviceClick, this::onEditDevice);
         recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
         recyclerView.setAdapter(adapter);
@@ -80,57 +84,69 @@ public class DeviceListFragment extends Fragment {
     public void onResume() {
         super.onResume();
         loadDevices();
+        LanguageIndicatorHelper.bind(this);
     }
 
     private void loadDevices() {
         if (databaseHelper == null) return;
         deviceList.clear();
-        
-        // 检查用户是否已登录
+
         android.content.SharedPreferences prefs = requireContext().getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE);
-        String token = prefs.getString("auth_token", null);
-        String boundDevicesJson = prefs.getString("bound_devices", null);
-        
-        if (token != null && !token.isEmpty() && boundDevicesJson != null && !boundDevicesJson.isEmpty()) {
-            // 已登录：只显示绑定设备列表中的设备
-            try {
-                com.google.gson.Gson gson = new com.google.gson.Gson();
-                com.google.gson.reflect.TypeToken<java.util.List<DeviceApiService.BoundDevice>> tokenType = 
-                    new com.google.gson.reflect.TypeToken<java.util.List<DeviceApiService.BoundDevice>>() {};
-                java.util.List<DeviceApiService.BoundDevice> boundDevices = gson.fromJson(boundDevicesJson, tokenType.getType());
-                
-                if (boundDevices != null && !boundDevices.isEmpty()) {
-                    // 获取所有本地设备
-                    java.util.List<Device> allLocalDevices = databaseHelper.getAllDevices();
-                    
-                    // 只保留绑定设备列表中的设备
-                    for (DeviceApiService.BoundDevice boundDevice : boundDevices) {
-                        String deviceNum = boundDevice.getDeviceNum();
-                        for (Device localDevice : allLocalDevices) {
-                            if (deviceNum.equals(localDevice.getDeviceNum()) || deviceNum.equals(localDevice.getDeviceId())) {
-                                // 显示名以本地数据库为准（编辑后会更新）；bound_devices 仅用于过滤绑定设备
-                                deviceList.add(localDevice);
-                                break;
-                            }
-                        }
-                    }
-                    LogUtil.d(TAG, "Loaded " + deviceList.size() + " bound devices from local database");
-                } else {
-                    LogUtil.d(TAG, "No bound devices found, showing empty list");
-                }
-            } catch (Exception e) {
-                android.util.Log.e(TAG, "Error parsing bound devices: " + e.getMessage(), e);
-                // 解析失败，显示空列表
+        String token = BoundDevicesHelper.getAuthToken(requireContext());
+        String boundDevicesJson = BoundDevicesHelper.getBoundDevicesJson(requireContext());
+
+        LogUtil.d(TAG, "loadDevices: token=" + (token != null ? "exists" : "null") + ", bound_devices=" + boundDevicesJson);
+
+        if (token != null && !token.isEmpty()) {
+            if (boundDevicesJson != null && !boundDevicesJson.isEmpty()) {
+                deviceList.addAll(BoundDevicesHelper.filterLocalDevicesByBoundList(databaseHelper, boundDevicesJson));
+            } else if (BoundDevicesHelper.needsServerFetch(requireContext())) {
+                LogUtil.d(TAG, "bound_devices is empty, fetching from server...");
+                fetchBoundDevicesFromServer(token);
+                return;
+            } else {
+                LogUtil.d(TAG, "Skip fetch: in progress or cooldown");
             }
         } else {
-            // 未登录：不显示任何设备（设备跟账号绑定）
             LogUtil.d(TAG, "User not logged in, showing empty list");
         }
-        
-        // 获取当前选中设备ID，用于高亮显示
+
+        updateDeviceListUI(prefs);
+    }
+
+    /**
+     * 从服务器获取绑定设备列表，成功后刷新列表
+     */
+    private void fetchBoundDevicesFromServer(String token) {
+        BoundDevicesHelper.fetchBoundDevicesFromServer(requireContext(), token,
+                new BoundDevicesHelper.FetchCallback() {
+                    @Override
+                    public void onSuccess(List<DeviceApiService.BoundDevice> devices) {
+                        if (getActivity() instanceof MainActivity) {
+                            ((MainActivity) getActivity()).syncBoundDevicesToLocalDatabase(devices);
+                        }
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> loadDevices());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(String message) {
+                        LogUtil.e(TAG, "fetchBoundDevicesFromServer failed: " + message);
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> updateDeviceListUI(
+                                    requireContext().getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)));
+                        }
+                    }
+                });
+    }
+
+    /**
+     * 更新设备列表 UI
+     */
+    private void updateDeviceListUI(android.content.SharedPreferences prefs) {
         String selectedDeviceId = prefs.getString("selected_device_id", null);
         adapter.setSelectedDeviceId(selectedDeviceId);
-        
         adapter.notifyDataSetChanged();
 
         if (deviceList.isEmpty()) {
@@ -142,7 +158,7 @@ public class DeviceListFragment extends Fragment {
         }
     }
 
-    private void onDeviceClick(Device device) {
+    private void onDeviceClick(TagDevice device) {
         if (getActivity() instanceof MainActivity) {
             // 先更新 adapter 的 selectedDeviceId，确保高亮立即更新
             String deviceId = device.getDeviceId();
@@ -154,21 +170,28 @@ public class DeviceListFragment extends Fragment {
         }
     }
 
-    private void onEditDevice(Device device) {
+    private void onEditDevice(TagDevice device) {
         showEditDialog(device);
     }
 
-    private void showEditDialog(Device device) {
+    private void showEditDialog(TagDevice device) {
         final boolean darkMode = ThemedDialogHelper.isDarkModeEnabled(requireContext());
         int labelColor = getResources().getColor(darkMode ? R.color.dark_text_secondary : R.color.text_secondary, null);
         int valueColor = getResources().getColor(darkMode ? R.color.dark_onSurface : R.color.onSurface, null);
 
         androidx.appcompat.app.AlertDialog.Builder builder = ThemedDialogHelper.createBuilder(requireContext());
-        builder.setTitle(R.string.edit_device);
 
         LinearLayout layout = new LinearLayout(requireContext());
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(50, 40, 50, 10);
+
+        final androidx.appcompat.app.AlertDialog[] dialogHolder = new androidx.appcompat.app.AlertDialog[1];
+        layout.addView(ThemedDialogHelper.createEditDeviceTitleBar(requireContext(), v -> {
+            if (dialogHolder[0] != null) {
+                dialogHolder[0].dismiss();
+            }
+            showUnbindDialog(device);
+        }));
 
         TextView nickNameLabel = new TextView(requireContext());
         nickNameLabel.setText(R.string.device_nickname);
@@ -205,7 +228,7 @@ public class DeviceListFragment extends Fragment {
             String tag = TagPickerHelper.getTagFromPosition(tagList, tagSpinner.getSelectedItemPosition());
 
             if (nickname.isEmpty()) {
-                Toast.makeText(requireContext(), R.string.nickname_empty, Toast.LENGTH_SHORT).show();
+                ToastHelper.show(requireContext(), R.string.nickname_empty);
                 return;
             }
 
@@ -223,18 +246,84 @@ public class DeviceListFragment extends Fragment {
                                 ((MainActivity) getActivity()).onDeviceNicknameUpdated(deviceId, nickname, tag);
                             }
                             loadDevices();
-                            Toast.makeText(requireContext(), R.string.save_success, Toast.LENGTH_SHORT).show();
+                            ToastHelper.show(requireContext(), R.string.save_success);
                         }
 
                         @Override
                         public void onError(String error) {
-                            Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show();
+                            ToastHelper.showLong(requireContext(), error);
                         }
                     });
         });
 
         builder.setNegativeButton(R.string.cancel, null);
-        builder.show();
+
+        dialogHolder[0] = builder.show();
+    }
+
+    private void showUnbindDialog(TagDevice device) {
+        String displayName = device.getName();
+        if (displayName == null || displayName.isEmpty()) {
+            displayName = device.getDeviceNum() != null ? device.getDeviceNum() : device.getDeviceId();
+        }
+
+        ThemedDialogHelper.createBuilder(requireContext())
+                .setTitle(R.string.unbind_device)
+                .setMessage(getString(R.string.unbind_confirm_message, displayName))
+                .setPositiveButton(R.string.confirm, (d, which) -> unbindDevice(device))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void unbindDevice(TagDevice device) {
+        if (device == null) {
+            ToastHelper.show(requireContext(), R.string.device_info_empty_unbind);
+            return;
+        }
+
+        final String deviceNum = device.getDeviceNum();
+        if (deviceNum == null || deviceNum.isEmpty()) {
+            ToastHelper.show(requireContext(), R.string.device_identifier_invalid);
+            return;
+        }
+
+        final String deviceId = device.getDeviceId();
+        new Thread(() -> {
+            try {
+                String token = BoundDevicesHelper.getAuthToken(requireContext());
+                if (token != null && !token.isEmpty()) {
+                    DeviceApiService.DeviceApiResponse apiResponse =
+                            DeviceApiService.getInstance().unbindDevice(token, deviceNum);
+                    if (!apiResponse.isSuccess()) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> ToastHelper.showLong(requireContext(),
+                                    getString(R.string.unbind_failed, apiResponse.getMessage())));
+                        }
+                        return;
+                    }
+                    BoundDevicesHelper.removeDevice(requireContext(), deviceNum);
+                }
+
+                UnboundDeviceManager.getInstance(requireContext()).addUnboundDevice(deviceNum);
+                databaseHelper.deleteDevice(deviceId);
+
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        if (getActivity() instanceof MainActivity) {
+                            ((MainActivity) getActivity()).onDeviceUnbound(deviceId);
+                        }
+                        loadDevices();
+                        ToastHelper.show(requireContext(), R.string.device_unbound);
+                    });
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error unbinding device: " + e.getMessage(), e);
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> ToastHelper.show(requireContext(),
+                            getString(R.string.unbind_failed, e.getMessage())));
+                }
+            }
+        }).start();
     }
 
     private int getStatusBarHeight() {
@@ -305,17 +394,17 @@ public class DeviceListFragment extends Fragment {
     }
 
     private static class DeviceListAdapter extends RecyclerView.Adapter<DeviceListAdapter.ViewHolder> {
-        private final List<Device> devices;
+        private final List<TagDevice> devices;
         private final OnDeviceClickListener clickListener;
         private final OnEditClickListener editListener;
         private String selectedDeviceId = null; // 当前选中设备的ID
 
         interface OnDeviceClickListener {
-            void onDeviceClick(Device device);
+            void onDeviceClick(TagDevice device);
         }
 
         interface OnEditClickListener {
-            void onEditDevice(Device device);
+            void onEditDevice(TagDevice device);
         }
 
         static class ViewHolder extends RecyclerView.ViewHolder {
@@ -337,7 +426,7 @@ public class DeviceListFragment extends Fragment {
             }
         }
 
-        DeviceListAdapter(List<Device> devices, OnDeviceClickListener clickListener, OnEditClickListener editListener) {
+        DeviceListAdapter(List<TagDevice> devices, OnDeviceClickListener clickListener, OnEditClickListener editListener) {
             this.devices = devices;
             this.clickListener = clickListener;
             this.editListener = editListener;
@@ -361,7 +450,7 @@ public class DeviceListFragment extends Fragment {
 
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            Device device = devices.get(position);
+            TagDevice device = devices.get(position);
 
             // 昵称：显示设备名称
             String displayName = device.getName();

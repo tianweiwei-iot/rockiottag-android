@@ -1,13 +1,16 @@
 package com.RockiotTag.tag;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Handler;
 import android.util.Log;
 import android.view.View;
-import android.widget.Toast;
+import android.view.ViewGroup;
 
+import com.RockiotTag.tag.map.MapLayerController;
 import com.RockiotTag.tag.util.LogUtil;
 import com.amap.api.maps.AMap;
 import com.amap.api.maps.CameraUpdateFactory;
@@ -56,7 +59,7 @@ public class MapManager implements OnMapReadyCallback {
         this.context = context.getApplicationContext();
         this.amapView = amapView;
         this.googleMapFragment = googleMapFragment;
-        this.handler = new Handler();
+        this.handler = new Handler(android.os.Looper.getMainLooper());
         
         android.content.SharedPreferences prefs = this.context.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         this.currentProvider = prefs.getString("map_provider", MAP_PROVIDER_AMAP);
@@ -155,7 +158,7 @@ public class MapManager implements OnMapReadyCallback {
                         LogUtil.d(TAG, "Google Map loaded successfully!");
                         isCheckingMapLoad = false;
                         if (context != null) {
-                            Toast.makeText(context, R.string.google_map_loaded, Toast.LENGTH_SHORT).show();
+                            ToastHelper.show(context, R.string.google_map_loaded);
                         }
                     }
                 });
@@ -223,7 +226,7 @@ public class MapManager implements OnMapReadyCallback {
                 Log.e(TAG, "Error initializing Google Map: " + e.getMessage(), e);
                 e.printStackTrace();
                 if (context != null) {
-                    Toast.makeText(context, context.getString(R.string.google_map_init_error, e.getMessage()), Toast.LENGTH_LONG).show();
+                    ToastHelper.showLong(context, context.getString(R.string.google_map_init_error, e.getMessage()));
                 }
             }
         } else {
@@ -248,7 +251,7 @@ public class MapManager implements OnMapReadyCallback {
                     isCheckingMapLoad = false;
                     
                     if (context != null) {
-                        Toast.makeText(context, R.string.google_map_check_settings, Toast.LENGTH_LONG).show();
+                        ToastHelper.showLong(context, R.string.google_map_check_settings);
                     }
                     
                     // 尝试多种方法来触发地图重新加载
@@ -323,41 +326,29 @@ public class MapManager implements OnMapReadyCallback {
         LogUtil.d(TAG, "switchToAmap called");
         currentProvider = MAP_PROVIDER_AMAP;
         saveMapProvider();
-        
-        if (amapView != null) {
-            amapView.setVisibility(View.VISIBLE);
-            LogUtil.d(TAG, "AMap view set to VISIBLE");
+        MapLayerController.showAmapHideGoogle(amapView, googleMapFragment);
+    }
+
+    /**
+     * Google 地图 getMapAsync 为异步，Fragment 视图可能尚未就绪；延迟重试显示并隐藏高德层。
+     */
+    public void ensureGoogleMapVisible() {
+        if (!MAP_PROVIDER_GOOGLE.equals(currentProvider)) {
+            return;
         }
-        if (googleMapFragment != null && googleMapFragment.getView() != null) {
-            googleMapFragment.getView().setVisibility(View.GONE);
-            LogUtil.d(TAG, "Google Map view set to GONE");
-        } else {
-            Log.w(TAG, "Google Map fragment or view is null when switching to AMap");
-        }
+        MapLayerController.showGoogleHideAmap(amapView, googleMapFragment);
     }
     
     public void switchToGoogleMap() {
         LogUtil.d(TAG, "switchToGoogleMap called, googleMapReady: " + googleMapReady);
         currentProvider = MAP_PROVIDER_GOOGLE;
         saveMapProvider();
-        
-        if (amapView != null) {
-            amapView.setVisibility(View.GONE);
-            LogUtil.d(TAG, "AMap view set to GONE");
-        }
-        
-        if (googleMapFragment != null) {
-            if (googleMapFragment.getView() != null) {
-                googleMapFragment.getView().setVisibility(View.VISIBLE);
-                LogUtil.d(TAG, "Google Map view set to VISIBLE");
-            } else {
-                Log.w(TAG, "Google Map fragment view is null, fragment: " + googleMapFragment);
-            }
+        MapLayerController.showGoogleHideAmap(amapView, googleMapFragment);
             
+        if (googleMapFragment != null) {
             if (!googleMapReady) {
-                Log.w(TAG, "Google Map not ready yet, re-initializing...");
-                initGoogleMap();
-            } else {
+                LogUtil.d(TAG, "Google Map not ready yet, waiting for adapter to attach");
+            } else if (googleMap != null) {
                 LogUtil.d(TAG, "Google Map is already ready, re-applying UI settings...");
                 // 重新应用UI设置，确保指南针等控件启用
                 if (googleMap != null) {
@@ -378,7 +369,7 @@ public class MapManager implements OnMapReadyCallback {
         } else {
             Log.e(TAG, "Cannot show Google Map - fragment is null");
             if (context != null) {
-                Toast.makeText(context, R.string.google_map_init_failed_check, Toast.LENGTH_LONG).show();
+                ToastHelper.showLong(context, R.string.google_map_init_failed_check);
             }
         }
     }
@@ -472,6 +463,28 @@ public class MapManager implements OnMapReadyCallback {
         return amap;
     }
     
+    public void attachGoogleMap(GoogleMap googleMap) {
+        this.googleMap = googleMap;
+        this.googleMapReady = googleMap != null;
+        LogUtil.d(TAG, "GoogleMap attached to MapManager, ready=" + googleMapReady);
+    }
+
+    public void resetGoogleMapState() {
+        this.googleMap = null;
+        this.googleMapReady = false;
+        this.isCheckingMapLoad = false;
+        releasePendingCallbacks();
+        LogUtil.d(TAG, "GoogleMap state reset on MapManager");
+    }
+
+    /** 取消 Handler 上所有延迟任务（Activity recreate 前调用，防止旧实例回调闪退） */
+    public void releasePendingCallbacks() {
+        this.isCheckingMapLoad = false;
+        if (handler != null) {
+            handler.removeCallbacksAndMessages(null);
+        }
+    }
+
     public GoogleMap getGoogleMap() {
         return googleMap;
     }

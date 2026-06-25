@@ -5,6 +5,8 @@ import android.util.Log;
 import com.RockiotTag.tag.network.HttpHelper;
 import com.RockiotTag.tag.util.LogUtil;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -21,23 +23,21 @@ import java.util.Map;
 
 public class NewApiService {
     private static final String TAG = "NewApiService";
-    private static String API_BASE_URL = ApiConfig.MY_SERVER_URL;
     private static final int CONNECT_TIMEOUT = 10000;
     private static final int READ_TIMEOUT = 30000;
     
-    private static NewApiService instance;
-    
-    public static void setApiBaseUrl(String url) {
-        API_BASE_URL = url;
-        LogUtil.d(TAG, "API Base URL set to: " + url);
-    }
+    private static volatile NewApiService instance;
     
     private NewApiService() {
     }
     
     public static NewApiService getInstance() {
         if (instance == null) {
-            instance = new NewApiService();
+            synchronized (NewApiService.class) {
+                if (instance == null) {
+                    instance = new NewApiService();
+                }
+            }
         }
         return instance;
     }
@@ -63,23 +63,22 @@ public class NewApiService {
         return response;
     }
     
-    public List<DeviceInfo> getDevices() {
+    public List<DeviceInfo> getDevices(String baseUrl) {
         LogUtil.d(TAG, "getDevices called");
         List<DeviceInfo> deviceInfoList = new ArrayList<>();
         
         // 使用公开API获取所有设备（包含MAC地址）
-        ApiResponse response = getRequest("/devices", false);
+        ApiResponse response = getRequest(baseUrl, "/devices", false);
         LogUtil.d(TAG, "getDevices response - success: " + (response != null ? response.isSuccess() : "null"));
         
         if (response != null && response.isSuccess() && response.getRawResponse() != null) {
             LogUtil.d(TAG, "Raw response: " + response.getRawResponse());
             try {
                 Gson gson = new Gson();
-                JsonParser parser = new JsonParser();
-                var jsonElement = parser.parse(response.getRawResponse());
-                
+                JsonElement jsonElement = JsonParser.parseString(response.getRawResponse());
+
                 if (jsonElement.isJsonArray()) {
-                    var devicesArray = jsonElement.getAsJsonArray();
+                    JsonArray devicesArray = jsonElement.getAsJsonArray();
                     LogUtil.d(TAG, "Parsing " + devicesArray.size() + " devices from array");
                     for (int i = 0; i < devicesArray.size(); i++) {
                         JsonObject deviceObj = devicesArray.get(i).getAsJsonObject();
@@ -111,24 +110,24 @@ public class NewApiService {
         return deviceInfoList;
     }
     
-    public List<DeviceInfo> getBoundDeviceList() {
-        return getDevices();
+    public List<DeviceInfo> getBoundDeviceList(String baseUrl) {
+        return getDevices(baseUrl);
     }
     
-    public ApiResponse getDeviceList(int pageNo, int pageSize) {
+    public ApiResponse getDeviceList(String baseUrl, int pageNo, int pageSize) {
         LogUtil.d(TAG, "getDeviceList called with pageNo: " + pageNo + ", pageSize: " + pageSize);
         
-        ApiResponse response = getRequest("/devices", false);
+        ApiResponse response = getRequest(baseUrl, "/devices", false);
         LogUtil.d(TAG, "getDeviceList response - success: " + (response != null ? response.isSuccess() : "null"));
         
         return response;
     }
     
-    public ApiResponse bindDevice(String deviceNum, String sn, String nickName) {
-        return bindDevice(deviceNum, sn, nickName, null);
+    public ApiResponse bindDevice(String baseUrl, String deviceNum, String sn, String nickName) {
+        return bindDevice(baseUrl, deviceNum, sn, nickName, null);
     }
     
-    public ApiResponse bindDevice(String deviceNum, String sn, String nickName, String customerCode) {
+    public ApiResponse bindDevice(String baseUrl, String deviceNum, String sn, String nickName, String customerCode) {
         LogUtil.d(TAG, "bindDevice called with deviceNum: " + deviceNum + ", sn: " + sn + ", nickName: " + nickName + ", customerCode: " + customerCode);
         
         Map<String, String> params = new HashMap<>();
@@ -140,36 +139,36 @@ public class NewApiService {
             params.put("nickName", nickName);
         }
         
-        return postRequest("/devices/bind", params, false, customerCode);
+        return postRequest(baseUrl, "/devices/bind", params, false, customerCode);
     }
     
-    public ApiResponse unbindDevice(String deviceNum) {
-        return unbindDevice(deviceNum, null);
+    public ApiResponse unbindDevice(String baseUrl, String deviceNum) {
+        return unbindDevice(baseUrl, deviceNum, null);
     }
     
-    public ApiResponse unbindDevice(String deviceNum, String customerCode) {
+    public ApiResponse unbindDevice(String baseUrl, String deviceNum, String customerCode) {
         LogUtil.d(TAG, "unbindDevice called for deviceNum: " + deviceNum + ", customerCode: " + customerCode);
         
         Map<String, String> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
         
-        return postRequest("/devices/unbind", params, false, customerCode);
+        return postRequest(baseUrl, "/devices/unbind", params, false, customerCode);
     }
     
-    public ApiResponse refreshLocation(String deviceNum) {
-        return refreshLocation(deviceNum, null);
+    public ApiResponse refreshLocation(String baseUrl, String deviceNum) {
+        return refreshLocation(baseUrl, deviceNum, null);
     }
     
-    public ApiResponse refreshLocation(String deviceNum, String customerCode) {
+    public ApiResponse refreshLocation(String baseUrl, String deviceNum, String customerCode) {
         LogUtil.d(TAG, "refreshLocation called for deviceNum: " + deviceNum + ", customerCode: " + customerCode);
         
         Map<String, String> params = new HashMap<>();
         params.put("deviceNum", deviceNum);
         
-        return postRequest("/devices/refresh", params, false, customerCode);
+        return postRequest(baseUrl, "/devices/refresh", params, false, customerCode);
     }
     
-    public ApiResponse syncLocation(String deviceNum, double latitude, double longitude, int battery, long timestamp) {
+    public ApiResponse syncLocation(String baseUrl, String deviceNum, double latitude, double longitude, int battery, long timestamp) {
         LogUtil.d(TAG, "syncLocation called - deviceNum: " + deviceNum + ", lat: " + latitude + ", lng: " + longitude + ", battery: " + battery);
         
         double roundedLat = roundTo8Decimals(latitude);
@@ -183,18 +182,18 @@ public class NewApiService {
         params.put("battery", battery);
         params.put("timestamp", timestamp);
         
-        return postRequestWithObject("/locations/sync", params, false);
+        return postRequestWithObject(baseUrl, "/locations/sync", params, false);
     }
     
     private double roundTo8Decimals(double value) {
         return Math.round(value * 100000000.0) / 100000000.0;
     }
     
-    public List<LocationInfo> getLocations(String deviceNum, long startTime, long endTime) {
-        return getLocations(deviceNum, startTime, endTime, null);
+    public List<LocationInfo> getLocations(String baseUrl, String deviceNum, long startTime, long endTime) {
+        return getLocations(baseUrl, deviceNum, startTime, endTime, null);
     }
     
-    public List<LocationInfo> getLocations(String deviceNum, long startTime, long endTime, String customerCode) {
+    public List<LocationInfo> getLocations(String baseUrl, String deviceNum, long startTime, long endTime, String customerCode) {
         LogUtil.d(TAG, "=== getLocations START ===");
         LogUtil.d(TAG, "deviceNum: " + deviceNum + ", startTime: " + startTime + ", endTime: " + endTime + ", customerCode: " + customerCode);
         List<LocationInfo> locationInfoList = new ArrayList<>();
@@ -205,7 +204,7 @@ public class NewApiService {
         }
         LogUtil.d(TAG, "Request endpoint: " + endpoint);
         
-        ApiResponse response = getRequest(endpoint, false, customerCode);
+        ApiResponse response = getRequest(baseUrl, endpoint, false, customerCode);
         LogUtil.d(TAG, "Response received - success: " + (response != null ? response.isSuccess() : "null"));
         if (response != null) {
             LogUtil.d(TAG, "Response code: " + response.getStatusCode());
@@ -215,11 +214,10 @@ public class NewApiService {
         if (response != null && response.isSuccess() && response.getRawResponse() != null) {
             try {
                 Gson gson = new Gson();
-                JsonParser parser = new JsonParser();
-                var jsonElement = parser.parse(response.getRawResponse());
-                
+                JsonElement jsonElement = JsonParser.parseString(response.getRawResponse());
+
                 if (jsonElement.isJsonArray()) {
-                    var locationsArray = jsonElement.getAsJsonArray();
+                    JsonArray locationsArray = jsonElement.getAsJsonArray();
                     LogUtil.d(TAG, "Response is JSON array with " + locationsArray.size() + " elements");
                     for (int i = 0; i < locationsArray.size(); i++) {
                         JsonObject locationObj = locationsArray.get(i).getAsJsonObject();
@@ -260,15 +258,15 @@ public class NewApiService {
         return locationInfoList;
     }
     
-    public DeviceInfo getDeviceInfo(String deviceNum) {
+    public DeviceInfo getDeviceInfo(String baseUrl, String deviceNum) {
         LogUtil.d(TAG, "getDeviceInfo called for deviceNum: " + deviceNum);
         
-        List<DeviceInfo> devices = getDevices();
+        List<DeviceInfo> devices = getDevices(baseUrl);
         for (DeviceInfo info : devices) {
             if (deviceNum.equals(info.deviceNum)) {
                 LogUtil.d(TAG, "Found device: " + deviceNum + ", trying to get locations...");
                 try {
-                    List<LocationInfo> locations = getLocations(deviceNum, 0, 0);
+                    List<LocationInfo> locations = getLocations(baseUrl, deviceNum, 0, 0);
                     LogUtil.d(TAG, "Got " + (locations != null ? locations.size() : 0) + " locations");
                     if (locations != null && !locations.isEmpty()) {
                         LocationInfo latestLocation = locations.get(0);
@@ -291,21 +289,21 @@ public class NewApiService {
         return null;
     }
     
-    public ApiResponse syncAll() {
+    public ApiResponse syncAll(String baseUrl) {
         LogUtil.d(TAG, "syncAll called");
-        ApiResponse response = postRequest("/sync/all", new HashMap<>(), false);
+        ApiResponse response = postRequest(baseUrl, "/sync/all", new HashMap<>(), false);
         LogUtil.d(TAG, "syncAll response - success: " + (response != null ? response.isSuccess() : "null"));
         return response;
     }
     
-    public ApiResponse syncDevice(String deviceNum) {
+    public ApiResponse syncDevice(String baseUrl, String deviceNum) {
         LogUtil.d(TAG, "syncDevice called for deviceNum: " + deviceNum);
-        ApiResponse response = postRequest("/sync/device/" + deviceNum, new HashMap<>(), false);
+        ApiResponse response = postRequest(baseUrl, "/sync/device/" + deviceNum, new HashMap<>(), false);
         LogUtil.d(TAG, "syncDevice response - success: " + (response != null ? response.isSuccess() : "null"));
         return response;
     }
     
-    public ApiResponse bindVendorDevice(String deviceNum, String nickName) {
+    public ApiResponse bindVendorDevice(String baseUrl, String deviceNum, String nickName) {
         LogUtil.d(TAG, "bindVendorDevice called for deviceNum: " + deviceNum + ", nickName: " + nickName);
         
         Map<String, String> params = new HashMap<>();
@@ -314,16 +312,16 @@ public class NewApiService {
             params.put("nickName", nickName);
         }
         
-        ApiResponse response = postRequest("/sync/bindVendorDevice", params, false);
+        ApiResponse response = postRequest(baseUrl, "/sync/bindVendorDevice", params, false);
         LogUtil.d(TAG, "bindVendorDevice response - success: " + (response != null ? response.isSuccess() : "null"));
         return response;
     }
     
-    public ApiResponse updateDevice(String deviceNum, String nickName) {
-        return updateDevice(deviceNum, nickName, null);
+    public ApiResponse updateDevice(String baseUrl, String deviceNum, String nickName) {
+        return updateDevice(baseUrl, deviceNum, nickName, null);
     }
 
-    public ApiResponse updateDevice(String deviceNum, String nickName, String customerCode) {
+    public ApiResponse updateDevice(String baseUrl, String deviceNum, String nickName, String customerCode) {
         LogUtil.d(TAG, "updateDevice called for deviceNum: " + deviceNum + ", nickName: " + nickName + ", customerCode: " + customerCode);
 
         Map<String, String> params = new HashMap<>();
@@ -332,16 +330,16 @@ public class NewApiService {
             params.put("nickName", nickName);
         }
 
-        ApiResponse response = postRequest("/devices/update", params, false, customerCode);
+        ApiResponse response = postRequest(baseUrl, "/devices/update", params, false, customerCode);
         LogUtil.d(TAG, "updateDevice response - success: " + (response != null ? response.isSuccess() : "null"));
         return response;
     }
     
-    public DeviceInfo getDeviceLatest(String deviceNum) {
-        return getDeviceLatest(deviceNum, null);
+    public DeviceInfo getDeviceLatest(String baseUrl, String deviceNum) {
+        return getDeviceLatest(baseUrl, deviceNum, null);
     }
     
-    public DeviceInfo getDeviceLatest(String deviceNum, String customerCode) {
+    public DeviceInfo getDeviceLatest(String baseUrl, String deviceNum, String customerCode) {
         if (deviceNum != null) {
             deviceNum = deviceNum.trim().replaceAll("\\s+", "").toUpperCase();
         }
@@ -349,7 +347,7 @@ public class NewApiService {
         LogUtil.d(TAG, "getDeviceLatest called for deviceNum: [" + deviceNum + "], customerCode: " + customerCode);
         LogUtil.d(TAG, "Using API Key: " + ApiConfig.getApiKeyForCustomer(customerCode));
         
-        ApiResponse response = getRequest("/devices/" + deviceNum + "/latest", false, customerCode);
+        ApiResponse response = getRequest(baseUrl, "/devices/" + deviceNum + "/latest", false, customerCode);
         LogUtil.d(TAG, "getDeviceLatest response - statusCode: " + (response != null ? response.getStatusCode() : "null response"));
         LogUtil.d(TAG, "getDeviceLatest response - success: " + (response != null ? response.isSuccess() : "null"));
         
@@ -361,8 +359,7 @@ public class NewApiService {
             if (response.getRawResponse() != null) {
                 try {
                     Gson gson = new Gson();
-                    JsonParser parser = new JsonParser();
-                    var jsonElement = parser.parse(response.getRawResponse());
+                    JsonElement jsonElement = JsonParser.parseString(response.getRawResponse());
                     
                     if (jsonElement.isJsonObject()) {
                         JsonObject json = jsonElement.getAsJsonObject();
@@ -420,13 +417,13 @@ public class NewApiService {
         public long timestamp;
     }
     
-    private ApiResponse postRequest(String endpoint, Map<String, String> params, boolean requireAuth) {
-        return postRequest(endpoint, params, requireAuth, null);
+    private ApiResponse postRequest(String baseUrl, String endpoint, Map<String, String> params, boolean requireAuth) {
+        return postRequest(baseUrl, endpoint, params, requireAuth, null);
     }
     
-    private ApiResponse postRequest(String endpoint, Map<String, String> params, boolean requireAuth, String customerCode) {
+    private ApiResponse postRequest(String baseUrl, String endpoint, Map<String, String> params, boolean requireAuth, String customerCode) {
         try {
-            String url = API_BASE_URL + endpoint;
+            String url = baseUrl + endpoint;
             String jsonParams = buildJson(params);
             LogUtil.d(TAG, "Request: " + jsonParams + ", customerCode: " + customerCode);
             
@@ -446,13 +443,13 @@ public class NewApiService {
         }
     }
     
-    private ApiResponse postRequestWithObject(String endpoint, Map<String, Object> params, boolean requireAuth) {
-        return postRequestWithObject(endpoint, params, requireAuth, null);
+    private ApiResponse postRequestWithObject(String baseUrl, String endpoint, Map<String, Object> params, boolean requireAuth) {
+        return postRequestWithObject(baseUrl, endpoint, params, requireAuth, null);
     }
     
-    private ApiResponse postRequestWithObject(String endpoint, Map<String, Object> params, boolean requireAuth, String customerCode) {
+    private ApiResponse postRequestWithObject(String baseUrl, String endpoint, Map<String, Object> params, boolean requireAuth, String customerCode) {
         try {
-            String url = API_BASE_URL + endpoint;
+            String url = baseUrl + endpoint;
             String jsonParams = buildJsonFromObject(params);
             LogUtil.d(TAG, "Request: " + jsonParams + ", customerCode: " + customerCode);
             
@@ -472,13 +469,13 @@ public class NewApiService {
         }
     }
     
-    private ApiResponse getRequest(String endpoint, boolean requireAuth) {
-        return getRequest(endpoint, requireAuth, null);
+    private ApiResponse getRequest(String baseUrl, String endpoint, boolean requireAuth) {
+        return getRequest(baseUrl, endpoint, requireAuth, null);
     }
     
-    private ApiResponse getRequest(String endpoint, boolean requireAuth, String customerCode) {
+    private ApiResponse getRequest(String baseUrl, String endpoint, boolean requireAuth, String customerCode) {
         try {
-            String url = API_BASE_URL + endpoint;
+            String url = baseUrl + endpoint;
             LogUtil.d(TAG, "GET request: " + url + ", customerCode: " + customerCode);
             HttpHelper.HttpResponse response = HttpHelper.get(url, customerCode);
             
@@ -517,8 +514,7 @@ public class NewApiService {
             }
             
             Gson gson = new Gson();
-            JsonParser parser = new JsonParser();
-            var jsonElement = parser.parse(responseString);
+            JsonElement jsonElement = JsonParser.parseString(responseString);
             
             if (jsonElement.isJsonArray()) {
                 return response;

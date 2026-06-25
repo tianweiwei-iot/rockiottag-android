@@ -10,9 +10,13 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 
-import java.net.HttpURLConnection;
 import java.util.ArrayList;
 import java.util.List;
+import java.text.SimpleDateFormat;
+import java.util.Locale;
+import java.util.TimeZone;
+
+import com.google.gson.JsonElement;
 
 /**
  * 设备绑定API服务
@@ -58,7 +62,7 @@ public class DeviceApiService {
             }
 
             LogUtil.d(TAG, "Bind device request: " + url + ", deviceNum: " + deviceNum + ", nickName: " + nickName);
-            HttpHelper.HttpResponse response = postWithAuth(url, params.toString(), token);
+            HttpHelper.HttpResponse response = HttpHelper.postWithAuth(url, params.toString(), token);
 
             return parseResponse(response);
         } catch (Exception e) {
@@ -80,29 +84,11 @@ public class DeviceApiService {
             String url = ApiConfig.MY_SERVER_URL + "/device/list";
             LogUtil.d(TAG, "Get bound devices request: " + url);
 
-            HttpURLConnection conn = (HttpURLConnection) new java.net.URL(url).openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + token);
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(30000);
-
-            int responseCode = conn.getResponseCode();
+            HttpHelper.HttpResponse response = HttpHelper.getWithAuth(url, token);
+            int responseCode = response.statusCode;
             LogUtil.d(TAG, "Get bound devices response code: " + responseCode);
 
-            java.io.BufferedReader in = new java.io.BufferedReader(
-                new java.io.InputStreamReader(
-                    responseCode >= 200 && responseCode < 300 ?
-                    conn.getInputStream() : conn.getErrorStream()));
-            StringBuilder response = new StringBuilder();
-            String line;
-            while ((line = in.readLine()) != null) {
-                response.append(line);
-            }
-            in.close();
-            conn.disconnect();
-
-            String responseString = response.toString();
+            String responseString = response.body;
             LogUtil.d(TAG, "Get bound devices response: " + responseString);
 
             DeviceApiResponse apiResponse = new DeviceApiResponse();
@@ -111,8 +97,19 @@ public class DeviceApiService {
 
             if (responseCode >= 200 && responseCode < 300 && responseString != null) {
                 try {
-                    JsonParser parser = new JsonParser();
-                    JsonObject json = parser.parse(responseString).getAsJsonObject();
+                    JsonObject json = JsonParser.parseString(responseString).getAsJsonObject();
+                    LogUtil.d(TAG, "getBoundDevices JSON: " + json.toString());
+
+                    // 检查 success 字段
+                    if (json.has("success") && json.get("success").isJsonPrimitive()) {
+                        boolean success = json.get("success").getAsBoolean();
+                        if (!success) {
+                            Log.e(TAG, "Server returned success=false");
+                            apiResponse.setBusinessSuccess(false);
+                            apiResponse.setMessage(json.has("message") ? json.get("message").getAsString() : "Server error");
+                            return apiResponse;
+                        }
+                    }
 
                     if (json.has("code") && !json.get("code").isJsonNull()) {
                         apiResponse.setCode(json.get("code").getAsString());
@@ -130,6 +127,7 @@ public class DeviceApiService {
                     }
                     if (arrayKey != null) {
                         JsonArray dataArray = json.getAsJsonArray(arrayKey);
+                        LogUtil.d(TAG, "Found " + dataArray.size() + " devices in response");
                         List<BoundDevice> devices = new ArrayList<>();
 
                         for (int i = 0; i < dataArray.size(); i++) {
@@ -149,21 +147,28 @@ public class DeviceApiService {
                                     device.alias = nickName;  // 同时赋值给 alias 以兼容旧逻辑
                                 }
                             }
-                            if (deviceObj.has("bindTime") && !deviceObj.get("bindTime").isJsonNull()) {
-                                try { device.bindTime = deviceObj.get("bindTime").getAsLong(); } catch (Exception ignored) {}
-                            }
+                            // createdAt 可能是毫秒数或 ISO 8601 日期字符串
                             if (deviceObj.has("createdAt") && !deviceObj.get("createdAt").isJsonNull()) {
-                                try { device.bindTime = deviceObj.get("createdAt").getAsLong(); } catch (Exception ignored) {}
+                                long parsed = parseCreatedAt(deviceObj.get("createdAt"));
+                                if (parsed > 0) {
+                                    device.bindTime = parsed;
+                                }
                             }
+                            LogUtil.d(TAG, "Parsed device: " + device.deviceNum + ", nickName: " + device.nickName);
                             devices.add(device);
                         }
                         apiResponse.setDevices(devices);
-                        LogUtil.d(TAG, "Parsed " + devices.size() + " bound devices");
+                        LogUtil.d(TAG, "Parsed " + devices.size() + " bound devices successfully");
+                    } else {
+                        LogUtil.d(TAG, "No devices array in response, treating as empty list");
+                        apiResponse.setDevices(new ArrayList<>());
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "Parse bound devices error: " + e.getMessage());
+                    Log.e(TAG, "Parse bound devices error: " + e.getMessage(), e);
                     apiResponse.setMessage("Parse error: " + e.getMessage());
                 }
+            } else {
+                Log.e(TAG, "getBoundDevices failed: responseCode=" + responseCode + ", response=" + responseString);
             }
             return apiResponse;
         } catch (Exception e) {
@@ -188,7 +193,7 @@ public class DeviceApiService {
             params.addProperty("deviceNum", deviceNum);
 
             LogUtil.d(TAG, "Unbind device request: " + url + ", deviceNum: " + deviceNum);
-            HttpHelper.HttpResponse response = postWithAuth(url, params.toString(), token);
+            HttpHelper.HttpResponse response = HttpHelper.postWithAuth(url, params.toString(), token);
 
             return parseResponse(response);
         } catch (Exception e) {
@@ -227,96 +232,8 @@ public class DeviceApiService {
         }
     }
 
-    /**
-     * 带认证的POST请求
-     */
-    private HttpHelper.HttpResponse postWithAuth(String urlString, String jsonBody, String token) {
-        HttpURLConnection conn = null;
-        try {
-            java.net.URL url = new java.net.URL(urlString);
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + token);
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(30000);
-            conn.setDoOutput(true);
-
-            LogUtil.d(TAG, "POST request body: " + jsonBody);
-
-            try (java.io.OutputStream os = conn.getOutputStream()) {
-                os.write(jsonBody.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                os.flush();
-            }
-
-            int responseCode = conn.getResponseCode();
-            java.io.BufferedReader in = new java.io.BufferedReader(
-                new java.io.InputStreamReader(
-                    responseCode >= 200 && responseCode < 300 ?
-                    conn.getInputStream() : conn.getErrorStream()));
-            StringBuilder response = new StringBuilder();
-            String line;
-            while ((line = in.readLine()) != null) {
-                response.append(line);
-            }
-            in.close();
-
-            String responseString = response.toString();
-            LogUtil.d(TAG, "POST response code: " + responseCode + ", body: " + responseString);
-
-            return new HttpHelper.HttpResponse(responseCode, responseString, null);
-        } catch (Exception e) {
-            Log.e(TAG, "POST request failed: " + e.getMessage(), e);
-            return new HttpHelper.HttpResponse(-1, null, e.getMessage());
-        } finally {
-            if (conn != null) conn.disconnect();
-        }
-    }
-
-    /**
-     * 带认证的PUT请求
-     */
     private HttpHelper.HttpResponse putWithAuth(String urlString, String jsonBody, String token) {
-        HttpURLConnection conn = null;
-        try {
-            java.net.URL url = new java.net.URL(urlString);
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("PUT");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + token);
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(30000);
-            conn.setDoOutput(true);
-
-            LogUtil.d(TAG, "PUT request body: " + jsonBody);
-
-            try (java.io.OutputStream os = conn.getOutputStream()) {
-                os.write(jsonBody.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                os.flush();
-            }
-
-            int responseCode = conn.getResponseCode();
-            java.io.BufferedReader in = new java.io.BufferedReader(
-                new java.io.InputStreamReader(
-                    responseCode >= 200 && responseCode < 300 ?
-                    conn.getInputStream() : conn.getErrorStream()));
-            StringBuilder response = new StringBuilder();
-            String line;
-            while ((line = in.readLine()) != null) {
-                response.append(line);
-            }
-            in.close();
-
-            String responseString = response.toString();
-            LogUtil.d(TAG, "PUT response code: " + responseCode + ", body: " + responseString);
-
-            return new HttpHelper.HttpResponse(responseCode, responseString, null);
-        } catch (Exception e) {
-            Log.e(TAG, "PUT request failed: " + e.getMessage(), e);
-            return new HttpHelper.HttpResponse(-1, null, e.getMessage());
-        } finally {
-            if (conn != null) conn.disconnect();
-        }
+        return HttpHelper.putWithAuth(urlString, jsonBody, token);
     }
 
     /**
@@ -338,9 +255,11 @@ public class DeviceApiService {
         }
 
         try {
-            JsonParser parser = new JsonParser();
-            JsonObject json = parser.parse(response.body).getAsJsonObject();
+            JsonObject json = JsonParser.parseString(response.body).getAsJsonObject();
 
+            if (json.has("success") && json.get("success").isJsonPrimitive()) {
+                apiResponse.setBusinessSuccess(json.get("success").getAsBoolean());
+            }
             if (json.has("code")) apiResponse.setCode(json.get("code").getAsString());
             if (json.has("message")) apiResponse.setMessage(json.get("message").getAsString());
             if (json.has("status")) apiResponse.setStatus(json.get("status").getAsInt());
@@ -361,9 +280,19 @@ public class DeviceApiService {
         private String message;
         private int status;
         private List<BoundDevice> devices;
+        /** HTTP 2xx 且 JSON success 不为 false（若响应含 success 字段） */
+        private boolean businessSuccess = true;
 
         public boolean isSuccess() {
-            return statusCode >= 200 && statusCode < 300;
+            return statusCode >= 200 && statusCode < 300 && businessSuccess;
+        }
+
+        public void setBusinessSuccess(boolean businessSuccess) {
+            this.businessSuccess = businessSuccess;
+        }
+
+        public boolean isBusinessSuccess() {
+            return businessSuccess;
         }
 
         public int getStatusCode() {
@@ -413,6 +342,47 @@ public class DeviceApiService {
         public void setDevices(List<BoundDevice> devices) {
             this.devices = devices;
         }
+    }
+
+    private static long parseCreatedAt(JsonElement element) {
+        if (element == null || element.isJsonNull()) {
+            return 0;
+        }
+        try {
+            if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
+                return element.getAsLong();
+            }
+            String text = element.getAsString().trim();
+            if (text.isEmpty()) {
+                return 0;
+            }
+            try {
+                return Long.parseLong(text);
+            } catch (NumberFormatException ignored) {
+                // not a numeric string
+            }
+            String[] patterns = {
+                    "yyyy-MM-dd'T'HH:mm:ss.SSSX",
+                    "yyyy-MM-dd'T'HH:mm:ssX",
+                    "yyyy-MM-dd'T'HH:mm:ss",
+                    "yyyy-MM-dd HH:mm:ss"
+            };
+            for (String pattern : patterns) {
+                try {
+                    SimpleDateFormat sdf = new SimpleDateFormat(pattern, Locale.US);
+                    sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+                    java.util.Date date = sdf.parse(text);
+                    if (date != null) {
+                        return date.getTime();
+                    }
+                } catch (Exception ignored) {
+                    // try next pattern
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to parse createdAt: " + e.getMessage());
+        }
+        return 0;
     }
 
     /**

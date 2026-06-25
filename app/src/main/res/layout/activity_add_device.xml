@@ -92,7 +92,8 @@
                         android:textSize="14sp"
                         android:minHeight="48dp"
                         android:padding="8dp"
-                        style="@style/Widget.AppCompat.Button.Colored" />
+                        android:backgroundTint="@color/brand_primary"
+                        style="@style/BrandPrimaryButton" />
 
                     <Button
                         android:id="@+id/btn_gallery_scan"
@@ -104,7 +105,8 @@
                         android:textSize="14sp"
                         android:minHeight="48dp"
                         android:padding="8dp"
-                        style="@style/Widget.AppCompat.Button.Colored" />
+                        android:backgroundTint="@color/brand_primary"
+                        style="@style/BrandPrimaryButton" />
                 </LinearLayout>
             </LinearLayout>
 

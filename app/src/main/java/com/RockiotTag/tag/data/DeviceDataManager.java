@@ -7,7 +7,7 @@ import com.RockiotTag.tag.util.LogUtil;
 
 import com.RockiotTag.tag.ApiConfig;
 import com.RockiotTag.tag.DatabaseHelper;
-import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.NewApiService;
 import com.RockiotTag.tag.SharedPreferencesManager;
 import com.RockiotTag.tag.UnboundDeviceManager;
@@ -27,8 +27,8 @@ public class DeviceDataManager {
     private static final String TAG = "DeviceDataManager";
     
     public interface DeviceDataCallback {
-        void onDevicesSynced(List<Device> devices);
-        void onDeviceInfoUpdated(Device device, NewApiService.DeviceInfo info);
+        void onDevicesSynced(List<TagDevice> devices);
+        void onDeviceInfoUpdated(TagDevice device, NewApiService.DeviceInfo info);
         void onError(String error);
     }
     
@@ -60,7 +60,7 @@ public class DeviceDataManager {
      */
     public void syncDevicesFromApi() {
         // 使用默认的服务器URL（12位设备号的服务器）
-        NewApiService.setApiBaseUrl(ApiConfig.SERVER_URL_12BIT);
+        String baseUrl = ApiConfig.SERVER_URL_12BIT;
         
         new Thread(() -> {
             try {
@@ -68,11 +68,11 @@ public class DeviceDataManager {
                 
                 // 同步数据
                 LogUtil.d(TAG, "Syncing data from vendor API...");
-                NewApiService.ApiResponse syncResponse = apiService.syncAll();
+                NewApiService.ApiResponse syncResponse = apiService.syncAll(baseUrl);
                 LogUtil.d(TAG, "Sync response: " + (syncResponse != null ? syncResponse.isSuccess() : "null"));
                 
                 LogUtil.d(TAG, "Fetching bound devices from API...");
-                List<NewApiService.DeviceInfo> apiDevices = apiService.getBoundDeviceList();
+                List<NewApiService.DeviceInfo> apiDevices = apiService.getBoundDeviceList(baseUrl);
                 LogUtil.d(TAG, "Found " + apiDevices.size() + " devices from API");
                 
                 if (apiDevices.isEmpty()) {
@@ -81,7 +81,7 @@ public class DeviceDataManager {
                     return;
                 }
                 
-                final List<Device> syncedDevices = new ArrayList<>();
+                final List<TagDevice> syncedDevices = new ArrayList<>();
                 int skippedCount = 0;
                 
                 for (NewApiService.DeviceInfo info : apiDevices) {
@@ -96,7 +96,7 @@ public class DeviceDataManager {
                     }
                     
                     if (!databaseHelper.isDeviceBound(deviceId)) {
-                        Device device = new Device(deviceId, 
+                        TagDevice device = new TagDevice(deviceId, 
                             info.nickName != null ? info.nickName : "设备" + info.deviceNum);
                         device.setDeviceNum(info.deviceNum);
                         device.setLatitude(info.latitude);
@@ -106,7 +106,7 @@ public class DeviceDataManager {
                         syncedDevices.add(device);
                         LogUtil.d(TAG, "Synced new device: " + device.getName());
                     } else {
-                        Device existingDevice = databaseHelper.getDevice(deviceId);
+                        TagDevice existingDevice = databaseHelper.getDevice(deviceId);
                         if (existingDevice != null) {
                             if (existingDevice.getDeviceNum() == null) {
                                 existingDevice.setDeviceNum(info.deviceNum);
@@ -145,17 +145,17 @@ public class DeviceDataManager {
                 LogUtil.d(TAG, "Fetching device info for: " + deviceNum);
                 
                 // 根据设备号长度设置对应的API URL
-                NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNum));
+                String baseUrl = ApiConfig.getMyServerUrl(deviceNum);
                 
-                NewApiService.DeviceInfo deviceInfo = apiService.getDeviceLatest(deviceNum);
+                NewApiService.DeviceInfo deviceInfo = apiService.getDeviceLatest(baseUrl, deviceNum);
                 
                 if (deviceInfo == null) {
-                    deviceInfo = apiService.getDeviceInfo(deviceNum);
+                    deviceInfo = apiService.getDeviceInfo(baseUrl, deviceNum);
                 }
                 
                 if (deviceInfo != null) {
                     // 更新本地数据库（只更新位置和电量，不覆盖昵称）
-                    Device device = databaseHelper.getDevice(deviceNum);
+                    TagDevice device = databaseHelper.getDevice(deviceNum);
                     if (device != null) {
                         // 昵称：保留本地昵称，不使用服务器昵称覆盖
                         device.setLatitude(deviceInfo.latitude);

@@ -1,5 +1,7 @@
 package com.RockiotTag.tag;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.animation.Animator;
 import android.animation.ValueAnimator;
 import android.app.DatePickerDialog;
@@ -24,44 +26,51 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
+import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.RockiotTag.tag.viewmodel.TrackViewModel;
 import com.RockiotTag.tag.viewmodel.TrackViewModelFactory;
 import com.RockiotTag.tag.model.LocationData;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.util.MapMarkerHelper;
 import com.RockiotTag.tag.util.GoogleMapMarkerHelper;
 import com.RockiotTag.tag.util.GeocodeHelper;
 import com.RockiotTag.tag.util.LogUtil;
 import com.RockiotTag.tag.util.SafeExecutor;
+import com.RockiotTag.tag.helper.TrackBottomNavHelper;
+import com.RockiotTag.tag.helper.TrackHelperInitializer;
+import com.RockiotTag.tag.helper.TrackViewModelObserverHelper;
 import com.RockiotTag.tag.helper.TrackDateHelper;
 import com.RockiotTag.tag.helper.TrackThemeHelper;
+import com.RockiotTag.tag.helper.TrackInfoPanelHelper;
 import com.RockiotTag.tag.helper.TrackLoadingHelper;
+import com.RockiotTag.tag.helper.TrackSyncHelper;
+import com.RockiotTag.tag.helper.TrackAutoRefreshHelper;
+import com.RockiotTag.tag.helper.TrackGeocodeHelper;
+import com.RockiotTag.tag.helper.TrackMapCleanupHelper;
+import com.RockiotTag.tag.helper.TrackRenderHelper;
+import com.RockiotTag.tag.helper.TrackDataProcessor;
+import com.RockiotTag.tag.helper.TrackEndpointHelper;
+import com.RockiotTag.tag.map.IMapAdapter;
+import com.RockiotTag.tag.map.MapAdapterFactory;
+import com.RockiotTag.tag.map.amap.AMapManager;
+import com.RockiotTag.tag.map.google.GoogleMapManager;
 
 import java.lang.ref.WeakReference;
 
 import com.amap.api.maps.AMap;
 import com.amap.api.maps.MapView;
-import com.amap.api.maps.model.BitmapDescriptorFactory;
 import com.amap.api.maps.model.LatLng;
 import com.amap.api.maps.model.Marker;
 import com.amap.api.maps.model.MarkerOptions;
 import com.amap.api.maps.model.Polyline;
 import com.amap.api.maps.model.PolylineOptions;
-import com.amap.api.services.core.LatLonPoint;
-import com.amap.api.services.geocoder.GeocodeResult;
-import com.amap.api.services.geocoder.GeocodeSearch;
-import com.amap.api.services.geocoder.GeocodeQuery;
-import com.amap.api.services.geocoder.RegeocodeAddress;
-import com.amap.api.services.geocoder.RegeocodeQuery;
-import com.amap.api.services.geocoder.RegeocodeResult;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.OnMapReadyCallback;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -71,54 +80,46 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerClickListener, OnMapReadyCallback {
+public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerClickListener {
 
     private static final String TAG = "TrackActivity";
+    private static final java.util.concurrent.ExecutorService threadPool =
+        java.util.concurrent.Executors.newFixedThreadPool(4);
     private MapView mapView;
-    private AMap aMap;
     private SupportMapFragment googleMapFragment;
-    private GoogleMap googleMap;
-    private boolean isGoogleMapMode = false; // 标记当前是否使用 Google 地图
+    private IMapAdapter mapAdapter;
+    /** 仅高德模式为 true，用于 MapView 生命周期隔离（与 MainActivity 一致） */
+    private boolean amapLifecycleStarted = false;
     private DatabaseHelper databaseHelper;
     // GeocodeSearch 已迁移到 GeocodeHelper
     private Button dateBtn;
     private Calendar selectedDate;
     private Calendar startDate;
     private Calendar endDate;
-    private Device selectedDevice;
-    
-    // 高德地图相关变量
-    private List<Marker> positionMarkers = new ArrayList<>();
-    private List<Marker> arrowMarkers = new ArrayList<>();
-    private Polyline trackPolyline;
-    
-    // Google 地图相关变量
-    private List<com.google.android.gms.maps.model.Marker> googlePositionMarkers = new ArrayList<>();
-    private List<com.google.android.gms.maps.model.Marker> googleArrowMarkers = new ArrayList<>();
-    private com.google.android.gms.maps.model.Polyline googleTrackPolyline;
-    
+    private TagDevice selectedDevice;
+
+    // 统一的地图标记和折线变量（通过 IMapAdapter 接口操作）
+    private List<Object> positionMarkers = new ArrayList<>();
+    private List<Object> arrowMarkers = new ArrayList<>();
+    private Object trackPolyline;
+
     private TextView trackPointTime;
     private TextView trackPointAddress;
-    
+
     private List<LocationData> allLocationRecords = new CopyOnWriteArrayList<>();
     private List<StayPoint> stayPoints = new CopyOnWriteArrayList<>();
     private static final double STAY_DISTANCE_THRESHOLD = 30.0; // 30 米，平衡 GPS 精度和停留点识别
     private static final double MAX_SPEED_KMH = 200.0;
-    
+
     // MVVM - 播放状态由 ViewModel 管理，这里只保留 UI 控制需要的引用
     // isPlaying, currentPlayIndex, playSpeed 都从 viewModel 获取
-    
-    // 高德地图播放相关
-    private Marker playMarker = null;
-    private Polyline playedPolyline = null;
-    private List<LatLng> playedPoints = new ArrayList<>();
+
+    // 播放相关（统一引用，通过 IMapAdapter 接口操作）
+    private Object playMarker = null;
+    private Object playedPolyline = null;
+    private List<double[]> playedPoints = new ArrayList<>();
     private ValueAnimator moveAnimator = null;
-    private LatLng currentPlayPosition = null;
-    
-    // Google 地图播放相关
-    private com.google.android.gms.maps.model.Marker googlePlayMarker = null;
-    private com.google.android.gms.maps.model.Polyline googlePlayedPolyline = null;
-    private List<com.google.android.gms.maps.model.LatLng> googlePlayedPoints = new ArrayList<>();
+    private double[] currentPlayPosition = null;
     
     // 底部导航栏
     private LinearLayout tabHome, tabList, tabTrack, tabProfile;
@@ -137,11 +138,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     
     // 加载提示对话框
     private android.app.AlertDialog loadingDialog;
-    
-    // 自动刷新相关变量
-    private Handler autoRefreshHandler;
-    private Runnable autoRefreshRunnable;
-    private static final long AUTO_REFRESH_INTERVAL = 3 * 60 * 1000; // 3分钟自动刷新（仅当天）
     
     // 缓存状态：记录哪些日期已经从服务器同步过数据（key: date string, value: boolean synced）
     private java.util.Map<String, Boolean> syncedDates = new java.util.HashMap<>();
@@ -162,6 +158,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     // Helper 类（MVVM 重构：将业务逻辑从 Activity 中分离）
     private TrackDateHelper dateHelper;
     private TrackThemeHelper themeHelper;
+    private TrackBottomNavHelper bottomNavHelper;
+    private TrackSyncHelper syncHelper;
+    private TrackAutoRefreshHelper autoRefreshHelper;
+    private TrackInfoPanelHelper trackInfoPanelHelper;
+    private TrackMapCleanupHelper.Host mapCleanupHost;
+    private TrackEndpointHelper.Host trackEndpointHost;
     private TrackLoadingHelper loadingHelper;
 
     // 兼容性字段（从 ViewModel 同步，用于遗留代码）
@@ -195,6 +197,9 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             super.onCreate(savedInstanceState);
             setContentView(R.layout.activity_track);
 
+            trackInfoPanelHelper = new TrackInfoPanelHelper(this);
+            trackInfoPanelHelper.setup();
+
             // 应用深色模式
             boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
             applyDarkMode(isDarkMode);
@@ -219,19 +224,15 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 }
             }
 
-            // 设置状态栏文本为深色（适配白色背景）
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                getWindow().getDecorView().setSystemUiVisibility(
-                    getWindow().getDecorView().getSystemUiVisibility() 
-                    | android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            }
+            // 根据深色模式设置状态栏图标颜色
+            com.RockiotTag.tag.util.StatusBarHelper.setupStatusBar(this);
 
             // 隐藏系统 ActionBar（使用自定义标题栏）
             if (getSupportActionBar() != null) {
                 getSupportActionBar().hide();
             }
 
-            databaseHelper = new DatabaseHelper(this);
+            databaseHelper = DatabaseHelper.getInstance(this);
             selectedDate = Calendar.getInstance();
 
             // 未登录时不加载设备
@@ -248,39 +249,49 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 Log.w(TAG, "No device selected in preferences");
             }
             
-            // 检查当前选择的地图提供商
-            String mapProvider = prefs.getString("map_provider", "amap");
-            isGoogleMapMode = "google".equals(mapProvider);
-            
-            // 先初始化MapView和GoogleMapFragment（无论哪种模式都需要）
+            // 按当前地图提供商只初始化对应 SDK
+            String mapProvider = MapAdapterFactory.getSavedProvider(this);
+
             mapView = findViewById(R.id.mapView);
-            mapView.onCreate(savedInstanceState);
-            
-            // 地图全屏显示，不设置padding（让地图瓦片延伸到导航栏位置）
-            // 只设置logo的底部margin，让logo不被导航栏遮挡
-            // mapView.setPadding(0, 0, 0, 0); // 不设置padding
-            
             googleMapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.googleMapFragment);
-            
-            if (isGoogleMapMode) {
-                // 隐藏高德地图，显示Google地图
-                mapView.setVisibility(View.GONE);
-                
-                if (googleMapFragment != null) {
-                    googleMapFragment.getView().setVisibility(View.VISIBLE);
-                    googleMapFragment.getMapAsync(this);
+
+            com.RockiotTag.tag.map.MapLayerController.applyLayers(mapProvider, mapView, googleMapFragment);
+            ensureOverlaysAboveMap();
+
+            amapLifecycleStarted = com.RockiotTag.tag.map.MapLayerController.isAmapProvider(mapProvider);
+            if (amapLifecycleStarted) {
+                boolean languageJustChanged = prefs.getBoolean("language_just_changed", false);
+                if (languageJustChanged) {
+                    mapView.onCreate(null);
+                } else {
+                    mapView.onCreate(savedInstanceState);
                 }
-            } else {
-                // 显示高德地图，隐藏Google地图
-                mapView.setVisibility(View.VISIBLE);
-                
-                if (googleMapFragment != null && googleMapFragment.getView() != null) {
-                    googleMapFragment.getView().setVisibility(View.GONE);
-                }
-                
-                // 初始化高德地图
-                initMap();
             }
+
+            if (MapAdapterFactory.PROVIDER_AMAP.equals(mapProvider)) {
+                mapAdapter = MapAdapterFactory.createAMapAdapter(this, mapView);
+            } else {
+                mapAdapter = MapAdapterFactory.createGoogleMapAdapter(this, googleMapFragment);
+            }
+
+            // 设置地图回调
+            mapAdapter.setCallback(new IMapAdapter.MapCallback() {
+                @Override
+                public void onMapReady() {
+                    onMapAdapterReady();
+                }
+
+                @Override
+                public void onMapClick(double latitude, double longitude) {
+                    LogUtil.d(TAG, "Map clicked at: " + latitude + ", " + longitude);
+                    if (trackInfoPanelHelper != null) {
+                        trackInfoPanelHelper.onMapAreaTap();
+                    }
+                }
+            });
+
+            // 初始化地图（高德同步完成，Google 异步回调 onMapReady）
+            mapAdapter.initMap();
 
             // 返回按钮已移除，通过底部导航栏切换
 
@@ -342,9 +353,6 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             
             // 初始化加载进度条
             loadingProgress = findViewById(R.id.loading_progress);
-            
-            // 初始化自动刷新
-            initAutoRefresh();
 
             // 底部导航栏
             tabHome = findViewById(R.id.tab_home);
@@ -356,29 +364,11 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             tabTrackIcon = findViewById(R.id.tab_track_icon);
             tabProfileIcon = findViewById(R.id.tab_profile_icon);
 
-            // 默认选中轨迹Tab
-            updateTabSelection(2);
-
-            // Tab点击事件
-            View.OnClickListener tabClickListener = v -> {
-                int tabIndex;
-                if (v.getId() == R.id.tab_home) tabIndex = 0;
-                else if (v.getId() == R.id.tab_list) tabIndex = 1;
-                else if (v.getId() == R.id.tab_track) tabIndex = 2;
-                else if (v.getId() == R.id.tab_profile) tabIndex = 3;
-                else return;
-
-                if (tabIndex == 2) return; // 已在轨迹页面
-
-                // 通知MainActivity切换Tab
-                MainActivity.pendingTabSwitch = tabIndex;
-                finish();
-            };
-
-            tabHome.setOnClickListener(tabClickListener);
-            tabList.setOnClickListener(tabClickListener);
-            tabTrack.setOnClickListener(tabClickListener);
-            tabProfile.setOnClickListener(tabClickListener);
+            bottomNavHelper = new TrackBottomNavHelper(
+                    this, tabHome, tabList, tabTrack, tabProfile,
+                    tabHomeIcon, tabListIcon, tabTrackIcon, tabProfileIcon);
+            bottomNavHelper.initBottomNavigation();
+            ensureOverlaysAboveMap();
             
             // MVVM - 初始化 ViewModel（关键修复：确保在设置观察者之前初始化）
             try {
@@ -398,13 +388,13 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             initHelpers();
 
             checkAndCleanOldTrackData();
-            
+
             // 关键修复：延迟加载数据，确保地图完全初始化后再加载
             // 高德地图模式：地图已同步初始化，可以直接加载
             // Google 地图模式：等待 onMapReady 回调后再加载
-            if (!isGoogleMapMode) {
+            if (!mapAdapter.getProvider().equals("google")) {
                 // 高德地图模式 - 地图已初始化，可以加载数据
-                if (aMap != null) {
+                if (mapAdapter.isMapReady()) {
                     LogUtil.d(TAG, "AMap ready, loading track data immediately");
                     // 关键修复：增加安全检查，确保有选中的设备
                     if (selectedDevice != null) {
@@ -418,7 +408,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                     Log.e(TAG, "AMap is null after initMap, retrying...");
                     // 如果地图仍未初始化，延迟重试
                     new Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                        if (aMap != null && !isFinishing() && !isDestroyed()) {
+                        if (mapAdapter.isMapReady() && !isFinishing() && !isDestroyed()) {
                             LogUtil.d(TAG, "Retrying loadTrackData after delay");
                             if (selectedDevice != null) {
                                 loadTrackData(true);
@@ -440,68 +430,58 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     protected void onDestroy() {
         try {
             super.onDestroy();
-            
+
             // 停止自动刷新
             stopAutoRefresh();
-            
+
             // 1. 停止播放并清理状态
             stopPlayback();
-            
+
             // 2. 停止并清理动画
             if (moveAnimator != null) {
                 moveAnimator.cancel();
                 moveAnimator.removeAllListeners();
                 moveAnimator = null;
             }
-            
-            // 3. 清理地图资源（根据当前模式）
-            if (isGoogleMapMode) {
-                for (com.google.android.gms.maps.model.Marker marker : googlePositionMarkers) {
-                    marker.remove();
-                }
-                googlePositionMarkers.clear();
-                
-                for (com.google.android.gms.maps.model.Marker marker : googleArrowMarkers) {
-                    marker.remove();
-                }
-                googleArrowMarkers.clear();
-                
-                if (googlePlayMarker != null) googlePlayMarker.remove();
-                if (googlePlayedPolyline != null) googlePlayedPolyline.remove();
-                if (googleTrackPolyline != null) googleTrackPolyline.remove();
-                
-                googlePlayedPoints.clear();
-            } else {
-                for (Marker marker : positionMarkers) {
-                    marker.remove();
-                }
-                positionMarkers.clear();
-                
-                for (Marker marker : arrowMarkers) {
-                    marker.remove();
-                }
-                arrowMarkers.clear();
-                
-                if (playMarker != null) playMarker.remove();
-                if (playedPolyline != null) playedPolyline.remove();
-                if (trackPolyline != null) trackPolyline.remove();
-                
-                playedPoints.clear();
-                currentPlayPosition = null;
+
+            // 3. 清理地图资源（通过适配器统一清理）
+            for (Object marker : positionMarkers) {
+                mapAdapter.removeObject(marker);
             }
-            
+            positionMarkers.clear();
+
+            for (Object marker : arrowMarkers) {
+                mapAdapter.removeObject(marker);
+            }
+            arrowMarkers.clear();
+
+            if (playMarker != null) mapAdapter.removeObject(playMarker);
+            if (playedPolyline != null) mapAdapter.removeObject(playedPolyline);
+            if (trackPolyline != null) mapAdapter.removeObject(trackPolyline);
+
+            playedPoints.clear();
+            currentPlayPosition = null;
+
             // 4. 清理数据集合
             allLocationRecords.clear();
             stayPoints.clear();
-            
-            // 5. 清理 MapView
-            if (mapView != null) {
-                mapView.onDestroy();
+
+            // 5. 清理地图适配器
+            if (mapAdapter != null) {
+                mapAdapter.onDestroy();
             }
-            
-            // 6. 关闭数据库
-            if (databaseHelper != null) {
-                databaseHelper.close();
+            if (mapView != null && amapLifecycleStarted) {
+                if (!isChangingConfigurations()) {
+                    mapView.onDestroy();
+                }
+            }
+
+            // 6. 释放数据库引用（单例不 close，随进程生命周期存在）
+            databaseHelper = null;
+
+            // 7. 清理自动刷新
+            if (autoRefreshHelper != null) {
+                autoRefreshHelper.cleanup();
             }
         } catch (Exception e) {
         }
@@ -517,68 +497,75 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         }
     }
 
-    /**
-     * MVVM 重构 - 初始化所有 Helper 类
-     * 将业务逻辑委托给专门的 Helper 类，减少 Activity 代码量
-     */
     private void initHelpers() {
-        // 初始化加载 Helper
-        loadingHelper = new TrackLoadingHelper(this);
-        if (loadingProgress != null) {
-            loadingHelper.setLoadingProgress(loadingProgress);
-        }
+        TrackHelperInitializer.initHelpers(createTrackHelperHost());
+    }
 
-        // 初始化日期 Helper
-        dateHelper = new TrackDateHelper(this, new TrackDateHelper.DateCallbacks() {
-            @Override
-            public Calendar getSelectedDate() { return selectedDate; }
-            @Override
-            public void setSelectedDate(Calendar date) { selectedDate = date; }
-            @Override
-            public Calendar getStartDate() { return startDate; }
-            @Override
-            public void setStartDate(Calendar date) { startDate = date; }
-            @Override
-            public Calendar getEndDate() { return endDate; }
-            @Override
-            public void setEndDate(Calendar date) { endDate = date; }
-            @Override
-            public boolean isLoadingTrackData() { return isLoadingTrackData; }
-            @Override
-            public void setLoadingTrackData(boolean loading) { isLoadingTrackData = loading; }
-            @Override
-            public void updateDateBtnText() { TrackActivity.this.updateDateBtnText(); }
-            @Override
-            public void loadTrackData() { TrackActivity.this.loadTrackData(); }
-            @Override
-            public void stopPlayback() { TrackActivity.this.stopPlayback(); }
-        });
-
-        // 初始化主题 Helper
-        themeHelper = new TrackThemeHelper(this, new TrackThemeHelper.ThemeCallbacks() {
-            @Override
-            public boolean isGoogleMapMode() { return TrackActivity.this.isGoogleMapMode; }
-            @Override
-            public GoogleMap getGoogleMap() { return googleMap; }
-            @Override
-            public AMap getAMap() { return aMap; }
-            @Override
-            public LinearLayout getTabHome() { return tabHome; }
-            @Override
-            public LinearLayout getTabList() { return tabList; }
-            @Override
-            public LinearLayout getTabTrack() { return tabTrack; }
-            @Override
-            public LinearLayout getTabProfile() { return tabProfile; }
-            @Override
-            public ImageView getTabHomeIcon() { return tabHomeIcon; }
-            @Override
-            public ImageView getTabListIcon() { return tabListIcon; }
-            @Override
-            public ImageView getTabTrackIcon() { return tabTrackIcon; }
-            @Override
-            public ImageView getTabProfileIcon() { return tabProfileIcon; }
-        });
+    private TrackHelperInitializer.Host createTrackHelperHost() {
+        return new TrackHelperInitializer.Host() {
+            @Override public AppCompatActivity getActivity() { return TrackActivity.this; }
+            @Override public IMapAdapter getMapAdapter() { return mapAdapter; }
+            @Override public DatabaseHelper getDatabaseHelper() { return databaseHelper; }
+            @Override public TrackViewModel getViewModel() { return viewModel; }
+            @Override public TagDevice getSelectedDevice() { return selectedDevice; }
+            @Override public Calendar getSelectedDate() { return selectedDate; }
+            @Override public Calendar getStartDate() { return startDate; }
+            @Override public Calendar getEndDate() { return endDate; }
+            @Override public void setSelectedDate(Calendar date) { selectedDate = date; }
+            @Override public void setStartDate(Calendar date) { startDate = date; }
+            @Override public void setEndDate(Calendar date) { endDate = date; }
+            @Override public List<Object> getPositionMarkers() { return positionMarkers; }
+            @Override public List<Object> getArrowMarkers() { return arrowMarkers; }
+            @Override public Object getTrackPolyline() { return trackPolyline; }
+            @Override public void setTrackPolyline(Object polyline) { trackPolyline = polyline; }
+            @Override public Object getPlayedPolyline() { return playedPolyline; }
+            @Override public void setPlayedPolyline(Object polyline) { playedPolyline = polyline; }
+            @Override public Object getPlayMarker() { return playMarker; }
+            @Override public void setPlayMarker(Object marker) { playMarker = marker; }
+            @Override public List<double[]> getPlayedPoints() { return playedPoints; }
+            @Override public double[] getCurrentPlayPosition() { return currentPlayPosition; }
+            @Override public void setCurrentPlayPosition(double[] position) { currentPlayPosition = position; }
+            @Override public ValueAnimator getMoveAnimator() { return moveAnimator; }
+            @Override public void setMoveAnimator(ValueAnimator animator) { moveAnimator = animator; }
+            @Override public List<LocationData> getAllLocationRecords() { return allLocationRecords; }
+            @Override public List<StayPoint> getStayPoints() { return stayPoints; }
+            @Override public int getCurrentAccuracyThreshold() { return currentAccuracyThreshold; }
+            @Override public boolean isShowPolyline() { return showPolyline; }
+            @Override public boolean isShowMarkers() { return showMarkers; }
+            @Override public boolean isLoadingTrackData() { return isLoadingTrackData; }
+            @Override public void setLoadingTrackData(boolean loading) { isLoadingTrackData = loading; }
+            @Override public java.util.Map<String, Boolean> getSyncedDates() { return syncedDates; }
+            @Override public java.util.Map<String, Long> getLastSyncTimestamps() { return lastSyncTimestamps; }
+            @Override public java.util.concurrent.ExecutorService getThreadPool() { return threadPool; }
+            @Override public ProgressBar getLoadingProgress() { return loadingProgress; }
+            @Override public LinearLayout getTabHome() { return tabHome; }
+            @Override public LinearLayout getTabList() { return tabList; }
+            @Override public LinearLayout getTabTrack() { return tabTrack; }
+            @Override public LinearLayout getTabProfile() { return tabProfile; }
+            @Override public ImageView getTabHomeIcon() { return tabHomeIcon; }
+            @Override public ImageView getTabListIcon() { return tabListIcon; }
+            @Override public ImageView getTabTrackIcon() { return tabTrackIcon; }
+            @Override public ImageView getTabProfileIcon() { return tabProfileIcon; }
+            @Override public void setMapCleanupHost(TrackMapCleanupHelper.Host host) { mapCleanupHost = host; }
+            @Override public void setTrackEndpointHost(TrackEndpointHelper.Host host) { trackEndpointHost = host; }
+            @Override public void setLoadingHelper(TrackLoadingHelper helper) { loadingHelper = helper; }
+            @Override public void setDateHelper(TrackDateHelper helper) { dateHelper = helper; }
+            @Override public void setThemeHelper(TrackThemeHelper helper) { themeHelper = helper; }
+            @Override public void setSyncHelper(TrackSyncHelper helper) { syncHelper = helper; }
+            @Override public void setAutoRefreshHelper(TrackAutoRefreshHelper helper) { autoRefreshHelper = helper; }
+            @Override public TrackMapCleanupHelper.Host getMapCleanupHost() { return mapCleanupHost; }
+            @Override public void updateDateBtnText() { TrackActivity.this.updateDateBtnText(); }
+            @Override public void loadTrackData() { TrackActivity.this.loadTrackData(); }
+            @Override public void loadTrackDataSilently() { TrackActivity.this.loadTrackData(false); }
+            @Override public void stopPlayback() { TrackActivity.this.stopPlayback(); }
+            @Override public void hideLoading() { TrackActivity.this.hideLoading(); }
+            @Override public void hideLoadingDialog() { TrackActivity.this.hideLoadingDialog(); }
+            @Override public void showLoadingDialog() { TrackActivity.this.showLoadingDialog(); }
+            @Override public void updatePlaybackInfo(int count) { TrackActivity.this.updatePlaybackInfo(count); }
+            @Override public void clearTrackUI() { TrackActivity.this.clearTrackUI(); }
+            @Override public boolean isFinishing() { return TrackActivity.this.isFinishing(); }
+            @Override public boolean isDestroyed() { return TrackActivity.this.isDestroyed(); }
+        };
     }
 
     private void initToolbar() {
@@ -697,192 +684,41 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         renderTrack(allLocationRecords);
     }
     
-    /**
-     * MVVM - 设置 ViewModel 观察者
-     */
     private void setupViewModelObservers() {
-        LogUtil.d(TAG, "=== setupViewModelObservers() called ===");
-        
-        viewModel.getLocationRecords().observe(this, records -> {
-            LogUtil.d(TAG, "[OBSERVER] locationRecords observer triggered, records=" + (records != null ? records.size() : "null"));
-            if (records != null) {
-                List<LocationData> newRecords = new ArrayList<>();
-                for (LocationRecord record : records) {
-                    LocationData data = new LocationData();
-                    data.setId(record.getId());
-                    data.setDeviceId(record.getDeviceId());
-                    data.setLatitude(record.getLatitude());
-                    data.setLongitude(record.getLongitude());
-                    data.setTimestamp(record.getTimestamp());
-                    newRecords.add(data);
-                }
-                
-                synchronized (allLocationRecords) {
-                    allLocationRecords.clear();
-                    allLocationRecords.addAll(newRecords);
-                }
-                LogUtil.d(TAG, "[OBSERVER] allLocationRecords updated, size=" + allLocationRecords.size());
+        TrackViewModelObserverHelper.setupObservers(createTrackObserverHost());
+    }
+
+    private TrackViewModelObserverHelper.Host createTrackObserverHost() {
+        return new TrackViewModelObserverHelper.Host() {
+            @Override public LifecycleOwner getLifecycleOwner() { return TrackActivity.this; }
+            @Override public AppCompatActivity getActivity() { return TrackActivity.this; }
+            @Override public TrackViewModel getViewModel() { return viewModel; }
+            @Override public List<LocationData> getAllLocationRecords() { return allLocationRecords; }
+            @Override public List<StayPoint> getStayPoints() { return stayPoints; }
+            @Override public int getCurrentAccuracyThreshold() { return currentAccuracyThreshold; }
+            @Override public boolean isLoadingTrackData() { return isLoadingTrackData; }
+            @Override public void setLoadingTrackData(boolean loading) { isLoadingTrackData = loading; }
+            @Override public ProgressBar getLoadingProgress() { return loadingProgress; }
+            @Override public TagDevice getSelectedDevice() { return selectedDevice; }
+            @Override public void renderTrack(List<LocationData> records) { TrackActivity.this.renderTrack(records); }
+            @Override public void clearTrackUI() { TrackActivity.this.clearTrackUI(); }
+            @Override public void updatePlaybackInfo(int count) { TrackActivity.this.updatePlaybackInfo(count); }
+            @Override public void hideLoading() { TrackActivity.this.hideLoading(); }
+            @Override public void showLoadingDialog() { TrackActivity.this.showLoadingDialog(); }
+            @Override public void syncTrackDataFromServerAndReload(String deviceNum, long startTime, long endTime) {
+                TrackActivity.this.syncTrackDataFromServerAndReload(deviceNum, startTime, endTime);
             }
-        });
-        
-        viewModel.getStayPoints().observe(this, stays -> {
-            LogUtil.d(TAG, "[OBSERVER] stayPoints observer triggered, stays=" + (stays != null ? stays.size() : "null") + ", allLocationRecords=" + allLocationRecords.size());
-            if (stays != null) {
-                List<StayPoint> finalStayPoints;
-                finalStayPoints = viewModel.generateStayPointsFromRecordsWithAccuracy(
-                    new ArrayList<>(allLocationRecords), currentAccuracyThreshold);
-                LogUtil.d(TAG, "[OBSERVER] Generated stay points with threshold " + currentAccuracyThreshold + "m, count=" + finalStayPoints.size());
-                
-                synchronized (stayPoints) {
-                    stayPoints.clear();
-                    stayPoints.addAll(finalStayPoints);
-                }
-                
-                synchronized (allLocationRecords) {
-                    if (!allLocationRecords.isEmpty()) {
-                        if (!isFinishing() && !isDestroyed()) {
-                            LogUtil.d(TAG, "[OBSERVER] Calling renderTrack with " + allLocationRecords.size() + " records");
-                            List<LocationData> recordsCopy = new ArrayList<>(allLocationRecords);
-                            renderTrack(recordsCopy);
-                        } else {
-                            Log.w(TAG, "[OBSERVER] Activity is finishing/destroyed, skip renderTrack");
-                            isLoadingTrackData = false;
-                            LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (activity destroyed)");
-                        }
-                    } else {
-                        LogUtil.d(TAG, "[OBSERVER] No location records, clearing UI and hiding loading");
-                        if (!isFinishing() && !isDestroyed()) {
-                            clearTrackUI();
-                            updatePlaybackInfo(0);
-                            hideLoading();
-                        }
-                        isLoadingTrackData = false;
-                        LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (no records)");
-                    }
-                }
-            } else {
-                Log.w(TAG, "[OBSERVER] stays is null");
-                isLoadingTrackData = false;
-                LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (stays null)");
-            }
-        });
-        
-        viewModel.getIsLoading().observe(this, isLoading -> {
-            LogUtil.d(TAG, "[OBSERVER] isLoading observer triggered, isLoading=" + isLoading);
-            if (loadingProgress != null) {
-                loadingProgress.setVisibility(isLoading ? View.VISIBLE : View.GONE);
-            }
-        });
-        
-        viewModel.getNeedsServerSync().observe(this, params -> {
-            LogUtil.d(TAG, "[OBSERVER] needsServerSync observer triggered, params=" + (params != null ? params.deviceNum : "null"));
-            if (params != null && selectedDevice != null) {
-                isLoadingTrackData = false;
-                LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (needsServerSync)");
-                showLoadingDialog();
-                String deviceNum = params.deviceNum;
-                if (selectedDevice.getDeviceNum() != null) {
-                    deviceNum = selectedDevice.getDeviceNum();
-                }
-                LogUtil.d(TAG, "[OBSERVER] Calling syncTrackDataFromServerAndReload for device=" + deviceNum);
-                syncTrackDataFromServerAndReload(deviceNum, params.startTime, params.endTime);
-            }
-        });
-        
-        viewModel.getErrorMessage().observe(this, error -> {
-            if (error != null && !error.isEmpty()) {
-                Log.e(TAG, "[OBSERVER] errorMessage: " + error);
-            }
-        });
-        
-        viewModel.getIsSyncingFromServer().observe(this, isSyncing -> {
-            LogUtil.d(TAG, "[OBSERVER] isSyncingFromServer observer triggered, isSyncing=" + isSyncing);
-        });
-        
-        viewModel.getIsPlaying().observe(this, playing -> {
-            isPlaying = playing;
-        });
-        
-        viewModel.getCurrentPlayIndex().observe(this, index -> {
-            currentPlayIndex = index;
-        });
-        
-        viewModel.getPlaySpeed().observe(this, speed -> {
-            playSpeed = speed;
-        });
+            @Override public void setIsPlaying(boolean playing) { isPlaying = playing; }
+            @Override public void setCurrentPlayIndex(int index) { currentPlayIndex = index; }
+            @Override public void setPlaySpeed(int speed) { playSpeed = speed; }
+        };
     }
         
     /**
      * 只清除UI元素，保留数据用于重新渲染
      */
     private void clearTrackUI() {
-        
-        if (isGoogleMapMode) {
-            // 清理 Google 地图 Marker
-            for (com.google.android.gms.maps.model.Marker marker : googlePositionMarkers) {
-                marker.remove();
-            }
-            googlePositionMarkers.clear();
-            
-            for (com.google.android.gms.maps.model.Marker marker : googleArrowMarkers) {
-                marker.remove();
-            }
-            googleArrowMarkers.clear();
-
-            // 清理 Google 地图轨迹线
-            if (googleTrackPolyline != null) {
-                googleTrackPolyline.remove();
-                googleTrackPolyline = null;
-            }
-            
-            // 清理 Google 地图播放相关对象
-            if (googlePlayedPolyline != null) {
-                googlePlayedPolyline.remove();
-                googlePlayedPolyline = null;
-            }
-            if (googlePlayMarker != null) {
-                googlePlayMarker.remove();
-                googlePlayMarker = null;
-            }
-            googlePlayedPoints.clear();
-        } else {
-            // 清理高德地图 Marker
-            for (Marker marker : positionMarkers) {
-                marker.remove();
-            }
-            positionMarkers.clear();
-            
-            for (Marker marker : arrowMarkers) {
-                marker.remove();
-            }
-            arrowMarkers.clear();
-
-            // 清理高德地图轨迹线
-            if (trackPolyline != null) {
-                trackPolyline.remove();
-                trackPolyline = null;
-            }
-            
-            // 清理高德地图播放相关对象
-            if (playedPolyline != null) {
-                playedPolyline.remove();
-                playedPolyline = null;
-            }
-            if (playMarker != null) {
-                playMarker.remove();
-                playMarker = null;
-            }
-            playedPoints.clear();
-            currentPlayPosition = null;
-        }
-        
-        // 停止所有动画
-        if (moveAnimator != null && moveAnimator.isRunning()) {
-            moveAnimator.cancel();
-            moveAnimator = null;
-        }
-        
-        LogUtil.d(TAG, "Track UI cleared, data preserved for re-rendering");
+        if (mapCleanupHost != null) TrackMapCleanupHelper.clearTrackUI(mapCleanupHost);
     }
 
     private void startPlayback() {
@@ -894,77 +730,63 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
 
             // MVVM - 使用 ViewModel 管理播放状态
             viewModel.startPlayback();
-            
-            // 初始化地图播放标记
-            if (isGoogleMapMode) {
-                initGoogleMapPlayback();
-            } else {
-                initAMapPlayback();
-            }
+
+            // 初始化地图播放标记（统一方法）
+            initPlayback();
         } catch (Exception e) {
             Log.e(TAG, "Error in startPlayback: " + e.getMessage(), e);
             // 静默处理，不显示Toast
             viewModel.pausePlayback();
         }
     }
-    
+
     /**
-     * 初始化高德地图播放标记
+     * 初始化播放标记（合并高德和 Google 地图逻辑）
      */
-    private void initAMapPlayback() {
+    private void initPlayback() {
         if (playMarker != null) {
-            playMarker.remove();
+            mapAdapter.removeObject(playMarker);
             playMarker = null;
         }
         playedPoints.clear();
         currentPlayPosition = null;
-        
+
         StayPoint stayPoint = stayPoints.get(0);
-        LatLng startPos = CoordinateUtils.wgs84ToGcj02(stayPoint.getLatitude(), stayPoint.getLongitude());
-        currentPlayPosition = startPos;
-        
-        MarkerOptions markerOptions = new MarkerOptions()
-            .position(startPos)
-            .title(getString(R.string.play_position))
-            .icon(createPlayMarker())
-            .anchor(0.5f, 0.5f);
-        playMarker = aMap.addMarker(markerOptions);
-        playedPoints.add(startPos);
-        
-        moveToNextPoint();
-    }
-    
-    /**
-     * 初始化Google地图播放标记
-     */
-    private void initGoogleMapPlayback() {
-        if (googlePlayMarker != null) {
-            googlePlayMarker.remove();
-            googlePlayMarker = null;
-        }
-        googlePlayedPoints.clear();
-        
-        StayPoint stayPoint = stayPoints.get(0);
-        com.google.android.gms.maps.model.LatLng startPos = 
-            new com.google.android.gms.maps.model.LatLng(stayPoint.getLatitude(), stayPoint.getLongitude());
-        
-        com.google.android.gms.maps.model.MarkerOptions markerOptions = 
-            new com.google.android.gms.maps.model.MarkerOptions()
+        double lat = stayPoint.getLatitude();
+        double lng = stayPoint.getLongitude();
+        currentPlayPosition = new double[]{lat, lng};
+
+        // 创建播放标记（引擎特定：自定义 emoji 图标，IMapAdapter 接口不支持动态图标）
+        Object icon = createPlayMarker();
+        if (mapAdapter.getProvider().equals("google")) {
+            com.google.android.gms.maps.model.LatLng startPos =
+                new com.google.android.gms.maps.model.LatLng(lat, lng);
+            com.google.android.gms.maps.model.MarkerOptions markerOptions =
+                new com.google.android.gms.maps.model.MarkerOptions()
+                    .position(startPos)
+                    .title(getString(R.string.play_position))
+                    .icon((com.google.android.gms.maps.model.BitmapDescriptor) icon)
+                    .anchor(0.5f, 0.5f);
+            playMarker = ((GoogleMapManager) mapAdapter).getGoogleMap().addMarker(markerOptions);
+        } else {
+            LatLng startPos = CoordinateUtils.wgs84ToGcj02(lat, lng);
+            MarkerOptions markerOptions = new MarkerOptions()
                 .position(startPos)
                 .title(getString(R.string.play_position))
-                .icon(createPlayMarkerForGoogleMap())
+                .icon((com.amap.api.maps.model.BitmapDescriptor) icon)
                 .anchor(0.5f, 0.5f);
-        googlePlayMarker = googleMap.addMarker(markerOptions);
-        googlePlayedPoints.add(startPos);
-        
-        moveToNextPointOnGoogleMap();
+            playMarker = ((AMapManager) mapAdapter).getAMap().addMarker(markerOptions);
+        }
+        playedPoints.add(new double[]{lat, lng});
+
+        moveToNextPoint();
     }
 
     private void pausePlayback() {
         try {
             // MVVM - 使用 ViewModel 暂停播放
             viewModel.pausePlayback();
-            
+
             if (moveAnimator != null && moveAnimator.isRunning()) {
                 moveAnimator.cancel();
             }
@@ -977,7 +799,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         try {
             // MVVM - 使用 ViewModel 停止播放
             viewModel.stopPlayback();
-            
+
             // 关键修复：彻底清理动画，移除所有监听器
             if (moveAnimator != null) {
                 if (moveAnimator.isRunning()) {
@@ -987,31 +809,18 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 moveAnimator.removeAllListeners();
                 moveAnimator = null;
             }
-            
-            if (isGoogleMapMode) {
-                // 清理 Google 地图播放相关对象
-                if (googlePlayMarker != null) {
-                    googlePlayMarker.remove();
-                    googlePlayMarker = null;
-                }
-                if (googlePlayedPolyline != null) {
-                    googlePlayedPolyline.remove();
-                    googlePlayedPolyline = null;
-                }
-                googlePlayedPoints.clear();
-            } else {
-                // 清理高德地图播放相关对象
-                if (playMarker != null) {
-                    playMarker.remove();
-                    playMarker = null;
-                }
-                if (playedPolyline != null) {
-                    playedPolyline.remove();
-                    playedPolyline = null;
-                }
-                playedPoints.clear();
-                currentPlayPosition = null;
+
+            // 清理播放相关对象（通过适配器统一清理）
+            if (playMarker != null) {
+                mapAdapter.removeObject(playMarker);
+                playMarker = null;
             }
+            if (playedPolyline != null) {
+                mapAdapter.removeObject(playedPolyline);
+                playedPolyline = null;
+            }
+            playedPoints.clear();
+            currentPlayPosition = null;
         } catch (Exception e) {
             Log.e(TAG, "Error in stopPlayback: " + e.getMessage(), e);
         }
@@ -1028,85 +837,90 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             // MVVM - 从 ViewModel 获取业务逻辑数据
             StayPoint fromStayPoint = viewModel.getCurrentStayPoint();
             StayPoint toStayPoint = viewModel.getNextStayPoint();
-            
+
             if (fromStayPoint == null || toStayPoint == null) return;
-            
-            LatLng fromPos = CoordinateUtils.wgs84ToGcj02(fromStayPoint.getLatitude(), fromStayPoint.getLongitude());
-            LatLng toPos = CoordinateUtils.wgs84ToGcj02(toStayPoint.getLatitude(), toStayPoint.getLongitude());
-            
+
+            // 使用 WGS84 坐标进行插值，适配器内部处理坐标转换
+            double fromLat = fromStayPoint.getLatitude();
+            double fromLng = fromStayPoint.getLongitude();
+            double toLat = toStayPoint.getLatitude();
+            double toLng = toStayPoint.getLongitude();
+
             if (currentPlayPosition != null) {
-                fromPos = currentPlayPosition;
+                fromLat = currentPlayPosition[0];
+                fromLng = currentPlayPosition[1];
             }
-            
-            final LatLng finalFromPos = fromPos;
-            final LatLng finalToPos = toPos;
-            
+
+            final double finalFromLat = fromLat;
+            final double finalFromLng = fromLng;
+            final double finalToLat = toLat;
+            final double finalToLng = toLng;
+
             // MVVM - 使用 ViewModel 计算动画时长
             Integer playSpeed = viewModel.getPlaySpeed().getValue();
             if (playSpeed == null) playSpeed = 1;
             long duration = viewModel.calculateAnimationDuration(playSpeed);
-            
+
             moveAnimator = ValueAnimator.ofFloat(0f, 1f);
             moveAnimator.setDuration(duration);
-            
+
             moveAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
                 @Override
                 public void onAnimationUpdate(ValueAnimator animation) {
                     float fraction = animation.getAnimatedFraction();
-                    
-                    double lat = finalFromPos.latitude + (finalToPos.latitude - finalFromPos.latitude) * fraction;
-                    double lng = finalFromPos.longitude + (finalToPos.longitude - finalFromPos.longitude) * fraction;
-                    LatLng newPos = new LatLng(lat, lng);
-                    
-                    currentPlayPosition = newPos;
-                    
+
+                    double lat = finalFromLat + (finalToLat - finalFromLat) * fraction;
+                    double lng = finalFromLng + (finalToLng - finalFromLng) * fraction;
+
+                    currentPlayPosition = new double[]{lat, lng};
+
                     if (playMarker != null) {
-                        playMarker.setPosition(newPos);
+                        mapAdapter.setMarkerPosition(playMarker, lat, lng);
                     }
-                    
+
                     // 只在关键点更新相机
                     Integer currentIndex = viewModel.getCurrentPlayIndex().getValue();
                     int totalPoints = viewModel.getTotalStayPoints();
                     if (currentIndex != null && (currentIndex % 5 == 0 || currentIndex >= totalPoints - 2)) {
-                        aMap.animateCamera(com.amap.api.maps.CameraUpdateFactory.newLatLng(newPos));
+                        mapAdapter.animateCamera(lat, lng, mapAdapter.getZoomLevel());
                     }
                 }
             });
-            
+
             moveAnimator.addListener(new Animator.AnimatorListener() {
                 @Override
                 public void onAnimationStart(Animator animation) {}
-                
+
                 @Override
                 public void onAnimationEnd(Animator animation) {
                     Boolean isStillPlaying = viewModel.getIsPlaying().getValue();
                     if (isStillPlaying != null && isStillPlaying) {
                         // MVVM - 推进播放索引
                         viewModel.moveToNextPoint();
-                        currentPlayPosition = finalToPos;
-                        
-                        playedPoints.add(finalToPos);
+                        currentPlayPosition = new double[]{finalToLat, finalToLng};
+
+                        playedPoints.add(new double[]{finalToLat, finalToLng});
                         updatePlayedPolyline();
-                        
+
                         trackPointTime.setText(viewModel.getCurrentPlayFullTimeString());
-                        
+
                         // MVVM - 根据 ViewModel 判断是否需要更新地址
                         if (viewModel.shouldUpdateAddress()) {
-                            getAddressForLocation(finalToPos);
+                            getAddressForLocation(new double[]{finalToLat, finalToLng});
                         }
-                        
+
                         // 继续播放下一帧
                         moveToNextPoint();
                     }
                 }
-                
+
                 @Override
                 public void onAnimationCancel(Animator animation) {}
-                
+
                 @Override
                 public void onAnimationRepeat(Animator animation) {}
             });
-            
+
             moveAnimator.start();
         } catch (Exception e) {
             Log.e(TAG, "Error in moveToNextPoint: " + e.getMessage(), e);
@@ -1114,19 +928,17 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         }
     }
 
+    /**
+     * 更新已播放轨迹线（合并高德和 Google 地图逻辑）
+     */
     private void updatePlayedPolyline() {
-        // 优化 4: 使用 addPoint 而不是重新创建整个 Polyline
         if (playedPoints.size() > 1) {
             if (playedPolyline == null) {
                 // 第一次创建
-                PolylineOptions polylineOptions = new PolylineOptions()
-                    .addAll(playedPoints)
-                    .color(0xFFFF5722)
-                    .width(12f);
-                playedPolyline = aMap.addPolyline(polylineOptions);
+                playedPolyline = mapAdapter.drawPolyline(playedPoints, 0xFFFF5722, 12f);
             } else {
-                // 后续只添加新点（高德地图 SDK 支持动态更新）
-                playedPolyline.setPoints(playedPoints);
+                // 后续更新点
+                mapAdapter.updatePolylinePoints(playedPolyline, playedPoints);
             }
         }
     }
@@ -1137,78 +949,55 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             int totalPoints = viewModel.getTotalStayPoints();
             if (totalPoints == 0) return;
 
-            if (isGoogleMapMode) {
-                // Google 地图模式
-                googlePlayedPoints.clear();
-                for (int i = 0; i <= currentPlayIndex && i < totalPoints; i++) {
-                    double[] coords = viewModel.getStayPointCoordinates(i);
-                    if (coords != null) {
-                        // Google 地图使用 WGS84 原始坐标，不需要转换
-                        com.google.android.gms.maps.model.LatLng latLng = 
-                            new com.google.android.gms.maps.model.LatLng(coords[0], coords[1]);
-                        googlePlayedPoints.add(latLng);
-                    }
+            // 统一逻辑：使用 WGS84 坐标的 playedPoints
+            playedPoints.clear();
+            for (int i = 0; i <= currentPlayIndex && i < totalPoints; i++) {
+                double[] coords = viewModel.getStayPointCoordinates(i);
+                if (coords != null) {
+                    playedPoints.add(coords);
                 }
+            }
 
-                updatePlayedPolylineOnGoogleMap();
+            updatePlayedPolyline();
 
-                if (!googlePlayedPoints.isEmpty()) {
-                    com.google.android.gms.maps.model.LatLng latLng = googlePlayedPoints.get(googlePlayedPoints.size() - 1);
-                    
-                    if (googlePlayMarker != null) {
-                        googlePlayMarker.setPosition(latLng);
-                    } else {
-                        com.google.android.gms.maps.model.MarkerOptions markerOptions = 
+            if (!playedPoints.isEmpty()) {
+                double[] lastCoords = playedPoints.get(playedPoints.size() - 1);
+                currentPlayPosition = lastCoords;
+
+                if (playMarker != null) {
+                    mapAdapter.setMarkerPosition(playMarker, lastCoords[0], lastCoords[1]);
+                } else {
+                    // 创建播放标记（引擎特定：自定义 emoji 图标）
+                    Object icon = createPlayMarker();
+                    if (mapAdapter.getProvider().equals("google")) {
+                        com.google.android.gms.maps.model.LatLng latLng =
+                            new com.google.android.gms.maps.model.LatLng(lastCoords[0], lastCoords[1]);
+                        com.google.android.gms.maps.model.MarkerOptions markerOptions =
                             new com.google.android.gms.maps.model.MarkerOptions()
                                 .position(latLng)
                                 .title(getString(R.string.play_position))
-                                .icon(createPlayMarkerForGoogleMap())
+                                .icon((com.google.android.gms.maps.model.BitmapDescriptor) icon)
                                 .anchor(0.5f, 0.5f);
-                        googlePlayMarker = googleMap.addMarker(markerOptions);
-                    }
-                    
-                    // 完全禁用谷歌地图播放时的相机移动
-                    LogUtil.d(TAG, "Google Map - Camera move during playback COMPLETELY DISABLED");
-                    
-                    // 获取地址
-                    if (currentPlayIndex % 10 == 0) {
-                        getAddressForLocationOnGoogleMap(latLng);
-                    }
-                }
-            } else {
-                // 高德地图模式
-                playedPoints.clear();
-                for (int i = 0; i <= currentPlayIndex && i < totalPoints; i++) {
-                    double[] coords = viewModel.getStayPointCoordinates(i);
-                    if (coords != null) {
-                        LatLng latLng = CoordinateUtils.wgs84ToGcj02(coords[0], coords[1]);
-                        playedPoints.add(latLng);
-                    }
-                }
-
-                updatePlayedPolyline();
-
-                if (!playedPoints.isEmpty()) {
-                    LatLng latLng = playedPoints.get(playedPoints.size() - 1);
-                    currentPlayPosition = latLng;
-                    
-                    if (playMarker != null) {
-                        playMarker.setPosition(latLng);
+                        playMarker = ((GoogleMapManager) mapAdapter).getGoogleMap().addMarker(markerOptions);
                     } else {
+                        LatLng latLng = CoordinateUtils.wgs84ToGcj02(lastCoords[0], lastCoords[1]);
                         MarkerOptions markerOptions = new MarkerOptions()
                             .position(latLng)
                             .title(getString(R.string.play_position))
-                            .icon(createPlayMarker())
+                            .icon((com.amap.api.maps.model.BitmapDescriptor) icon)
                             .anchor(0.5f, 0.5f);
-                        playMarker = aMap.addMarker(markerOptions);
+                        playMarker = ((AMapManager) mapAdapter).getAMap().addMarker(markerOptions);
                     }
-                    
-                    aMap.animateCamera(com.amap.api.maps.CameraUpdateFactory.newLatLng(latLng));
-                    
-                    // 获取地址
-                    if (currentPlayIndex % 10 == 0 || isStayPointAt(currentPlayIndex)) {
-                        getAddressForLocation(latLng);
-                    }
+                }
+
+                // 相机移动（Google 地图的 animateCamera 在 GoogleMapManager 中已禁用自动移动）
+                if (!mapAdapter.getProvider().equals("google")) {
+                    mapAdapter.animateCamera(lastCoords[0], lastCoords[1], mapAdapter.getZoomLevel());
+                }
+
+                // 获取地址
+                if (currentPlayIndex % 10 == 0 || isStayPointAt(currentPlayIndex)) {
+                    getAddressForLocation(lastCoords);
                 }
             }
 
@@ -1267,170 +1056,112 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         }
     }
 
-    private com.amap.api.maps.model.BitmapDescriptor createPlayMarker() {
-        // 获取设备的 tag
-        String deviceTag = "";
-        if (selectedDevice != null && selectedDevice.getTag() != null && !selectedDevice.getTag().isEmpty()) {
-            deviceTag = selectedDevice.getTag();
-        }
-        
-        // 根据 tag 获取对应的 emoji 图标
-        String emoji = MapMarkerHelper.getTagEmoji(deviceTag);
-        
-        // 使用 emoji 绘制播放图标
-        return MapMarkerHelper.createEmojiMarker(emoji);
-    }
-    
     /**
-     * 为 Google 地图创建播放标记图标
+     * 创建播放标记图标（合并高德和 Google 地图逻辑）
+     * @return 引擎特定的 BitmapDescriptor（调用方按 getProvider() cast）
      */
-    private com.google.android.gms.maps.model.BitmapDescriptor createPlayMarkerForGoogleMap() {
+    private Object createPlayMarker() {
         // 获取设备的 tag
         String deviceTag = "";
         if (selectedDevice != null && selectedDevice.getTag() != null && !selectedDevice.getTag().isEmpty()) {
             deviceTag = selectedDevice.getTag();
         }
-        
+
         // 根据 tag 获取对应的 emoji 图标
         String emoji = MapMarkerHelper.getTagEmoji(deviceTag);
-        
-        // 使用 emoji 绘制播放图标
-        return GoogleMapMarkerHelper.createEmojiMarker(emoji);
+
+        // 使用 emoji 绘制播放图标（引擎特定）
+        if (mapAdapter.getProvider().equals("google")) {
+            return GoogleMapMarkerHelper.createEmojiMarker(emoji);
+        } else {
+            return MapMarkerHelper.createEmojiMarker(emoji);
+        }
     }
 
-    private void initMap() {
+    /**
+     * 地图适配器就绪回调（合并原 initMap 和 onMapReady 逻辑）
+     * 由 MapCallback.onMapReady() 调用，处理引擎特定的额外初始化
+     */
+    private void onMapAdapterReady() {
         try {
-            if (!isGoogleMapMode) {
-                // 高德地图模式
-                if (aMap == null) {
-                    aMap = mapView.getMap();
-                    if (aMap != null) {
-                        aMap.getUiSettings().setScaleControlsEnabled(true);
-                        aMap.getUiSettings().setZoomControlsEnabled(false);
-                        // 设置logo底部margin，让logo不被导航栏遮挡
-                        int logoMargin = dpToPx(86); // 导航栏高度
-                        aMap.getUiSettings().setLogoBottomMargin(logoMargin);
-                        // 应用深色地图样式（如果启用了深色模式）
-                        try {
-                            boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
-                            if (isDarkMode) {
-                                aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NIGHT);
+            LogUtil.d(TAG, "Map adapter ready, provider: " + mapAdapter.getProvider());
+
+            String mapProvider = MapAdapterFactory.getSavedProvider(this);
+            com.RockiotTag.tag.map.MapLayerController.applyLayers(mapProvider, mapView, googleMapFragment);
+            ensureOverlaysAboveMap();
+
+            // 应用深色地图样式
+            boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
+            mapAdapter.setDarkMapStyle(isDarkMode);
+
+            // 引擎特定的额外设置
+            if (mapAdapter.getProvider().equals("google")) {
+                // Google 地图特定设置
+                GoogleMap gm = ((GoogleMapManager) mapAdapter).getGoogleMap();
+                if (gm != null) {
+                    // 添加相机移动监听 - 检测用户手动交互
+                    gm.setOnCameraMoveStartedListener(new GoogleMap.OnCameraMoveStartedListener() {
+                        @Override
+                        public void onCameraMoveStarted(int reason) {
+                            LogUtil.d(TAG, "Camera move started, reason: " + reason);
+                            if (reason == 1) {
+                                googleMapUserInteracted = true;
+                                LogUtil.d(TAG, "User manually interacted with Google Map - auto camera moves disabled");
                             }
-                        } catch (Exception e) {
-                            Log.e(TAG, "Failed to apply dark map style: " + e.getMessage());
                         }
-                        aMap.moveCamera(com.amap.api.maps.CameraUpdateFactory.zoomTo(17));
-                        aMap.setOnMarkerClickListener(this);
-                        
-                        // 添加相机移动监听 - 检测用户手动交互并保存缩放级别
-                        aMap.setOnCameraChangeListener(new com.amap.api.maps.AMap.OnCameraChangeListener() {
-                            private boolean isProgrammaticMove = false;
-                            
-                            @Override
-                            public void onCameraChange(com.amap.api.maps.model.CameraPosition cameraPosition) {
-                                // 相机变化过程中不做处理
+                    });
+
+                    // 添加相机空闲监听 - 在相机移动结束后保存缩放级别
+                    gm.setOnCameraIdleListener(new GoogleMap.OnCameraIdleListener() {
+                        @Override
+                        public void onCameraIdle() {
+                            if (googleMapUserInteracted) {
+                                currentZoomLevel = gm.getCameraPosition().zoom;
+                                hasSavedZoomLevel = true;
+                                LogUtil.d(TAG, "Google Map - Saved zoom level after idle: " + currentZoomLevel);
                             }
-                            
-                            @Override
-                            public void onCameraChangeFinish(com.amap.api.maps.model.CameraPosition cameraPosition) {
-                                // 相机变化完成后，保存缩放级别（包括用户操作和程序操作）
-                                if (cameraPosition != null) {
-                                    currentZoomLevel = cameraPosition.zoom;
-                                    hasSavedZoomLevel = true;
-                                    LogUtil.d(TAG, "AMap - Saved zoom level: " + currentZoomLevel);
-                                }
-                            }
-                        });
-                        
-                        LogUtil.d(TAG, "AMap initialized successfully");
-                    } else {
-                        Log.e(TAG, "Failed to get AMap instance");
-                    }
-                }
-            }
-            // Google 地图在 onMapReady 中初始化
-        } catch (Exception e) {
-            Log.e(TAG, "Error in initMap: " + e.getMessage(), e);
-        }
-    }
-    
-    @Override
-    public void onMapReady(GoogleMap googleMap) {
-        try {
-            LogUtil.d(TAG, "Google Map is ready");
-            this.googleMap = googleMap;
-            
-            if (googleMap != null) {
-                googleMap.getUiSettings().setMyLocationButtonEnabled(false);
-                googleMap.getUiSettings().setCompassEnabled(true);
-                googleMap.getUiSettings().setRotateGesturesEnabled(true);
-                googleMap.getUiSettings().setTiltGesturesEnabled(true);
-                // 地图全屏显示，不设置padding（让地图瓦片延伸到导航栏位置）
-                // googleMap.setPadding(0, 0, 0, 0); // 不设置padding
-                
-                // 应用深色地图样式（如果启用了深色模式）
-                boolean isDarkMode = getSharedPreferences("app_settings", MODE_PRIVATE).getBoolean("dark_mode", false);
-                if (isDarkMode) {
-                    try {
-                        googleMap.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style_night));
-                    } catch (Exception e) {
-                        Log.e(TAG, "Failed to apply dark map style: " + e.getMessage());
-                    }
-                }
-                
-                // 完全禁用初始相机移动，让用户完全控制地图位置
-                LogUtil.d(TAG, "Google Map - Initial camera move COMPLETELY DISABLED");
-                // googleMap.moveCamera(com.google.android.gms.maps.CameraUpdateFactory.zoomTo(17));
-                
-                // 设置地图点击监听器
-                googleMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
-                    @Override
-                    public void onMapClick(com.google.android.gms.maps.model.LatLng latLng) {
-                        LogUtil.d(TAG, "Google Map clicked at: " + latLng.latitude + ", " + latLng.longitude);
-                    }
-                });
-                
-                // 添加相机移动监听 - 检测用户手动交互
-                googleMap.setOnCameraMoveStartedListener(new GoogleMap.OnCameraMoveStartedListener() {
-                    @Override
-                    public void onCameraMoveStarted(int reason) {
-                        LogUtil.d(TAG, "Camera move started, reason: " + reason);
-                        // REASON_GESTURE = 1 (用户手势)
-                        if (reason == 1) {
-                            googleMapUserInteracted = true;
-                            LogUtil.d(TAG, "User manually interacted with Google Map in TrackActivity - auto camera moves disabled");
                         }
-                    }
-                });
-                
-                // 添加相机空闲监听 - 在相机移动结束后保存缩放级别
-                googleMap.setOnCameraIdleListener(new GoogleMap.OnCameraIdleListener() {
-                    @Override
-                    public void onCameraIdle() {
-                        if (googleMap != null && googleMapUserInteracted) {
-                            currentZoomLevel = googleMap.getCameraPosition().zoom;
-                            hasSavedZoomLevel = true;
-                            LogUtil.d(TAG, "Google Map - Saved zoom level after idle: " + currentZoomLevel);
-                        }
-                    }
-                });
-                
-                LogUtil.d(TAG, "Google Map initialized successfully");
-                
-                // 关键修复：加载轨迹数据前检查是否有选中的设备
-                if (selectedDevice != null) {
-                    // 首次进入轨迹界面（Google地图），强制同步确保轨迹正确
-                    loadTrackData(true);
-                } else {
-                    Log.w(TAG, "No device selected in onMapReady, skip loadTrackData");
-                    // 静默处理，不显示Toast
+                    });
                 }
             } else {
-                Log.e(TAG, "Google Map is null in onMapReady!");
+                // 高德地图特定设置
+                AMap am = ((AMapManager) mapAdapter).getAMap();
+                if (am != null) {
+                    am.getUiSettings().setScaleControlsEnabled(true);
+                    am.getUiSettings().setZoomControlsEnabled(false);
+                    // 设置logo底部margin，让logo不被导航栏遮挡
+                    int logoMargin = dpToPx(86);
+                    am.getUiSettings().setLogoBottomMargin(logoMargin);
+                    am.setOnMarkerClickListener(this);
+
+                    // 添加相机移动监听 - 保存缩放级别
+                    am.setOnCameraChangeListener(new com.amap.api.maps.AMap.OnCameraChangeListener() {
+                        @Override
+                        public void onCameraChange(com.amap.api.maps.model.CameraPosition cameraPosition) {
+                        }
+
+                        @Override
+                        public void onCameraChangeFinish(com.amap.api.maps.model.CameraPosition cameraPosition) {
+                            if (cameraPosition != null) {
+                                currentZoomLevel = cameraPosition.zoom;
+                                hasSavedZoomLevel = true;
+                                LogUtil.d(TAG, "AMap - Saved zoom level: " + currentZoomLevel);
+                            }
+                        }
+                    });
+                }
+            }
+
+            LogUtil.d(TAG, "Map initialized successfully");
+
+            // 加载轨迹数据
+            if (selectedDevice != null) {
+                loadTrackData(true);
+            } else {
+                Log.w(TAG, "No device selected in onMapAdapterReady, skip loadTrackData");
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error in onMapReady: " + e.getMessage(), e);
-            // 静默处理，不显示Toast
+            Log.e(TAG, "Error in onMapAdapterReady: " + e.getMessage(), e);
         }
     }
     
@@ -1478,9 +1209,9 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                 if (trackPointTime != null) {
                     trackPointTime.setText(com.RockiotTag.tag.util.TimeFormatter.formatFullTime(stayPoint.getArriveTime()));
                 }
-                
-                LatLng latLng = marker.getPosition();
-                getAddressForLocation(latLng);
+
+                // 使用停留点的 WGS84 坐标获取地址
+                getAddressForLocation(new double[]{stayPoint.getLatitude(), stayPoint.getLongitude()});
                 
                 android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
                 builder.setTitle(getString(R.string.track) + " #" + stayPoint.getOriginalIndex());
@@ -1537,18 +1268,13 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     }
 
     private void loadTrackData() {
-        LogUtil.d(TAG, "=== loadTrackData() called === isGoogleMapMode=" + isGoogleMapMode);
+        LogUtil.d(TAG, "=== loadTrackData() called === provider=" + (mapAdapter != null ? mapAdapter.getProvider() : "null"));
         try {
-            if (isGoogleMapMode && googleMap == null) {
-                Log.w(TAG, "[MAP_NOT_READY] Google Map not ready yet, skip loadTrackData");
+            if (mapAdapter == null || !mapAdapter.isMapReady()) {
+                Log.w(TAG, "[MAP_NOT_READY] Map not ready yet, skip loadTrackData");
                 return;
             }
-            
-            if (!isGoogleMapMode && aMap == null) {
-                Log.w(TAG, "[MAP_NOT_READY] AMap not ready yet, skip loadTrackData");
-                return;
-            }
-            
+
             loadTrackData(false);
         } catch (Exception e) {
             Log.e(TAG, "[EXCEPTION] loadTrackData: " + e.getMessage(), e);
@@ -1655,138 +1381,43 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     }
 
     private void renderTrack(List<LocationData> locationRecords) {
-        LogUtil.d(TAG, "=== renderTrack() called === records=" + (locationRecords != null ? locationRecords.size() : "null"));
-        try {
-            if (isFinishing() || isDestroyed()) {
-                Log.w(TAG, "[RENDER_SKIP] Activity is finishing/destroyed, aborting renderTrack");
-                hideLoading();
-                isLoadingTrackData = false;
-                LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (activity state)");
-                return;
+        TrackRenderHelper.renderTrack(new TrackRenderHelper.Host() {
+            @Override public AppCompatActivity getActivity() { return TrackActivity.this; }
+            @Override public boolean isFinishing() { return TrackActivity.this.isFinishing(); }
+            @Override public boolean isDestroyed() {
+                return android.os.Build.VERSION.SDK_INT >= 17 && TrackActivity.this.isDestroyed();
             }
-            
-            LogUtil.d(TAG, "[RENDER_START] Starting track rendering");
-            showLoading();
-            
-            float zoomToPreserve = currentZoomLevel;
-            boolean shouldPreserveZoom = hasSavedZoomLevel && googleMapUserInteracted;
-            
-            if (locationRecords == null || locationRecords.isEmpty()) {
-                LogUtil.d(TAG, "[RENDER_EMPTY] No records to render, clearing UI");
-                clearTrackUI();
-                hideLoading();
-                updatePlaybackInfo(0);
-                isLoadingTrackData = false;
-                LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (no records)");
-                return;
+            @Override public IMapAdapter getMapAdapter() { return mapAdapter; }
+            @Override public TrackViewModel getViewModel() { return viewModel; }
+            @Override public List<LocationData> getAllLocationRecords() { return allLocationRecords; }
+            @Override public List<StayPoint> getStayPoints() { return stayPoints; }
+            @Override public List<Object> getPositionMarkers() { return positionMarkers; }
+            @Override public List<Object> getArrowMarkers() { return arrowMarkers; }
+            @Override public Object getTrackPolyline() { return trackPolyline; }
+            @Override public void setTrackPolyline(Object polyline) { trackPolyline = polyline; }
+            @Override public int getCurrentAccuracyThreshold() { return currentAccuracyThreshold; }
+            @Override public boolean isShowPolyline() { return showPolyline; }
+            @Override public boolean isShowMarkers() { return showMarkers; }
+            @Override public Calendar getSelectedDate() { return selectedDate; }
+            @Override public float getCurrentZoomLevel() { return currentZoomLevel; }
+            @Override public boolean hasSavedZoomLevel() { return hasSavedZoomLevel; }
+            @Override public boolean isGoogleMapUserInteracted() { return googleMapUserInteracted; }
+            @Override public TextView getTrackPointTime() { return trackPointTime; }
+            @Override public void showLoading() { TrackActivity.this.showLoading(); }
+            @Override public void hideLoading() { TrackActivity.this.hideLoading(); }
+            @Override public void setLoadingTrackData(boolean loading) { isLoadingTrackData = loading; }
+            @Override public void clearTrackUI() { TrackActivity.this.clearTrackUI(); }
+            @Override public void updatePlaybackInfo(int count) { TrackActivity.this.updatePlaybackInfo(count); }
+            @Override public void getAddressForLocation(double[] wgs84LatLng) {
+                TrackActivity.this.getAddressForLocation(wgs84LatLng);
             }
-
-            LogUtil.d(TAG, "[RENDER_DATA] Rendering " + locationRecords.size() + " records");
-            clearTrackUI();
-            
-            // 始终使用精度阈值重新计算停留点
-            if (viewModel != null) {
-                LogUtil.d(TAG, "[RENDER_ACCURACY] Applying accuracy threshold: " + currentAccuracyThreshold + "m");
-                List<StayPoint> recalculatedPoints = viewModel.generateStayPointsFromRecordsWithAccuracy(
-                    new ArrayList<>(locationRecords), currentAccuracyThreshold);
-                synchronized (stayPoints) {
-                    stayPoints.clear();
-                    stayPoints.addAll(recalculatedPoints);
-                }
-                LogUtil.d(TAG, "[RENDER_STAYPOINTS] Calculated stay points: " + stayPoints.size());
+            @Override public void correctTrackEndpointForToday() {
+                TrackActivity.this.correctTrackEndpointForToday();
             }
-            
-            LogUtil.d(TAG, "[RENDER_MAP] Map mode: " + (isGoogleMapMode ? "Google" : "AMap"));
-            if (isGoogleMapMode) {
-                renderTrackOnGoogleMap(locationRecords, locationRecords, shouldPreserveZoom, zoomToPreserve);
-            } else {
-                if (aMap == null) {
-                    Log.e(TAG, "[RENDER_ERROR] AMap is null, aborting render");
-                    hideLoading();
-                    isLoadingTrackData = false;
-                    LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (AMap null)");
-                    return;
-                }
-                
-                if (isFinishing() || isDestroyed()) {
-                    Log.w(TAG, "[RENDER_SKIP] Activity is finishing/destroyed during render");
-                    hideLoading();
-                    isLoadingTrackData = false;
-                    LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (activity state)");
-                    return;
-                }
-                
-                try {
-                    List<LocationRecord> recordList = new ArrayList<>();
-                    for (LocationData data : allLocationRecords) {
-                        recordList.add(new LocationRecord(
-                            data.getDeviceId(),
-                            data.getLatitude(),
-                            data.getLongitude(),
-                            data.getTimestamp()
-                        ));
-                    }
-                    
-                    trackPolyline = com.RockiotTag.tag.helper.TrackMapRenderer.renderTrackOnAMap(
-                        aMap,
-                        stayPoints,
-                        recordList,
-                        showPolyline,
-                        showMarkers,
-                        false,
-                        positionMarkers,
-                        arrowMarkers,
-                        currentAccuracyThreshold
-                    );
-                    
-                    LogUtil.d(TAG, "[RENDER_COMPLETE] Track rendered on AMap, polyline=" + (trackPolyline != null ? "success" : "null"));
-                    
-                    if (shouldPreserveZoom && aMap != null) {
-                        com.amap.api.maps.model.CameraPosition currentPos = aMap.getCameraPosition();
-                        if (currentPos != null) {
-                            aMap.moveCamera(com.amap.api.maps.CameraUpdateFactory.zoomTo(zoomToPreserve));
-                        }
-                    }
-                    
-                    updatePlaybackInfo(allLocationRecords.size());
-                    
-                    if (!isFinishing() && !isDestroyed()) {
-                        
-                        if (!stayPoints.isEmpty()) {
-                            StayPoint firstPoint = stayPoints.get(0);
-                            LatLng firstLatLng = CoordinateUtils.wgs84ToGcj02(firstPoint.getLatitude(), firstPoint.getLongitude());
-                            java.text.SimpleDateFormat fullTimeSdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault());
-                            trackPointTime.setText(fullTimeSdf.format(new Date(firstPoint.getArriveTime())));
-                            getAddressForLocation(firstLatLng);
-                        }
-                        
-                        if (isToday(selectedDate) && !stayPoints.isEmpty()) {
-                            correctTrackEndpointForToday();
-                        }
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "[RENDER_EXCEPTION] Error rendering on AMap: " + e.getMessage(), e);
-                    hideLoading();
-                } finally {
-                    isLoadingTrackData = false;
-                    LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (render complete)");
-                    hideLoading();
-                    LogUtil.d(TAG, "[DIALOG_HIDE] hideLoading called in renderTrack finally");
-                    LogUtil.d(TAG, "=== renderTrack() END ===");
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "[RENDER_EXCEPTION] Error in renderTrack: " + e.getMessage(), e);
-            hideLoading();
-            isLoadingTrackData = false;
-            LogUtil.d(TAG, "[LOCK_RELEASED] isLoadingTrackData set to FALSE (exception)");
-        } finally {
-            isLoadingTrackData = false;
-            hideLoading();
-        }
+        }, locationRecords);
     }
-    
-    /**
+
+        /**
      * 计算总距离（公里）
      */
     private double calculateTotalDistance() {
@@ -1794,463 +1425,30 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     }
     
     /**
-     * 根据精度阈值计算 Google Map 合适的缩放级别
-     * 确保地图视野能容纳精度半径范围
-     */
-    private float calculateGoogleMapZoomForAccuracy(int accuracyThreshold) {
-        if (accuracyThreshold <= 0) {
-            return 17.0f;
-        }
-        // 精度阈值对应的地表距离（直径 = 2 * accuracyThreshold）
-        double diameterMeters = accuracyThreshold * 2.0;
-        // Google Maps 缩放级别与可见距离的关系：
-        // zoom 17 ≈ 300m可见范围, zoom 16 ≈ 600m, zoom 15 ≈ 1200m
-        // 使用经验公式：visibleDistance ≈ 300 * 2^(17-zoom)
-        // 求解 zoom = 17 - log2(visibleDistance / 300)
-        double zoom = 17.0 - Math.log(diameterMeters / 300.0) / Math.log(2.0);
-        // 限制在合理范围内
-        zoom = Math.max(3.0f, Math.min(20.0f, zoom));
-        LogUtil.d(TAG, "Calculated Google Map zoom for accuracy " + accuracyThreshold + "m: " + String.format("%.1f", zoom));
-        return (float) zoom;
-    }
-    
-    /**
-     * 在 Google 地图上渲染轨迹
-     * @param locationRecords 位置记录列表
-     * @param filteredRecords 过滤后的位置记录列表
-     * @param shouldPreserveZoom 是否应该保持当前缩放级别
-     * @param zoomToPreserve 要保持的缩放级别
-     */
-    private void renderTrackOnGoogleMap(List<LocationData> locationRecords, List<LocationData> filteredRecords, boolean shouldPreserveZoom, float zoomToPreserve) {
-        try {
-            // 关键修复：检查googleMap是否为null，避免崩溃
-            if (googleMap == null) {
-                Log.e(TAG, "Google Map is null in renderTrackOnGoogleMap, aborting render");
-                hideLoading();
-                isLoadingTrackData = false; // 释放锁
-                return;
-            }
-            
-            // 检查Activity是否正在销毁
-            if (isFinishing() || isDestroyed()) {
-                LogUtil.d(TAG, "Activity is finishing/destroyed, skip rendering");
-                hideLoading();
-                isLoadingTrackData = false; // 释放锁
-                return;
-            }
-            
-            LogUtil.d(TAG, "Rendering track on Google Map with " + stayPoints.size() + " stay points");
-            
-            // 轨迹线使用 stayPoints（经过合并处理的停留点），更清晰
-            // Google 地图使用 WGS84 坐标，不需要转换
-            // 关键修复：过滤无效坐标（0, 0）
-            List<com.google.android.gms.maps.model.LatLng> googleLatLngList = new ArrayList<>();
-            int filteredInvalidCount = 0;
-            for (StayPoint stayPoint : stayPoints) {
-                // 过滤接近(0, 0)的无效坐标
-                if (Math.abs(stayPoint.getLatitude()) < 0.0001 && Math.abs(stayPoint.getLongitude()) < 0.0001) {
-                    Log.w(TAG, "Filtered invalid coordinate in Google Map render: lat=" + stayPoint.getLatitude() + ", lng=" + stayPoint.getLongitude());
-                    filteredInvalidCount++;
-                    continue;
-                }
-                com.google.android.gms.maps.model.LatLng latLng = 
-                    new com.google.android.gms.maps.model.LatLng(stayPoint.getLatitude(), stayPoint.getLongitude());
-                googleLatLngList.add(latLng);
-            }
-            
-            if (filteredInvalidCount > 0) {
-                LogUtil.d(TAG, "Filtered " + filteredInvalidCount + " invalid coordinates from Google Map rendering");
-            }
-
-            // 绘制轨迹线（使用 GoogleMapTrackRenderer）
-            if (googleLatLngList.size() > 1 && googleMap != null) {
-                googleTrackPolyline = com.RockiotTag.tag.util.GoogleMapTrackRenderer.drawTrackPolyline(
-                    googleMap, stayPoints);
-                if (googleTrackPolyline != null) {
-                    googleTrackPolyline.setVisible(showPolyline);
-                }
-                
-                googleArrowMarkers = com.RockiotTag.tag.util.GoogleMapTrackRenderer.addDirectionArrows(
-                    googleMap, googleLatLngList);
-            }
-
-            // 添加标记点
-            for (int i = 0; i < stayPoints.size(); i++) {
-                StayPoint stayPoint = stayPoints.get(i);
-                
-                // 优化3：精简模式下只显示起点、终点和停留点，完全隐藏普通轨迹点
-                // isSimpleMode已移除，始终显示所有点
-                if (false && !stayPoint.isStayPoint() && i != 0 && i != stayPoints.size() - 1) {
-                    LogUtil.d(TAG, "Skipping ordinary point " + i + " (simple mode)");
-                    continue;
-                }
-                
-                // 优化：始终显示起点和终点，不管距离多近（Google 地图）
-                // 判断是否为今天
-                boolean isToday = com.RockiotTag.tag.util.GoogleMapTrackRenderer.isToday(selectedDate);
-                
-                // 如果只有一个点：今天显示Start，历史日期显示End
-                if (stayPoints.size() == 1) {
-                    if (isToday) {
-                        LogUtil.d(TAG, "Only one point today on Google Map, showing Start marker");
-                        com.google.android.gms.maps.model.MarkerOptions markerOptions = 
-                            com.RockiotTag.tag.util.GoogleMapTrackRenderer.createStartEndMarkerOption(
-                                this, stayPoint, true, false);
-                        com.google.android.gms.maps.model.Marker marker = googleMap.addMarker(markerOptions);
-                        googlePositionMarkers.add(marker);
-                    } else {
-                        LogUtil.d(TAG, "Only one point in history on Google Map, showing End marker");
-                        com.google.android.gms.maps.model.MarkerOptions markerOptions = 
-                            com.RockiotTag.tag.util.GoogleMapTrackRenderer.createStartEndMarkerOption(
-                                this, stayPoint, false, true);
-                        com.google.android.gms.maps.model.Marker marker = googleMap.addMarker(markerOptions);
-                        googlePositionMarkers.add(marker);
-                    }
-                    break;
-                }
-                
-                // 优化2和4：创建标记选项，起点终点增大尺寸并设置更高层级
-                com.google.android.gms.maps.model.MarkerOptions markerOptions;
-                if (i == 0) {
-                    markerOptions = com.RockiotTag.tag.util.GoogleMapTrackRenderer.createStartEndMarkerOption(
-                        this, stayPoint, true, false);
-                } else if (i == stayPoints.size() - 1) {
-                    markerOptions = com.RockiotTag.tag.util.GoogleMapTrackRenderer.createStartEndMarkerOption(
-                        this, stayPoint, false, true);
-                } else {
-                    // 优化1：普通点使用缩小后的标记
-                    markerOptions = com.RockiotTag.tag.util.GoogleMapTrackRenderer.createNormalMarkerOption(
-                        this, stayPoint, i);
-                }
-
-                // 关键修复：在添加Marker前检查googleMap是否为null
-                if (googleMap != null) {
-                    com.google.android.gms.maps.model.Marker marker = googleMap.addMarker(markerOptions);
-                    googlePositionMarkers.add(marker);
-                } else {
-                    Log.w(TAG, "Google Map became null during marker rendering, aborting");
-                    break;
-                }
-            }
-
-            // 调整相机视角 - 首次加载时定位到设备位置，考虑精度阈值
-            if (!googleLatLngList.isEmpty() && googleMap != null) {
-                // 根据精度阈值计算合适的缩放级别
-                float accuracyZoom = calculateGoogleMapZoomForAccuracy(currentAccuracyThreshold);
-                
-                // 检查是否是用户首次交互（通过 googleMapUserInteracted 标志）
-                if (!googleMapUserInteracted) {
-                    // 首次加载，自动定位到轨迹的第一个点
-                    com.google.android.gms.maps.model.LatLng firstPoint = googleLatLngList.get(0);
-                    try {
-                        googleMap.animateCamera(
-                            com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(firstPoint, accuracyZoom));
-                        LogUtil.d(TAG, "Google Map - Auto-located to first track point with accuracy zoom: " + accuracyZoom);
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error animating camera: " + e.getMessage(), e);
-                    }
-                } else {
-                    // 用户已交互过，只移动中心点，保持当前缩放级别
-                    com.google.android.gms.maps.model.LatLng firstPoint = googleLatLngList.get(0);
-                    try {
-                        float zoomToUse = shouldPreserveZoom ? zoomToPreserve : accuracyZoom;
-                        googleMap.animateCamera(
-                            com.google.android.gms.maps.CameraUpdateFactory.newLatLngZoom(firstPoint, zoomToUse));
-                        LogUtil.d(TAG, "Google Map - User interacted, keeping zoom level: " + zoomToUse);
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error animating camera: " + e.getMessage(), e);
-                    }
-                }
-            }
-
-            updatePlaybackInfo(allLocationRecords.size());
-            
-            // 静默完成，不显示Toast（只在高德地图模式显示）
-            
-            if (!googleLatLngList.isEmpty()) {
-                LocationData firstRecord = allLocationRecords.get(0);
-                java.text.SimpleDateFormat fullTimeSdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault());
-                trackPointTime.setText(fullTimeSdf.format(new Date(firstRecord.getTimestamp())));
-                
-                // Google 地图使用 Geocoder API 获取地址
-                getAddressForLocationOnGoogleMap(googleLatLngList.get(0));
-            }
-            
-            // 优化3：如果是今天，修正轨迹终点为设备最新位置
-            if (isToday(selectedDate) && !stayPoints.isEmpty()) {
-                correctTrackEndpointForToday();
-            }
-            
-            // 隐藏加载进度条
-            hideLoading();
-            
-            // 关键修复：渲染完成后释放加载锁
-            isLoadingTrackData = false;
-        } catch (Exception e) {
-            Log.e(TAG, "Error in renderTrackOnGoogleMap: " + e.getMessage(), e);
-            hideLoading();
-            isLoadingTrackData = false; // 释放锁
-        } finally {
-            // 确保在所有情况下都释放加载锁
-            isLoadingTrackData = false;
-        }
-    }
-
-    /**
      * 完整同步轨迹数据（首次加载或强制刷新时使用）
      */
     private void syncTrackDataFromServerAndReload(final String deviceNum, final long startTime, final long endTime) {
-        LogUtil.d(TAG, "=== SYNC TRACK DATA START ===");
-        LogUtil.d(TAG, "DeviceNum: " + deviceNum);
-        LogUtil.d(TAG, "SelectedDevice ID: " + (selectedDevice != null ? selectedDevice.getDeviceId() : "null"));
-        LogUtil.d(TAG, "Time range: " + startTime + " - " + endTime);
-        
-        // 获取设备的 customerCode
-        final String savedCustomerCode = selectedDevice != null ? selectedDevice.getCustomerCode() : null;
-        LogUtil.d(TAG, "savedCustomerCode: " + savedCustomerCode);
-        
-        // 根据设备号长度设置对应的API URL
-        NewApiService.setApiBaseUrl(ApiConfig.getMyServerUrl(deviceNum));
-        
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    NewApiService apiService = NewApiService.getInstance();
-                    
-                    // 使用与MainActivity相同的策略：先尝试保存的customerCode，再遍历所有
-                    List<NewApiService.LocationInfo> locations = null;
-                    String matchedCustomerCode = null;
-                    
-                    // 1. 优先使用设备保存的customerCode
-                    if (savedCustomerCode != null && !savedCustomerCode.isEmpty()) {
-                        LogUtil.d(TAG, "Trying getLocations with saved customerCode: " + savedCustomerCode);
-                        locations = apiService.getLocations(deviceNum, startTime, endTime, savedCustomerCode);
-                        if (locations != null && !locations.isEmpty()) {
-                            matchedCustomerCode = savedCustomerCode;
-                            LogUtil.d(TAG, "Success with saved customerCode: " + savedCustomerCode + ", got " + locations.size() + " locations");
-                        } else {
-                            LogUtil.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
-                            locations = null;
-                        }
-                    }
-                    
-                    // 2. 如果保存的customerCode失败，遍历所有customerCode
-                    if (locations == null) {
-                        java.util.Map<String, ApiConfig.CustomerConfig> configs = ApiConfig.getAllCustomerConfigs();
-                        for (java.util.Map.Entry<String, ApiConfig.CustomerConfig> entry : configs.entrySet()) {
-                            String customerCode = entry.getKey();
-                            if (customerCode.equals(savedCustomerCode)) {
-                                continue; // 已经尝试过
-                            }
-                            
-                            LogUtil.d(TAG, "Trying getLocations with customerCode: " + customerCode);
-                            locations = apiService.getLocations(deviceNum, startTime, endTime, customerCode);
-                            if (locations != null && !locations.isEmpty()) {
-                                matchedCustomerCode = customerCode;
-                                LogUtil.d(TAG, "Success with customerCode: " + customerCode + ", got " + locations.size() + " locations");
-                                break;
-                            }
-                            locations = null;
-                        }
-                    }
-                    
-                    // 保存匹配的customerCode到设备
-                    if (matchedCustomerCode != null && selectedDevice != null) {
-                        if (!matchedCustomerCode.equals(selectedDevice.getCustomerCode())) {
-                            selectedDevice.setCustomerCode(matchedCustomerCode);
-                            databaseHelper.addDevice(selectedDevice);
-                            LogUtil.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
-                        }
-                    }
-                    
-                    LogUtil.d(TAG, "Got " + (locations != null ? locations.size() : 0) + " locations from server");
-                    
-                    // 添加详细日志：打印服务器返回的前3条数据
-                    if (locations != null && !locations.isEmpty()) {
-                        for (int i = 0; i < Math.min(3, locations.size()); i++) {
-                            NewApiService.LocationInfo loc = locations.get(i);
-                            LogUtil.d(TAG, "Server location[" + i + "]: lat=" + loc.latitude + ", lng=" + loc.longitude + ", ts=" + loc.timestamp);
-                        }
-                    }
-                    
-                    if (locations != null && !locations.isEmpty()) {
-                        int addedCount = 0;
-                        int skippedCount = 0;
-                        int invalidCount = 0;
-                        
-                        for (NewApiService.LocationInfo loc : locations) {
-                            LogUtil.d(TAG, "Processing location: lat=" + loc.latitude + ", lng=" + loc.longitude + ", ts=" + loc.timestamp);
-                            
-                            if (loc.latitude != 0 && loc.longitude != 0 && loc.timestamp > 0) {
-                                // 关键修复：使用 deviceNum 而不是 deviceId，确保查询时能匹配
-                                String deviceNum = selectedDevice.getDeviceNum() != null ? 
-                                    selectedDevice.getDeviceNum() : selectedDevice.getDeviceId();
-                                
-                                LocationRecord record = new LocationRecord(
-                                    deviceNum,
-                                    loc.latitude,
-                                    loc.longitude,
-                                    loc.timestamp
-                                );
-                                
-                                List<LocationRecord> existingRecords = databaseHelper.getLocationRecords(
-                                    deviceNum,
-                                    loc.timestamp - 1000,
-                                    loc.timestamp + 1000
-                                );
-                                
-                                if (existingRecords == null || existingRecords.isEmpty()) {
-                                    databaseHelper.addLocationRecord(record);
-                                    addedCount++;
-                                    LogUtil.d(TAG, "Added location record: " + loc.latitude + ", " + loc.longitude + " at " + loc.timestamp);
-                                } else {
-                                    skippedCount++;
-                                    LogUtil.d(TAG, "Skipped duplicate record at timestamp " + loc.timestamp);
-                                }
-                            } else {
-                                invalidCount++;
-                                LogUtil.d(TAG, "Skipped invalid record: lat=" + loc.latitude + ", lng=" + loc.longitude + ", ts=" + loc.timestamp);
-                            }
-                        }
-                        
-                        // 提前声明 deviceNum，供后续代码使用
-                        final String finalDeviceNum = selectedDevice.getDeviceNum() != null ? 
-                            selectedDevice.getDeviceNum() : selectedDevice.getDeviceId();
-                        
-                        final int finalAddedCount = addedCount;
-                        final int finalSkippedCount = skippedCount;
-                        final int finalInvalidCount = invalidCount;
-                        final int totalFromServer = locations.size();
-                        
-                        // 在后台线程中先转换数据并生成停留点
-                        final List<LocationData> syncedLocationData = new ArrayList<>();
-                        if (locations != null) {
-                            for (NewApiService.LocationInfo loc : locations) {
-                                if (loc.latitude != 0 && loc.longitude != 0 && loc.timestamp > 0) {
-                                    // 添加日志：记录有效数据
-                                    LogUtil.d(TAG, "Valid location: lat=" + loc.latitude + ", lng=" + loc.longitude + ", ts=" + loc.timestamp);
-                                    
-                                    LocationData data = new LocationData();
-                                    data.setDeviceId(finalDeviceNum); // 使用 finalDeviceNum 保持一致
-                                    data.setLatitude(loc.latitude);
-                                    data.setLongitude(loc.longitude);
-                                    data.setTimestamp(loc.timestamp);
-                                    syncedLocationData.add(data);
-                                } else {
-                                    // 添加日志：记录无效数据
-                                    Log.w(TAG, "Invalid location filtered: lat=" + loc.latitude + ", lng=" + loc.longitude + ", ts=" + loc.timestamp);
-                                }
-                            }
-                        }
-                        
-                        // 生成停留点
-                        final List<StayPoint> generatedStayPoints = viewModel.generateStayPointsFromRecords(syncedLocationData);
-                        
-                        final int finalSyncedCount = syncedLocationData.size();
-                        final int finalStayPointsCount = generatedStayPoints.size();
-                        
-                        LogUtil.d(TAG, "Sync summary: added=" + finalAddedCount + ", skipped=" + finalSkippedCount + ", invalid=" + finalInvalidCount + ", total=" + totalFromServer + ", syncedData=" + finalSyncedCount + ", stayPoints=" + finalStayPointsCount);
-                        
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                try {
-                                    LogUtil.d(TAG, "=== SYNC RESULT DEBUG ===");
-                                    LogUtil.d(TAG, "syncedData=" + finalSyncedCount + ", stayPoints=" + finalStayPointsCount);
-                                    LogUtil.d(TAG, "addedCount=" + finalAddedCount + ", skippedCount=" + finalSkippedCount + ", invalidCount=" + finalInvalidCount);
-                                    LogUtil.d(TAG, "totalFromServer=" + totalFromServer);
-                                    
-                                    if (finalAddedCount > 0 || finalSyncedCount > 0) {
-                                        LogUtil.d(TAG, "Server sync successful, added " + finalAddedCount + " new records");
-                                        
-                                        viewModel.setSyncingCompleted(true);
-                                        
-                                        LogUtil.d(TAG, "[RELOAD_FROM_DB] Reloading all data from database for accurate filtering");
-                                        viewModel.loadTrackData(finalDeviceNum, selectedDate);
-                                    } else {
-                                        Log.e(TAG, "NO DATA TO RENDER! finalSyncedCount=0");
-                                        
-                                        viewModel.setSyncingCompleted(false);
-                                        hideLoading();
-                                        isLoadingTrackData = false;
-                                        LogUtil.d(TAG, "No track data from server sync");
-                                        updatePlaybackInfo(0);
-                                    }
-                                } catch (Exception e) {
-                                    Log.e(TAG, "Error in sync result processing: " + e.getMessage(), e);
-                                    hideLoading();
-                                    isLoadingTrackData = false;
-                                }
-                            }
-                        });
-                    } else {
-                        LogUtil.d(TAG, "No locations returned from server");
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                try {
-                                    // 同步完成，无数据 - 隐藏加载对话框并释放锁
-                                    viewModel.setSyncingCompleted(false);
-                                    hideLoading();
-                                    isLoadingTrackData = false;
-                                    LogUtil.d(TAG, "No locations returned from server");
-                                    updatePlaybackInfo(0);
-                                } catch (Exception e) {
-                                    Log.e(TAG, "Error in no data handling: " + e.getMessage(), e);
-                                    // 确保在异常情况下也隐藏加载对话框并释放锁
-                                    hideLoading();
-                                    isLoadingTrackData = false;
-                                }
-                            }
-                        });
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error syncing track data: " + e.getMessage(), e);
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                // 同步失败 - 隐藏加载对话框并释放锁
-                                viewModel.setSyncingCompleted(false);
-                                hideLoading();
-                                isLoadingTrackData = false;
-                                Log.e(TAG, "Sync track error: " + e.getMessage());
-                            } catch (Exception ex) {
-                                Log.e(TAG, "Error in sync error handling: " + ex.getMessage(), ex);
-                                hideLoading();
-                                isLoadingTrackData = false;
-                            }
-                        }
-                    });
-                }
-            }
-        }).start();
+        if (syncHelper != null) {
+            syncHelper.syncTrackDataFromServerAndReload(deviceNum, startTime, endTime);
+        }
     }
 
     /**
-     * 获取位置地址（高德地图）
+     * 获取地址（合并高德和 Google 地图逻辑）
+     * 接受 WGS84 坐标，内部根据引擎处理坐标转换
+     * @param wgs84LatLng WGS84 坐标 [latitude, longitude]
      */
-    private void getAddressForLocation(LatLng latLng) {
-        try {
-            GeocodeHelper.reverseGeocodeWithAMap(this, latLng.latitude, latLng.longitude, 
-                new GeocodeHelper.OnGeocodeResultListener() {
-                    @Override
-                    public void onGeocodeSuccess(String address) {
-                        runOnUiThread(() -> trackPointAddress.setText(address));
-                    }
-                    
-                    @Override
-                    public void onGeocodeFailed(String error) {
-                        runOnUiThread(() -> {
-                            Log.e(TAG, "地址解析失败: " + error);
-                            trackPointAddress.setText(getString(R.string.get_address_failed));
-                        });
-                    }
-                });
-        } catch (Exception e) {
-            Log.e(TAG, "Error in getAddressForLocation: " + e.getMessage(), e);
-        }
+    private void getAddressForLocation(double[] wgs84LatLng) {
+        TrackGeocodeHelper.getAddressForLocation(new TrackGeocodeHelper.Host() {
+            @Override
+            public AppCompatActivity getActivity() { return TrackActivity.this; }
+            @Override
+            public IMapAdapter getMapAdapter() { return mapAdapter; }
+            @Override
+            public TextView getTrackPointAddress() { return trackPointAddress; }
+            @Override
+            public void runOnUiThread(Runnable runnable) { TrackActivity.this.runOnUiThread(runnable); }
+        }, wgs84LatLng);
     }
 
     private void updatePlaybackInfo(int count) {
@@ -2260,77 +1458,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     // filterAbnormalPoints 和 processStayPoints 已迁移到 TrackViewModel
 
     private void clearTrack() {
-        
-        if (isGoogleMapMode) {
-            // 清理 Google 地图 Marker
-            for (com.google.android.gms.maps.model.Marker marker : googlePositionMarkers) {
-                marker.remove();
-            }
-            googlePositionMarkers.clear();
-            
-            for (com.google.android.gms.maps.model.Marker marker : googleArrowMarkers) {
-                marker.remove();
-            }
-            googleArrowMarkers.clear();
-
-            // 清理 Google 地图轨迹线
-            if (googleTrackPolyline != null) {
-                googleTrackPolyline.remove();
-                googleTrackPolyline = null;
-            }
-            
-            // 清理 Google 地图播放相关对象
-            if (googlePlayedPolyline != null) {
-                googlePlayedPolyline.remove();
-                googlePlayedPolyline = null;
-            }
-            if (googlePlayMarker != null) {
-                googlePlayMarker.remove();
-                googlePlayMarker = null;
-            }
-            googlePlayedPoints.clear();
-        } else {
-            // 清理高德地图 Marker
-            for (Marker marker : positionMarkers) {
-                marker.remove();
-            }
-            positionMarkers.clear();
-            
-            for (Marker marker : arrowMarkers) {
-                marker.remove();
-            }
-            arrowMarkers.clear();
-
-            // 清理高德地图轨迹线
-            if (trackPolyline != null) {
-                trackPolyline.remove();
-                trackPolyline = null;
-            }
-            
-            // 清理高德地图播放相关对象
-            if (playedPolyline != null) {
-                playedPolyline.remove();
-                playedPolyline = null;
-            }
-            if (playMarker != null) {
-                playMarker.remove();
-                playMarker = null;
-            }
-            playedPoints.clear();
-            currentPlayPosition = null;
-        }
-        
-        // 5. 停止所有动画
-        if (moveAnimator != null && moveAnimator.isRunning()) {
-            moveAnimator.cancel();
-            moveAnimator = null;
-        }
-        
-        // 6. 清理轨迹数据（释放内存）
-        allLocationRecords.clear();
-        stayPoints.clear();
-        
-        LogUtil.d(TAG, "Track cleared, memory released");
+        if (mapCleanupHost != null) TrackMapCleanupHelper.clearTrack(mapCleanupHost);
     }
     
     // processStayPoints 已迁移到 TrackViewModel
@@ -2361,239 +1489,20 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
      * 从服务器同步轨迹数据
      */
     private void syncTrackFromServer(String deviceNum, long startTime, long endTime) {
-        LogUtil.d(TAG, "syncTrackFromServer: deviceNum=" + deviceNum + ", startTime=" + startTime + ", endTime=" + endTime);
-        
-        if (isFinishing() || isDestroyed()) {
-            LogUtil.d(TAG, "Activity is finishing/destroyed, skip sync");
-            viewModel.setLoading(false);
-            hideLoading();
-            isLoadingTrackData = false;
-            return;
+        if (syncHelper != null) {
+            syncHelper.syncTrackFromServer(deviceNum, startTime, endTime);
         }
-        
-        // 获取设备的 customerCode
-        final String savedCustomerCode = selectedDevice != null ? selectedDevice.getCustomerCode() : null;
-        LogUtil.d(TAG, "syncTrackFromServer savedCustomerCode: " + savedCustomerCode);
-        
-        new Thread(() -> {
-            try {
-                com.RockiotTag.tag.NewApiService apiService = com.RockiotTag.tag.NewApiService.getInstance();
-                
-                // 使用与MainActivity相同的策略：先尝试保存的customerCode，再遍历所有
-                List<com.RockiotTag.tag.NewApiService.LocationInfo> serverRecords = null;
-                String matchedCustomerCode = null;
-                
-                // 1. 优先使用设备保存的customerCode
-                if (savedCustomerCode != null && !savedCustomerCode.isEmpty()) {
-                    LogUtil.d(TAG, "Trying getLocations with saved customerCode: " + savedCustomerCode);
-                    serverRecords = apiService.getLocations(deviceNum, startTime, endTime, savedCustomerCode);
-                    if (serverRecords != null && !serverRecords.isEmpty()) {
-                        matchedCustomerCode = savedCustomerCode;
-                        LogUtil.d(TAG, "Success with saved customerCode: " + savedCustomerCode);
-                    } else {
-                        LogUtil.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
-                        serverRecords = null;
-                    }
-                }
-                
-                // 2. 如果保存的customerCode失败，遍历所有customerCode
-                if (serverRecords == null) {
-                    java.util.Map<String, com.RockiotTag.tag.ApiConfig.CustomerConfig> configs = com.RockiotTag.tag.ApiConfig.getAllCustomerConfigs();
-                    for (java.util.Map.Entry<String, com.RockiotTag.tag.ApiConfig.CustomerConfig> entry : configs.entrySet()) {
-                        String customerCode = entry.getKey();
-                        if (customerCode.equals(savedCustomerCode)) {
-                            continue; // 已经尝试过
-                        }
-                        
-                        LogUtil.d(TAG, "Trying getLocations with customerCode: " + customerCode);
-                        serverRecords = apiService.getLocations(deviceNum, startTime, endTime, customerCode);
-                        if (serverRecords != null && !serverRecords.isEmpty()) {
-                            matchedCustomerCode = customerCode;
-                            LogUtil.d(TAG, "Success with customerCode: " + customerCode);
-                            break;
-                        }
-                        serverRecords = null;
-                    }
-                }
-                
-                // 保存匹配的customerCode到设备
-                if (matchedCustomerCode != null && selectedDevice != null) {
-                    if (!matchedCustomerCode.equals(selectedDevice.getCustomerCode())) {
-                        selectedDevice.setCustomerCode(matchedCustomerCode);
-                        databaseHelper.addDevice(selectedDevice);
-                        LogUtil.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
-                    }
-                }
-                
-                LogUtil.d(TAG, "Received " + (serverRecords != null ? serverRecords.size() : 0) + " records from server");
-                
-                if (serverRecords != null && !serverRecords.isEmpty()) {
-                    // 保存到本地数据库
-                    for (com.RockiotTag.tag.NewApiService.LocationInfo info : serverRecords) {
-                        LocationRecord record = new LocationRecord(
-                            info.deviceNum,
-                            info.latitude,
-                            info.longitude,
-                            info.timestamp
-                        );
-                        databaseHelper.addLocationRecord(record);
-                    }
-                    LogUtil.d(TAG, "Saved " + serverRecords.size() + " records to local database");
-                    
-                    // 更新同步状态
-                    String dateKey = com.RockiotTag.tag.util.TimeFormatter.formatDate(selectedDate.getTimeInMillis());
-                    syncedDates.put(dateKey, true);
-                    lastSyncTimestamps.put(dateKey, System.currentTimeMillis());
-                    
-                    // 重新从本地数据库加载
-                    runOnUiThread(() -> {
-                        if (!isFinishing() && !isDestroyed()) {
-                            viewModel.loadTrackDataFromLocal(deviceNum, selectedDate);
-                        }
-                    });
-                } else {
-                    // 服务器没有数据
-                    runOnUiThread(() -> {
-                        viewModel.setLoading(false);
-                        hideLoading();
-                        isLoadingTrackData = false;
-                        if (!isFinishing() && !isDestroyed()) {
-                            clearTrackUI();
-                        }
-                    });
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error syncing from server: " + e.getMessage(), e);
-                runOnUiThread(() -> {
-                    viewModel.setLoading(false);
-                    hideLoading();
-                    isLoadingTrackData = false;
-                });
-            }
-        }).start();
     }
-    
+
     /**
      * 异步检查服务器是否有新数据（仅用于当天轨迹）
      */
     private void checkServerForNewDataAsync() {
-        if (selectedDevice == null) {
-            Log.w(TAG, "No device selected, skip server check");
-            return;
+        if (syncHelper != null) {
+            syncHelper.checkServerForNewDataAsync();
         }
-        
-        String deviceNum = selectedDevice.getDeviceNum() != null ? selectedDevice.getDeviceNum() : selectedDevice.getDeviceId();
-        final String savedCustomerCode = selectedDevice.getCustomerCode();
-        LogUtil.d(TAG, "checkServerForNewDataAsync savedCustomerCode: " + savedCustomerCode);
-        
-        new Thread(() -> {
-            try {
-                // 获取本地最新记录的时间戳
-                long startTime = getDayStartTime(selectedDate);
-                long endTime = getDayEndTime(selectedDate);
-                List<LocationRecord> localRecords = databaseHelper.getLocationRecords(deviceNum, startTime, endTime);
-                long localLatestTime = 0;
-                if (localRecords != null && !localRecords.isEmpty()) {
-                    localLatestTime = localRecords.get(localRecords.size() - 1).getTimestamp();
-                    LogUtil.d(TAG, "Local latest time: " + localLatestTime);
-                }
-                
-                // 获取服务器最新数据的时间戳 - 使用与MainActivity相同的策略
-                com.RockiotTag.tag.NewApiService apiService = com.RockiotTag.tag.NewApiService.getInstance();
-                com.RockiotTag.tag.NewApiService.DeviceInfo latestInfo = null;
-                String matchedCustomerCode = null;
-                
-                // 1. 优先使用设备保存的customerCode
-                if (savedCustomerCode != null && !savedCustomerCode.isEmpty()) {
-                    LogUtil.d(TAG, "Trying getDeviceLatest with saved customerCode: " + savedCustomerCode);
-                    latestInfo = apiService.getDeviceLatest(deviceNum, savedCustomerCode);
-                    if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
-                        matchedCustomerCode = savedCustomerCode;
-                        LogUtil.d(TAG, "Success with saved customerCode: " + savedCustomerCode);
-                    } else {
-                        LogUtil.d(TAG, "Failed with saved customerCode: " + savedCustomerCode + ", trying others...");
-                        latestInfo = null;
-                    }
-                }
-                
-                // 2. 如果保存的customerCode失败，遍历所有customerCode
-                if (latestInfo == null) {
-                    java.util.Map<String, com.RockiotTag.tag.ApiConfig.CustomerConfig> configs = com.RockiotTag.tag.ApiConfig.getAllCustomerConfigs();
-                    for (java.util.Map.Entry<String, com.RockiotTag.tag.ApiConfig.CustomerConfig> entry : configs.entrySet()) {
-                        String customerCode = entry.getKey();
-                        if (customerCode.equals(savedCustomerCode)) {
-                            continue; // 已经尝试过
-                        }
-                        
-                        LogUtil.d(TAG, "Trying getDeviceLatest with customerCode: " + customerCode);
-                        latestInfo = apiService.getDeviceLatest(deviceNum, customerCode);
-                        if (latestInfo != null && latestInfo.deviceNum != null && !latestInfo.deviceNum.isEmpty()) {
-                            matchedCustomerCode = customerCode;
-                            LogUtil.d(TAG, "Success with customerCode: " + customerCode);
-                            break;
-                        }
-                        latestInfo = null;
-                    }
-                }
-                
-                // 保存匹配的customerCode到设备
-                if (matchedCustomerCode != null && selectedDevice != null) {
-                    if (!matchedCustomerCode.equals(selectedDevice.getCustomerCode())) {
-                        selectedDevice.setCustomerCode(matchedCustomerCode);
-                        databaseHelper.addDevice(selectedDevice);
-                        LogUtil.d(TAG, "Updated device customerCode to: " + matchedCustomerCode);
-                    }
-                }
-                
-                if (latestInfo != null && latestInfo.timestamp > 0) {
-                    long serverLatestTime = latestInfo.timestamp;
-                    LogUtil.d(TAG, "Server latest time: " + serverLatestTime + ", Local latest time: " + localLatestTime);
-                    
-                    // 如果服务器有新数据（时间戳比本地新）
-                    if (serverLatestTime > localLatestTime) {
-                        LogUtil.d(TAG, "Server has new data, syncing...");
-                        runOnUiThread(() -> {
-                            if (!isFinishing() && !isDestroyed()) {
-                                showLoadingDialog();
-                                syncTrackFromServer(deviceNum, startTime, endTime);
-                            }
-                        });
-                    } else {
-                        LogUtil.d(TAG, "Server has no new data, using local cache");
-                    }
-                } else {
-                    Log.w(TAG, "Failed to get latest data from server or no timestamp");
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error checking server for new data: " + e.getMessage(), e);
-            }
-        }).start();
     }
-    
-    /**
-     * 获取一天的开始时间（00:00:00）
-     */
-    private long getDayStartTime(Calendar date) {
-        Calendar start = (Calendar) date.clone();
-        start.set(Calendar.HOUR_OF_DAY, 0);
-        start.set(Calendar.MINUTE, 0);
-        start.set(Calendar.SECOND, 0);
-        start.set(Calendar.MILLISECOND, 0);
-        return start.getTimeInMillis();
-    }
-    
-    /**
-     * 获取一天的结束时间（23:59:59）
-     */
-    private long getDayEndTime(Calendar date) {
-        Calendar end = (Calendar) date.clone();
-        end.set(Calendar.HOUR_OF_DAY, 23);
-        end.set(Calendar.MINUTE, 59);
-        end.set(Calendar.SECOND, 59);
-        end.set(Calendar.MILLISECOND, 999);
-        return end.getTimeInMillis();
-    }
-    
+
     /**
      * 显示轨迹统计信息
      */
@@ -2646,13 +1555,11 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
                                   selectedDevice.getLatitude() + ", lng=" + selectedDevice.getLongitude() +
                                   ", timestamp=" + deviceTimestamp);
                             
-                            Toast.makeText(TrackActivity.this, 
-                                getString(R.string.cleaned_track_with_current, deletedCount), 
-                                Toast.LENGTH_SHORT).show();
+                            ToastHelper.show(TrackActivity.this, 
+                                getString(R.string.cleaned_track_with_current, deletedCount));
                         } else {
-                            Toast.makeText(TrackActivity.this, 
-                                getString(R.string.cleaned_track_records, deletedCount), 
-                                Toast.LENGTH_SHORT).show();
+                            ToastHelper.show(TrackActivity.this, 
+                                getString(R.string.cleaned_track_records, deletedCount));
                         }
                         
                         loadTrackData();
@@ -2675,55 +1582,42 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     protected void onResume() {
         try {
             super.onResume();
-            mapView.onResume();
-            
+            if (mapView != null && amapLifecycleStarted) {
+                mapView.onResume();
+            }
+            if (mapAdapter != null) {
+                mapAdapter.onResume();
+            }
+
             // 启动自动刷新
             startAutoRefresh();
-            
+
             // 每次恢复时重新从数据库读取设备信息，确保获取最新的位置和时间戳
             refreshSelectedDevice();
-            
+
             // 检查地图提供商是否发生变化
             android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
-            String mapProvider = prefs.getString("map_provider", "amap");
-            boolean shouldBeGoogleMap = "google".equals(mapProvider);
-            
-            LogUtil.d(TAG, "TrackActivity onResume - Current isGoogleMapMode: " + isGoogleMapMode + ", Should be: " + shouldBeGoogleMap);
-            LogUtil.d(TAG, "TrackActivity onResume - Map provider from prefs: " + mapProvider);
-            
+            String mapProvider = MapAdapterFactory.getSavedProvider(this);
+            boolean shouldBeGoogleMap = MapAdapterFactory.PROVIDER_GOOGLE.equals(mapProvider);
+            boolean currentIsGoogle = mapAdapter != null && mapAdapter.getProvider().equals("google");
+
+            LogUtil.d(TAG, "TrackActivity onResume - Current provider: " + (mapAdapter != null ? mapAdapter.getProvider() : "null") + ", Should be: " + mapProvider);
+
             // 如果地图提供商发生变化，需要重新启动Activity
-            if (isGoogleMapMode != shouldBeGoogleMap) {
-                LogUtil.d(TAG, "Map provider changed from " + (isGoogleMapMode ? "google" : "amap") + 
+            if (currentIsGoogle != shouldBeGoogleMap) {
+                LogUtil.d(TAG, "Map provider changed from " + (currentIsGoogle ? "google" : "amap") +
                       " to " + (shouldBeGoogleMap ? "google" : "amap") + ", restarting TrackActivity...");
-                // 先停止播放，避免在重启过程中出现问题
                 stopPlayback();
                 finish();
                 startActivity(getIntent());
-                overridePendingTransition(0, 0); // 无动画切换
+                overridePendingTransition(0, 0);
                 return;
             }
-            
-            // 确保正确的地图视图可见性
-            if (isGoogleMapMode) {
-                if (mapView != null) {
-                    mapView.setVisibility(View.GONE);
-                }
-                if (googleMapFragment != null && googleMapFragment.getView() != null) {
-                    googleMapFragment.getView().setVisibility(View.VISIBLE);
-                }
-                LogUtil.d(TAG, "onResume: Showing Google Map, hiding AMap");
-                LogUtil.d(TAG, "onResume - MapView visibility: " + (mapView != null ? mapView.getVisibility() : "null"));
-                LogUtil.d(TAG, "onResume - GoogleMap visibility: " + (googleMapFragment != null && googleMapFragment.getView() != null ? googleMapFragment.getView().getVisibility() : "null"));
-            } else {
-                if (mapView != null) {
-                    mapView.setVisibility(View.VISIBLE);
-                }
-                if (googleMapFragment != null && googleMapFragment.getView() != null) {
-                    googleMapFragment.getView().setVisibility(View.GONE);
-                }
-                LogUtil.d(TAG, "onResume: Showing AMap, hiding Google Map");
-                LogUtil.d(TAG, "onResume - MapView visibility: " + (mapView != null ? mapView.getVisibility() : "null"));
-                LogUtil.d(TAG, "onResume - GoogleMap visibility: " + (googleMapFragment != null && googleMapFragment.getView() != null ? googleMapFragment.getView().getVisibility() : "null"));
+
+            com.RockiotTag.tag.map.MapLayerController.applyLayers(mapProvider, mapView, googleMapFragment);
+            ensureOverlaysAboveMap();
+            if (shouldBeGoogleMap) {
+                com.RockiotTag.tag.map.MapLayerController.showGoogleHideAmap(mapView, googleMapFragment);
             }
         } catch (Exception e) {
             Log.e(TAG, "Error in onResume: " + e.getMessage(), e);
@@ -2734,7 +1628,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         android.content.SharedPreferences prefs = getSharedPreferences("app_settings", MODE_PRIVATE);
         String selectedDeviceId = prefs.getString("selected_device_id", "");
         if (!selectedDeviceId.isEmpty()) {
-            Device device = databaseHelper.getDevice(selectedDeviceId);
+            TagDevice device = databaseHelper.getDevice(selectedDeviceId);
             if (device != null) {
                 selectedDevice = device;
                 LogUtil.d(TAG, "Refreshed device: lat=" + device.getLatitude() + 
@@ -2748,8 +1642,13 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     protected void onPause() {
         try {
             super.onPause();
-            mapView.onPause();
-            
+            if (mapView != null && amapLifecycleStarted) {
+                mapView.onPause();
+            }
+            if (mapAdapter != null) {
+                mapAdapter.onPause();
+            }
+
             // 停止自动刷新
             stopAutoRefresh();
         } catch (Exception e) {
@@ -2761,419 +1660,44 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     protected void onSaveInstanceState(Bundle outState) {
         try {
             super.onSaveInstanceState(outState);
-            mapView.onSaveInstanceState(outState);
+            if (mapView != null && amapLifecycleStarted) {
+                mapView.onSaveInstanceState(outState);
+            }
         } catch (Exception e) {
             Log.e(TAG, "Error in onSaveInstanceState: " + e.getMessage(), e);
         }
     }
     
     // ==================== Google 地图辅助方法 ====================
-    
-    /**
-     * 在 Google 地图上获取地址（使用 GeocodeHelper）
-     */
-    private void getAddressForLocationOnGoogleMap(com.google.android.gms.maps.model.LatLng latLng) {
-        try {
-            String address = GeocodeHelper.reverseGeocodeWithAndroidGeocoder(this, latLng.latitude, latLng.longitude);
-            if (address != null && !address.isEmpty()) {
-                trackPointAddress.setText(address);
-            } else {
-                trackPointAddress.setText(getString(R.string.unknown_location));
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Geocoder error: " + e.getMessage());
-            trackPointAddress.setText(getString(R.string.get_address_failed));
-        }
-    }
-    
-    /**
-     * 在 Google 地图上移动到下一个点
-     */
-    private void moveToNextPointOnGoogleMap() {
-        try {
-            if (!isPlaying || currentPlayIndex >= stayPoints.size() - 1) {
-                if (currentPlayIndex >= stayPoints.size() - 1) {
-                    pausePlayback();
-                    currentPlayIndex = stayPoints.size() - 1;
-                }
-                return;
-            }
-
-            StayPoint fromStayPoint = stayPoints.get(currentPlayIndex);
-            StayPoint toStayPoint = stayPoints.get(currentPlayIndex + 1);
-            
-            com.google.android.gms.maps.model.LatLng fromPos = 
-                new com.google.android.gms.maps.model.LatLng(fromStayPoint.getLatitude(), fromStayPoint.getLongitude());
-            com.google.android.gms.maps.model.LatLng toPos = 
-                new com.google.android.gms.maps.model.LatLng(toStayPoint.getLatitude(), toStayPoint.getLongitude());
-            
-            // 直接移动到下一个点
-            currentPlayIndex++;
-            
-            if (googlePlayMarker != null) {
-                googlePlayMarker.setPosition(toPos);
-            }
-            
-            googlePlayedPoints.add(toPos);
-            updatePlayedPolylineOnGoogleMap();
-            
-            String timeStr = com.RockiotTag.tag.util.TimeFormatter.formatFullTime(toStayPoint.getArriveTime());
-            trackPointTime.setText(timeStr);
-            
-            // 完全禁用谷歌地图的相机移动
-            LogUtil.d(TAG, "Google Map - Camera move in moveToNextPointOnGoogleMap COMPLETELY DISABLED");
-            
-            // 获取地址
-            if (currentPlayIndex % 10 == 0) {
-                getAddressForLocationOnGoogleMap(toPos);
-            }
-            
-            // 继续播放下一帧
-            if (isPlaying) {
-                moveToNextPointOnGoogleMap();
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error in moveToNextPointOnGoogleMap: " + e.getMessage(), e);
-            pausePlayback();
-        }
-    }
-    
-    /**
-     * 更新 Google 地图上的已播放轨迹线
-     */
-    private void updatePlayedPolylineOnGoogleMap() {
-        try {
-            if (googlePlayedPoints.size() > 1) {
-                if (googlePlayedPolyline == null) {
-                    // 第一次创建
-                    com.google.android.gms.maps.model.PolylineOptions polylineOptions = 
-                        new com.google.android.gms.maps.model.PolylineOptions()
-                            .addAll(googlePlayedPoints)
-                            .color(0xFFFF5722)
-                            .width(12f);
-                    googlePlayedPolyline = googleMap.addPolyline(polylineOptions);
-                } else {
-                    // 后续更新
-                    googlePlayedPolyline.setPoints(googlePlayedPoints);
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error in updatePlayedPolylineOnGoogleMap: " + e.getMessage(), e);
-        }
-    }
+    // moveToNextPointOnGoogleMap 和 updatePlayedPolylineOnGoogleMap 已合并到统一方法
 
     /**
      * 初始化自动刷新
      */
     private void initAutoRefresh() {
-        // 使用主线程的 Looper，确保 Handler 在主线程运行
-        autoRefreshHandler = new Handler(android.os.Looper.getMainLooper());
-        autoRefreshRunnable = new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    // 执行刷新操作
-                    performAutoRefresh();
-                    // 安排下一次刷新
-                    if (autoRefreshHandler != null && !isFinishing() && !isDestroyed()) {
-                        autoRefreshHandler.postDelayed(this, AUTO_REFRESH_INTERVAL);
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error in auto refresh runnable: " + e.getMessage(), e);
-                    // 发生异常时停止自动刷新
-                    stopAutoRefresh();
-                }
-            }
-        };
+        if (autoRefreshHelper != null) autoRefreshHelper.initAutoRefresh();
     }
-    
+
     /**
      * 启动自动刷新
      */
     private void startAutoRefresh() {
-        if (autoRefreshHandler != null && autoRefreshRunnable != null) {
-            // 先移除之前的回调，避免重复
-            autoRefreshHandler.removeCallbacks(autoRefreshRunnable);
-            
-            // 检查是否是今天，只有今天才启动自动刷新
-            Calendar today = Calendar.getInstance();
-            boolean isToday = (selectedDate.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
-                               selectedDate.get(Calendar.MONTH) == today.get(Calendar.MONTH) &&
-                               selectedDate.get(Calendar.DAY_OF_MONTH) == today.get(Calendar.DAY_OF_MONTH));
-            
-            if (isToday) {
-                // 延迟10秒后开始第一次自动刷新，然后每隔3分钟刷新一次
-                autoRefreshHandler.postDelayed(autoRefreshRunnable, 10000);
-                LogUtil.d(TAG, "Auto refresh started for TODAY, interval: " + (AUTO_REFRESH_INTERVAL / 1000 / 60) + " minutes");
-            } else {
-                LogUtil.d(TAG, "Auto refresh skipped: selected date is not today");
-            }
-        }
+        if (autoRefreshHelper != null) autoRefreshHelper.startAutoRefresh();
     }
-    
+
     /**
      * 停止自动刷新
      */
     private void stopAutoRefresh() {
-        if (autoRefreshHandler != null && autoRefreshRunnable != null) {
-            autoRefreshHandler.removeCallbacks(autoRefreshRunnable);
-            LogUtil.d(TAG, "Auto refresh stopped");
-        }
-    }
-    
-    /**
-     * 执行自动刷新
-     */
-    private void performAutoRefresh() {
-        try {
-            LogUtil.d(TAG, "Performing auto refresh for current date...");
-            
-            // 安全检查：确认Activity仍然有效
-            if (isFinishing() || isDestroyed()) {
-                LogUtil.d(TAG, "Activity is finishing or destroyed, skip auto refresh");
-                stopAutoRefresh();
-                return;
-            }
-            
-            // 检查必要组件是否初始化
-            if (viewModel == null || databaseHelper == null || selectedDevice == null) {
-                Log.w(TAG, "Required components not initialized, skip auto refresh");
-                return;
-            }
-            
-            // 在UI线程中执行刷新操作
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        // 再次检查Activity状态
-                        if (isFinishing() || isDestroyed()) {
-                            return;
-                        }
-                        
-                        // 静默刷新，不显示Toast（优化用户体验）
-                        LogUtil.d(TAG, "Auto refresh: loading track data silently");
-                        
-                        // 只刷新当前日期的轨迹数据（非强制同步，优先使用本地缓存）
-                        loadTrackData(false);
-                        
-                        LogUtil.d(TAG, "Auto refresh completed for date: " + selectedDate.getTime());
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error during auto refresh: " + e.getMessage(), e);
-                    }
-                }
-            });
-        } catch (Exception e) {
-            Log.e(TAG, "Error in performAutoRefresh: " + e.getMessage(), e);
-            // 发生异常时停止自动刷新，避免持续崩溃
-            stopAutoRefresh();
-        }
+        if (autoRefreshHelper != null) autoRefreshHelper.stopAutoRefresh();
     }
 
-    /**
-     * 转换 LocationRecord 列表为 LocationData 列表
-     */
-    private List<LocationData> convertToLocationDataList(List<LocationRecord> records) {
-        List<LocationData> result = new ArrayList<>();
-        if (records != null) {
-            for (LocationRecord lr : records) {
-                LocationData ld = convertToLocationData(lr);
-                if (ld != null) result.add(ld);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * 转换单个 LocationRecord 为 LocationData
-     */
-    private LocationData convertToLocationData(LocationRecord record) {
-        if (record == null) return null;
-        LocationData ld = new LocationData();
-        ld.setId(record.getId());
-        ld.setDeviceId(record.getDeviceId());
-        ld.setLatitude(record.getLatitude());
-        ld.setLongitude(record.getLongitude());
-        ld.setTimestamp(record.getTimestamp());
-        return ld;
-    }
-    
-    /**
-     * 获取设备的最新位置（用于今天的轨迹终点修正）
-     * @return 设备最新位置数据，如果没有则返回null
-     */
-    private LocationData getLatestDeviceLocation() {
-        try {
-            if (selectedDevice == null) {
-                Log.w(TAG, "No device selected for getting latest location");
-                return null;
-            }
-            
-            String deviceId = selectedDevice.getDeviceNum() != null ? 
-                selectedDevice.getDeviceNum() : selectedDevice.getDeviceId();
-            
-            // 从数据库查询设备最新的一条位置记录
-            // 使用时间范围查询最近24小时的数据
-            long endTime = System.currentTimeMillis();
-            long startTime = endTime - (24 * 60 * 60 * 1000); // 24小时前
-            List<LocationRecord> records = databaseHelper.getLocationRecords(deviceId, startTime, endTime);
-            if (records != null && !records.isEmpty()) {
-                // 按时间戳降序排序，取第一条
-                Collections.sort(records, (r1, r2) -> Long.compare(r2.getTimestamp(), r1.getTimestamp()));
-                LocationRecord latest = records.get(0);
-                
-                LocationData data = new LocationData();
-                data.setId(latest.getId());
-                data.setDeviceId(latest.getDeviceId());
-                data.setLatitude(latest.getLatitude());
-                data.setLongitude(latest.getLongitude());
-                data.setTimestamp(latest.getTimestamp());
-                
-                LogUtil.d(TAG, "Latest device location: " + latest.getLatitude() + ", " + 
-                    latest.getLongitude() + " at " + latest.getTimestamp());
-                
-                return data;
-            } else {
-                LogUtil.d(TAG, "No location records found for device: " + deviceId);
-                return null;
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error getting latest device location: " + e.getMessage(), e);
-            return null;
-        }
-    }
-    
-    /**
-     * 判断是否是今天
-     * @param calendar 要判断的日期
-     * @return true表示是今天
-     */
-    private boolean isToday(Calendar calendar) {
-        Calendar today = Calendar.getInstance();
-        return calendar.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
-               calendar.get(Calendar.MONTH) == today.get(Calendar.MONTH) &&
-               calendar.get(Calendar.DAY_OF_MONTH) == today.get(Calendar.DAY_OF_MONTH);
-    }
-    
     /**
      * 修正今天的轨迹终点为设备最新位置
-     * 如果设备的最新位置时间戳晚于停留点列表最后一个点，则用设备位置替换/追加终点
      */
     private void correctTrackEndpointForToday() {
-        try {
-            LogUtil.d(TAG, "Correcting track endpoint for today...");
-            
-            // 获取设备最新位置
-            LocationData latestLocation = getLatestDeviceLocation();
-            if (latestLocation == null) {
-                LogUtil.d(TAG, "No device location available for endpoint correction");
-                return;
-            }
-            
-            // 检查是否有停留点
-            if (stayPoints.isEmpty()) {
-                LogUtil.d(TAG, "No stay points to correct");
-                return;
-            }
-            
-            // 获取最后一个停留点
-            StayPoint lastStayPoint = stayPoints.get(stayPoints.size() - 1);
-            long lastStayPointTime = lastStayPoint.getLeaveTime() > 0 ? 
-                lastStayPoint.getLeaveTime() : lastStayPoint.getArriveTime();
-            
-            // 如果设备最新位置的时间戳晚于最后一个停留点
-            if (latestLocation.getTimestamp() > lastStayPointTime) {
-                // 关键修复：检查最新位置与最后一个停留点的距离是否超过精度阈值
-                double distanceToLastPoint = CoordinateUtils.calculateDistanceMeters(
-                    lastStayPoint.getLatitude(), lastStayPoint.getLongitude(),
-                    latestLocation.getLatitude(), latestLocation.getLongitude()
-                );
-                
-                LogUtil.d(TAG, "Device location is newer than last stay point, distance=" + 
-                    String.format("%.1f", distanceToLastPoint) + "m, accuracyThreshold=" + currentAccuracyThreshold + "m");
-                
-                if (distanceToLastPoint >= currentAccuracyThreshold) {
-                    // 距离超过精度阈值，添加为新的终点
-                    LogUtil.d(TAG, "Distance >= threshold, adding as new endpoint");
-                    
-                    StayPoint newEndPoint = new StayPoint(
-                        latestLocation.getLatitude(),
-                        latestLocation.getLongitude(),
-                        latestLocation.getTimestamp(),
-                        latestLocation.getTimestamp()
-                    );
-                    
-                    // 添加到停留点列表
-                    stayPoints.add(newEndPoint);
-                    
-                    // 添加到位置记录列表
-                    allLocationRecords.add(latestLocation);
-                } else {
-                    // 距离在精度阈值内，不添加新点，仅更新最后一个停留点的离开时间
-                    LogUtil.d(TAG, "Distance < threshold, updating last stay point leave time instead of adding new point");
-                    lastStayPoint.setLeaveTime(latestLocation.getTimestamp());
-                    
-                    // 添加到位置记录列表（保留原始数据用于回放）
-                    allLocationRecords.add(latestLocation);
-                }
-                
-                // 重新渲染轨迹（增量更新）
-                runOnUiThread(() -> {
-                    try {
-                        LogUtil.d(TAG, "Re-rendering track with corrected endpoint");
-                        
-                        if (!isGoogleMapMode && aMap != null) {
-                            // 高德地图模式：清除旧标记和轨迹线
-                            clearTrackUI();
-                            
-                            // 重新渲染
-                            List<LocationRecord> recordList = new ArrayList<>();
-                            for (LocationData data : allLocationRecords) {
-                                recordList.add(new LocationRecord(
-                                    data.getDeviceId(),
-                                    data.getLatitude(),
-                                    data.getLongitude(),
-                                    data.getTimestamp()
-                                ));
-                            }
-                            
-                            trackPolyline = com.RockiotTag.tag.helper.TrackMapRenderer.renderTrackOnAMap(
-                                aMap,
-                                stayPoints,
-                                recordList,
-                                showPolyline,
-                                showMarkers,
-                                false, // isSimpleMode已移除
-                                positionMarkers,
-                                arrowMarkers,
-                                currentAccuracyThreshold
-                            );
-                            
-                            updatePlaybackInfo(allLocationRecords.size());
-                            
-                            // 静默更新，不显示Toast
-                            LogUtil.d(TAG, "Track endpoint updated silently");
-                        } else if (isGoogleMapMode && googleMap != null) {
-                            // Google 地图模式：清除旧标记和轨迹线
-                            clearTrackUI();
-                            
-                            // 重新渲染（保持当前缩放级别）
-                            float zoomToPreserve = currentZoomLevel;
-                            boolean shouldPreserveZoom = hasSavedZoomLevel && googleMapUserInteracted;
-                            renderTrackOnGoogleMap(new ArrayList<>(allLocationRecords), new ArrayList<>(allLocationRecords), shouldPreserveZoom, zoomToPreserve);
-                            
-                            // 静默更新，不显示Toast
-                            LogUtil.d(TAG, "Track endpoint updated silently (Google Map)");
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error re-rendering track: " + e.getMessage(), e);
-                    }
-                });
-            } else {
-                LogUtil.d(TAG, "Device location is not newer than last stay point, no correction needed");
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error in correctTrackEndpointForToday: " + e.getMessage(), e);
+        if (trackEndpointHost != null) {
+            TrackEndpointHelper.correctTrackEndpointForToday(trackEndpointHost);
         }
     }
     
@@ -3184,6 +1708,31 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
             result = getResources().getDimensionPixelSize(resourceId);
         }
         return result;
+    }
+
+    /**
+     * 将浮层 UI 置于地图容器之上，避免 MapLayerController.bringToFront 遮挡 Tab 栏。
+     */
+    private void ensureOverlaysAboveMap() {
+        ViewGroup root = findViewById(R.id.track_root);
+        if (root == null) {
+            return;
+        }
+        int[] overlayIds = {
+            R.id.top_bar,
+            R.id.loading_progress,
+            R.id.toolbar_container,
+            R.id.track_info_card,
+            R.id.track_info_panel_indicator,
+            R.id.bottom_navigation
+        };
+        for (int id : overlayIds) {
+            View overlay = findViewById(id);
+            if (overlay != null) {
+                overlay.bringToFront();
+            }
+        }
+        root.invalidate();
     }
 
     /**
@@ -3208,13 +1757,11 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         TextView titleText = findViewById(R.id.title_text);
         if (titleText != null) titleText.setTextColor(onSurfaceColor);
         
-        // 工具栏容器
-        View toolbarContainer = findViewById(R.id.toolbar_container);
-        if (toolbarContainer != null) {
-            toolbarContainer.setBackgroundColor(topBarColor);
-            if (toolbarContainer instanceof ViewGroup) {
-                updateChildViewsColor((ViewGroup) toolbarContainer, onSurfaceColor, textSecColor);
-            }
+        // 轨迹页浮动按钮（统计 / 刷新）
+        com.RockiotTag.tag.util.MapFloatingButtonHelper.applyTrackScreenButtons(this, isDarkMode);
+
+        if (trackInfoPanelHelper != null) {
+            trackInfoPanelHelper.applyTheme(isDarkMode);
         }
         
         // 轨迹信息卡片
@@ -3231,7 +1778,7 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         if (bottomNav != null) bottomNav.setBackgroundColor(topBarColor);
         
         // 更新导航栏Tab文字和图标颜色
-        int selectedColor = getResources().getColor(R.color.purple_500, null);
+        int selectedColor = getResources().getColor(R.color.brand_primary, null);
         int unselectedColor = isDarkMode ? 
             getResources().getColor(R.color.dark_text_secondary, null) : 
             getResources().getColor(R.color.text_secondary, null);
@@ -3249,44 +1796,12 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
         }
         
         // 状态栏
-        if (isDarkMode) {
-            getWindow().setStatusBarColor(getResources().getColor(R.color.dark_surface, null));
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                getWindow().getDecorView().setSystemUiVisibility(
-                    getWindow().getDecorView().getSystemUiVisibility() 
-                    & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            }
-        } else {
-            getWindow().setStatusBarColor(getResources().getColor(R.color.top_bar_background, null));
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                getWindow().getDecorView().setSystemUiVisibility(
-                    getWindow().getDecorView().getSystemUiVisibility() 
-                    | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            }
-        }
+        com.RockiotTag.tag.util.StatusBarHelper.setupStatusBar(this, isDarkMode);
         
-        // 深色模式：设置地图样式（添加完善的异常处理）
+        // 深色模式：通过适配器统一设置地图样式
         try {
-            if (isGoogleMapMode) {
-                if (googleMap != null) {
-                    if (isDarkMode) {
-                        try {
-                            googleMap.setMapStyle(com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style_night));
-                        } catch (Exception e) {
-                            Log.e("TrackActivity", "Failed to apply dark map style: " + e.getMessage());
-                        }
-                    } else {
-                        googleMap.setMapStyle(null);
-                    }
-                }
-            } else {
-                if (aMap != null) {
-                    if (isDarkMode) {
-                        aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NIGHT);
-                    } else {
-                        aMap.setMapType(com.amap.api.maps.AMap.MAP_TYPE_NORMAL);
-                    }
-                }
+            if (mapAdapter != null && mapAdapter.isMapReady()) {
+                mapAdapter.setDarkMapStyle(isDarkMode);
             }
         } catch (Exception e) {
             Log.e("TrackActivity", "Error applying dark map style: " + e.getMessage());
@@ -3315,17 +1830,8 @@ public class TrackActivity extends AppCompatActivity implements AMap.OnMarkerCli
     }
 
     private void updateTabSelection(int tabIndex) {
-        if (tabHome != null) tabHome.setSelected(tabIndex == 0);
-        if (tabList != null) tabList.setSelected(tabIndex == 1);
-        if (tabTrack != null) tabTrack.setSelected(tabIndex == 2);
-        if (tabProfile != null) tabProfile.setSelected(tabIndex == 3);
-
-        int selectedColor = getResources().getColor(R.color.purple_500, null);
-        int unselectedColor = getResources().getColor(R.color.text_secondary, null);
-
-        if (tabHomeIcon != null) tabHomeIcon.setColorFilter(tabIndex == 0 ? selectedColor : unselectedColor);
-        if (tabListIcon != null) tabListIcon.setColorFilter(tabIndex == 1 ? selectedColor : unselectedColor);
-        if (tabTrackIcon != null) tabTrackIcon.setColorFilter(tabIndex == 2 ? selectedColor : unselectedColor);
-        if (tabProfileIcon != null) tabProfileIcon.setColorFilter(tabIndex == 3 ? selectedColor : unselectedColor);
+        if (bottomNavHelper != null) {
+            bottomNavHelper.updateTabSelection(tabIndex);
+        }
     }
 }

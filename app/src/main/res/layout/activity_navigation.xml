@@ -166,7 +166,7 @@
                     android:layout_width="28dp"
                     android:layout_height="28dp"
                     android:src="@drawable/ic_navi_walk"
-                    android:tint="#2196F3" />
+                    android:tint="@color/brand_primary" />
 
                 <TextView
                     android:layout_width="wrap_content"

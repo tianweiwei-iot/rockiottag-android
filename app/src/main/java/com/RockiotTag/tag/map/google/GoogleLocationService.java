@@ -62,6 +62,8 @@ public class GoogleLocationService {
             }
             return;
         }
+
+        stopLocation();
         
         try {
             LogUtil.d(TAG, "Starting Google location service...");
@@ -118,10 +120,10 @@ public class GoogleLocationService {
             if (callback != null) {
                 callback.onLocationFailed("Missing location permissions");
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Log.e(TAG, "Error starting location service: " + e.getMessage(), e);
             if (callback != null) {
-                callback.onLocationFailed(e.getMessage());
+                callback.onLocationFailed(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
             }
         }
     }
@@ -196,6 +198,7 @@ public class GoogleLocationService {
      * 释放资源
      */
     public void onDestroy() {
+        callback = null;
         stopLocation();
     }
 }

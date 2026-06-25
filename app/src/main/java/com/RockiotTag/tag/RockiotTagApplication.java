@@ -1,13 +1,19 @@
 package com.RockiotTag.tag;
 
+import android.app.Activity;
 import android.app.Application;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+
+import com.RockiotTag.tag.BuildConfig;
 import com.RockiotTag.tag.util.LogUtil;
 
 import com.RockiotTag.tag.util.GlobalExceptionHandler;
+import com.RockiotTag.tag.util.LanguageIndicatorHelper;
 import com.RockiotTag.tag.util.MemoryLeakDetector;
+import com.RockiotTag.tag.util.ToastHelper;
 
 /**
  * 应用全局Application类
@@ -23,14 +29,14 @@ public class RockiotTagApplication extends Application {
         super.onCreate();
         
         // 0. 初始化日志工具（Release 构建关闭 Log.d/v/i）
-        LogUtil.init(isDebugMode());
+        LogUtil.init(BuildConfig.DEBUG);
         
         // 1. 注册全局异常处理器
         Thread.setDefaultUncaughtExceptionHandler(new GlobalExceptionHandler(this));
         LogUtil.d(TAG, "Global exception handler registered");
         
         // 2. 注册内存泄漏检测器（仅调试模式）
-        if (isDebugMode()) {
+        if (BuildConfig.DEBUG) {
             MemoryLeakDetector.getInstance().register(this);
             LogUtil.d(TAG, "Memory leak detector registered (DEBUG mode)");
         }
@@ -42,23 +48,37 @@ public class RockiotTagApplication extends Application {
         }, 2000);
         
         LogUtil.d(TAG, "Application initialized successfully");
+
+        registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+            @Override
+            public void onActivityCreated(Activity activity, Bundle savedInstanceState) { }
+
+            @Override
+            public void onActivityStarted(Activity activity) { }
+
+            @Override
+            public void onActivityResumed(Activity activity) {
+                try {
+                    LanguageIndicatorHelper.bind(activity);
+                } catch (Throwable t) {
+                    Log.e(TAG, "LanguageIndicatorHelper.bind failed", t);
+                }
+            }
+
+            @Override
+            public void onActivityPaused(Activity activity) {
+                ToastHelper.cancel();
+            }
+
+            @Override
+            public void onActivityStopped(Activity activity) { }
+
+            @Override
+            public void onActivitySaveInstanceState(Activity activity, Bundle outState) { }
+
+            @Override
+            public void onActivityDestroyed(Activity activity) { }
+        });
     }
     
-    /**
-     * 检查是否为调试模式
-     * 避免直接使用 BuildConfig，防止编译问题
-     */
-    private boolean isDebugMode() {
-        try {
-            // 方法1: 通过反射检查
-            Class<?> buildConfigClass = Class.forName("com.RockiotTag.tag.BuildConfig");
-            Object debugField = buildConfigClass.getField("DEBUG").get(null);
-            return (Boolean) debugField;
-        } catch (Exception e) {
-            // 如果反射失败，使用替代方案
-            Log.w(TAG, "Cannot access BuildConfig.DEBUG via reflection: " + e.getMessage());
-            // 方法2: 检查应用是否可调试
-            return (getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
-        }
-    }
 }

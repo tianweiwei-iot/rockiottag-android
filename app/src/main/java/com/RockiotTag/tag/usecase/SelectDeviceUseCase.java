@@ -2,7 +2,7 @@ package com.RockiotTag.tag.usecase;
 
 import android.util.Log;
 
-import com.RockiotTag.tag.Device;
+import com.RockiotTag.tag.model.TagDevice;
 import com.RockiotTag.tag.repository.DeviceRepository;
 import com.RockiotTag.tag.util.LogUtil;
 
@@ -14,7 +14,7 @@ import com.RockiotTag.tag.util.LogUtil;
  * 2. 保存选中状态到SharedPreferences
  * 3. 返回选中的设备
  */
-public class SelectDeviceUseCase extends BaseUseCase<String, Device> {
+public class SelectDeviceUseCase extends BaseUseCase<String, TagDevice> {
     
     private static final String TAG = "SelectDeviceUseCase";
     
@@ -25,7 +25,7 @@ public class SelectDeviceUseCase extends BaseUseCase<String, Device> {
     }
     
     @Override
-    protected Device executeSync(String deviceId) throws Exception {
+    protected TagDevice executeSync(String deviceId) throws Exception {
         LogUtil.d(TAG, "Selecting device: " + deviceId);
         
         // 1. 参数验证
@@ -34,7 +34,7 @@ public class SelectDeviceUseCase extends BaseUseCase<String, Device> {
         }
         
         // 2. 从数据库获取设备（先尝试 deviceId，再尝试 deviceNum）
-        Device device = deviceRepository.getDeviceById(deviceId);
+        TagDevice device = deviceRepository.getDeviceById(deviceId);
         
         // 如果通过 deviceId 找不到，尝试通过 deviceNum 查询
         if (device == null) {

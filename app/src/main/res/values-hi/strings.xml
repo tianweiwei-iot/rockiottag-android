@@ -417,4 +417,34 @@
     <string name="navi_nearby_suggest_walk">केवल %s दूर, पैदे जाने की सलाह</string>
     <string name="navi_already_nearby">डिवाइस के पास है, नेविगेशन की आवश्यकता नहीं</string>
     <string name="navi_layer_toggle">परत टॉगल</string>
+
+    <!-- प्रोफ़ाइल -->
+    <string name="edit_profile">प्रोफ़ाइल संपादित करें</string>
+    <string name="change_password">पासवर्ड बदलें</string>
+    <string name="bind_email">ईमेल बाइंड करें</string>
+    <string name="nickname">उपनाम</string>
+    <string name="email">ईमेल</string>
+    <string name="old_password">पुराना पासवर्ड</string>
+    <string name="new_password">नया पासवर्ड</string>
+    <string name="not_logged_in">लॉग इन नहीं</string>
+    <string name="save_failed">सहेजने में विफल</string>
+    <string name="current_avatar">वर्तमान अवतार</string>
+    <string name="select_avatar">अवतार चुनें</string>
+    <string name="nickname_hint">उपनाम दर्ज करें</string>
+    <string name="profile_saved">प्रोफ़ाइल सहेजी गई</string>
+    <string name="profile_nickname_empty">उपनाम खाली नहीं हो सकता</string>
+    <string name="old_password_empty">पुराना पासवर्ड दर्ज करें</string>
+    <string name="password_changed">पासवर्ड सफलतापूर्वक बदला गया</string>
+    <string name="password_change_failed">पासवर्ड बदलने में विफल</string>
+    <string name="confirm_new_password">नया पासवर्ड पुष्टि करें</string>
+    <string name="input_old_password">पुराना पासवर्ड दर्ज करें</string>
+    <string name="email_invalid">अमान्य ईमेल प्रारूप</string>
+    <string name="email_bind_failed">ईमेल बाइंड करने में विफल</string>
+    <string name="email_hint">ईमेल पता दर्ज करें</string>
+    <string name="email_empty">ईमेल खाली नहीं हो सकता</string>
+    <string name="email_bound">ईमेल बाइंड हो गया</string>
+    <string name="confirm_password">पासवर्ड की पुष्टि करें</string>
+    <string name="password_rule">कम से कम 8 अक्षर, बड़े/छोटे अक्षर और संख्या</string>
+    <string name="password_invalid">अमान्य पासवर्ड प्रारूप</string>
+    <string name="password_not_match">पासवर्ड मेल नहीं खाते</string>
 </resources>

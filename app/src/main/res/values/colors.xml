@@ -1,27 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_500">#6200EE</color>
-    <color name="purple_700">#3700B3</color>
+    <color name="purple_500">#018AFF</color>
+    <color name="brand_primary">#018AFF</color>
+    <color name="brand_primary_dark">#0170D6</color>
+    <color name="purple_700">#0170D6</color>
     <color name="teal_200">#03DAC5</color>
     <color name="teal_700">#018786</color>
     <color name="black">#000000</color>
     <color name="white">#FFFFFF</color>
     <color name="background">#FFFFFF</color>
     <color name="surface">#FFFFFF</color>
+    <color name="dialog_surface">#F5F5F5</color>
     <color name="onSurface">#000000</color>
     <color name="top_bar_background">#FFFFFF</color>
     <color name="card_background">#FFFFFF</color>
-    <color name="card_background_selected">#E8D5F0</color> <!-- 浅紫色选中背景 -->
+    <color name="card_background_selected">#E0F3FF</color>
     <color name="text_secondary">#757575</color>
+    <color name="language_indicator_bg">#1A018AFF</color>
+    <color name="map_floating_button_bg">#FFFFFF</color>
+    <color name="map_floating_icon">#333333</color>
+    <color name="dark_map_floating_button_bg">#1E1E1E</color>
+    <color name="dark_map_floating_icon">#FFFFFF</color>
     
     <!-- 深色模式颜色 -->
     <color name="dark_background">#121212</color>
-    <color name="dark_surface">#121212</color>
+    <color name="dark_surface">#1E1E1E</color>
+    <color name="dark_dialog_surface">#2D2D2D</color>
     <color name="dark_onSurface">#FFFFFF</color>
     <color name="dark_top_bar_background">#121212</color>
     <color name="dark_card_background">#1E1E1E</color>
-    <color name="dark_card_background_selected">#3D2E4D</color> <!-- 深色模式选中背景 -->
+    <color name="dark_card_background_selected">#1A3A52</color>
     <color name="dark_text_secondary">#9E9E9E</color>
+    <color name="dark_language_indicator_bg">#33018AFF</color>
     <color name="dark_divider">#3C3C3C</color>
     
     <!-- ZXing colors -->

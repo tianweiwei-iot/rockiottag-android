@@ -1,7 +1,8 @@
 package com.RockiotTag.tag.util;
 
+import com.RockiotTag.tag.util.ToastHelper;
+
 import android.content.Context;
-import android.widget.Toast;
 
 import java.util.Objects;
 
@@ -47,14 +48,14 @@ public class SafeExecutor {
         } catch (NullPointerException e) {
             android.util.Log.e(TAG, "NullPointerException: " + errorMessage, e);
             if (context != null) {
-                Toast.makeText(context, "数据为空，请重试", Toast.LENGTH_SHORT).show();
+                ToastHelper.show(context, "数据为空，请重试");
             }
             return null;
         } catch (Exception e) {
             android.util.Log.e(TAG, errorMessage, e);
             if (context != null) {
                 String friendlyMessage = ErrorMessageResolver.resolveErrorMessage(context, e);
-                Toast.makeText(context, friendlyMessage, Toast.LENGTH_SHORT).show();
+                ToastHelper.show(context, friendlyMessage);
             }
             return null;
         }
@@ -76,14 +77,14 @@ public class SafeExecutor {
         } catch (NullPointerException e) {
             android.util.Log.e(TAG, "NullPointerException: " + errorMessage, e);
             if (context != null) {
-                Toast.makeText(context, "数据为空，使用默认值", Toast.LENGTH_SHORT).show();
+                ToastHelper.show(context, "数据为空，使用默认值");
             }
             return defaultValue;
         } catch (Exception e) {
             android.util.Log.e(TAG, errorMessage, e);
             if (context != null) {
                 String friendlyMessage = ErrorMessageResolver.resolveErrorMessage(context, e);
-                Toast.makeText(context, friendlyMessage, Toast.LENGTH_SHORT).show();
+                ToastHelper.show(context, friendlyMessage);
             }
             return defaultValue;
         }
@@ -121,13 +122,13 @@ public class SafeExecutor {
         } catch (NullPointerException e) {
             android.util.Log.e(TAG, "NullPointerException: " + errorMessage, e);
             if (context != null) {
-                Toast.makeText(context, "数据为空，请重试", Toast.LENGTH_SHORT).show();
+                ToastHelper.show(context, "数据为空，请重试");
             }
         } catch (Exception e) {
             android.util.Log.e(TAG, errorMessage, e);
             if (context != null) {
                 String friendlyMessage = ErrorMessageResolver.resolveErrorMessage(context, e);
-                Toast.makeText(context, friendlyMessage, Toast.LENGTH_SHORT).show();
+                ToastHelper.show(context, friendlyMessage);
             }
         }
     }
